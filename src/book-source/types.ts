@@ -32,6 +32,8 @@ export interface ChaptersRule {
   title: string
   /** 章节页 URL 字段规则 */
   itemUrl: string
+  /** 目录「下一页」链接 CSS 选择器（可选，分页目录自动翻页） */
+  next?: string
 }
 
 export interface ContentRule {
@@ -39,6 +41,8 @@ export interface ContentRule {
   url: string
   /** 正文字段规则：`选择器@text|html` + 管道 */
   content: string
+  /** 正文「下一页」链接 CSS 选择器（可选，正文分页自动拼接） */
+  next?: string
 }
 
 /** 搜索结果 */

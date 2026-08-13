@@ -132,7 +132,7 @@ src/
 - v1.0.0 Release 已发布，离线包 381KB（含演示内容，导入 TXT/EPUB 全功能）
 - 后续：版本号同步 1.0.0；README 移除私人口吻备注；知识库描述去包装化
 
-**迭代 9 —— EPUB 增强（待提交）**
+**迭代 9 —— EPUB 增强（61ba5ed）**
 - NCX（EPUB2）/ nav（EPUB3）目录解析：章节标题优先级 = 目录对齐 > 正文 h1-h3 > 文件名
 - 正文内嵌图片提取为 data URL（Chapter.images，文本 [img:N] 占位），阅读器渲染
   （滚动/翻页模式均支持，图片 break-inside: avoid）
@@ -140,20 +140,32 @@ src/
 - 数据流：Chapter.images 随 IndexedDB 缓存与备份序列化（自动包含）
 - 单测 +5（65 用例），E2E +1（6 用例，含图+NCX 夹具真实浏览器验证）
 - 未做（路线图保留）：EPUB 内嵌 CSS 样式与字体
-- manifest.json（standalone、主题色、192/512/180 图标）+ 图标生成脚本（.tmp/make-icons.mjs，
-  纯 Node zlib 手写 PNG 编码，零依赖）
-- sw.js：安装时预缓存应用壳（相对路径，兼容任意 base）、运行时缓存优先、导航离线回退应用壳、
-  版本化缓存清理
-- 生产环境才注册 SW（dev 跳过，避免缓存干扰开发）
-- InstallPrompt 安装引导条：beforeinstallprompt 一键安装 / iOS 添加到主屏幕指引 / 可关闭记忆
+
+**迭代 10 —— 书源规则增强（分页 / 分享 / 批量导入）**
+- 分页目录：`ChaptersRule.next`「下一页」链接选择器，fetchChapters 自动跨页抓取
+  （章节 URL 去重 + 翻页循环防护 + `MAX_TOC_PAGES=100` 上限）
+- 正文分页：`ContentRule.next` 选择器，fetchContent 自动拼接多页正文
+  （后续页缺正文视为分页结束不报错，`MAX_CONTENT_PAGES=20` 上限）
+- 规则分享：单书源生成分享链接 `#/source-import/<base64url>`，打开自动进入导入页
+  （新路由 + SourceImportView，含覆盖选项与结果明细）；书源行内「分享」按钮展示
+  链接与 JSON，一键复制（clipboard + 降级提示）
+- 批量导入增强：`importSources` 支持 `overwrite` 覆盖同 ID、返回 `{added,updated,skipped}`
+  明细；导入面板新增「选择 JSON 文件」；内置演示书源始终不可覆盖
+- 演示内容：新增「分页之书」（目录分两页演示分页目录）；「数据之海」第一章正文分两页
+  （sjzh-01b，演示正文分页）；DEMO_SOURCE 增加 next 规则（无匹配元素时单页，兼容旧页面）
+- 单测 +14（79 用例）：fetchChapters 分页/自环防护/上限、fetchContent 拼接/缺页容错/上限/
+  @text 正文规则取值与管道、importSources 覆盖语义与内置保护、分享 payload 编解码往返
+  （base64url URL 安全字符）
+- E2E +4（10 用例）：分页目录跨页抓取（书架卡片 1/6 章）、正文分页拼接、
+  分享链接打开即导入、分享面板生成链接
 
 ## 未完成任务
 
 - [ ] **AI 语义能力接入**：远程 API（CORS 方案待定）或本地模型，消费知识库数据
       （Provider 接口已就绪，src/ai/index.ts）
 - [ ] 语义级事件提取（三年之约）——需 LLM，v1 用章节实体快照替代
-- [ ] 书源规则增强：分页目录/正文、规则分享、批量导入书源包
-- [ ] EPUB 内嵌样式、插图与 NCX/nav 目录支持
+- [ ] 书源规则分享社区 / 规则包市场（分享链接与批量导入已支持，缺集中式分发渠道）
+- [ ] EPUB 内嵌 CSS 样式与字体支持（排版还原）
 - [ ] 测试覆盖扩展：store 层（pinia）、备份往返、在线书知识库（缓存章节分析）
 - [ ] README 演示 GIF
 
@@ -269,6 +281,12 @@ src/
 32. **Big5 自动检测**：已实现（BOM → UTF-8 严格校验 → 四编码评分择优含 Big5），
     有单测覆盖；README 描述与实际一致（勿误判为未实现）
 
+### 书源引擎（迭代 10 新增）
+33. **正文分页末页结构可能不同**：分页正文的最后一页常缺少正文容器或结构变化，
+    后续页选择器未命中时若**已有内容则停止拼接**而非抛错（首页未命中仍报错，便于定位规则问题）
+34. **分享 payload 用 base64url**：`btoa` 输出含 `+/=` 会破坏 URL/路由参数，
+    需替换为 `-_` 并去掉 `=`；中文先 TextEncoder 转字节再 base64（避免 unescape 弃用 API）
+
 ## 测试方法备忘
 
 - 常规回归：`npm run type-check && npm run build`；`npm run dev` 后浏览器实测
@@ -279,5 +297,7 @@ src/
 - 种子页约束：纯 JS 无类型注解；避免 const 重名（整页静默失败）
 - UI 交互：IAB 定位器点击可能失效 → `tab.cua.click({x,y})` 坐标点击（布局变化坐标会漂移，
   先读文本定位再估算）；悬停类元素（⋯/✕/析）需单次调用内 悬停→读坐标→点击
+- **E2E 在 PowerShell 下 exit code 可能为 1**：dev server 的 NO_COLOR 等警告走 stderr，
+  被管道计入退出码——以 Playwright 用例统计（passed/failed）为准，勿误判失败
 - 发布：提交后 GitHub Actions 自动部署，约 2 分钟内生效；
   验证线上：`curl https://skyyapa.github.io/qingyue/ | grep index-`

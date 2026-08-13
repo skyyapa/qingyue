@@ -1,9 +1,15 @@
 /** 规则引擎：模板渲染 + CSS 选择器提取 + 管道后处理
  *  字段规则格式：`选择器@text|html|href|outerHTML|pipe1|pipe2`
  *  模板变量：{{keyword}} / {{bookUrl}} / {{chapterUrl}}（URL 场景自动编码）
+ *  分页：ChaptersRule.next / ContentRule.next 声明「下一页」链接选择器，自动翻页
  */
 import { fetchHtml } from './requester'
 import type { BookSource, ChapterItem, SearchResult } from './types'
+
+/** 目录分页上限（防止死循环/恶意站点） */
+export const MAX_TOC_PAGES = 100
+/** 正文分页上限（一章最多拼接页数） */
+export const MAX_CONTENT_PAGES = 20
 
 /** 渲染模板（变量用于 URL，自动 encode；模板整体就是单个变量时原样使用） */
 export function renderTemplate(tpl: string, vars: Record<string, string>): string {
@@ -156,34 +162,73 @@ export async function searchSource(source: BookSource, keyword: string): Promise
     .filter((r) => r.title && r.bookUrl && r.title.toLowerCase().includes(kw))
 }
 
-/** 抓取目录 */
-export async function fetchChapters(source: BookSource, bookUrl: string): Promise<ChapterItem[]> {
-  if (!source.chapters) throw new Error(`书源「${source.name}」未配置目录规则`)
-  const url = resolveUrl(renderTemplate(source.chapters.url, { bookUrl }), source.baseUrl)
-  const html = await fetchHtml(url)
-  return extractList(html, source.chapters.list)
-    .map((el) => ({
-      title: extractField(el, source.chapters!.title),
-      url: resolveExtracted(extractField(el, source.chapters!.itemUrl), url),
-    }))
-    .filter((c) => c.title && c.url)
+/** 解析「下一页」链接：按选择器取 href，相对页面 URL 解析；防循环（返回 null 停止翻页） */
+function nextPageUrl(doc: Document, selector: string, pageUrl: string, seenPages: Set<string>): string | null {
+  const el = doc.querySelector(selector)
+  if (!el) return null
+  const href = el.getAttribute('href') ?? el.getAttribute('data-href') ?? ''
+  if (!href) return null
+  const url = resolveExtracted(href, pageUrl)
+  if (!url || url === pageUrl || seenPages.has(url)) return null
+  seenPages.add(url)
+  return url
 }
 
-/** 抓取正文并清洗 */
+/** 抓取目录（支持 next 分页：自动跟随「下一页」直到无链接或达上限） */
+export async function fetchChapters(source: BookSource, bookUrl: string): Promise<ChapterItem[]> {
+  if (!source.chapters) throw new Error(`书源「${source.name}」未配置目录规则`)
+  const chapters: ChapterItem[] = []
+  const seenUrls = new Set<string>()
+  const seenPages = new Set<string>()
+  let pageUrl: string | null = resolveUrl(renderTemplate(source.chapters.url, { bookUrl }), source.baseUrl)
+  let pages = 0
+  while (pageUrl && pages < MAX_TOC_PAGES) {
+    pages++
+    const html = await fetchHtml(pageUrl)
+    const doc = parseHtml(html)
+    for (const el of extractList(html, source.chapters.list)) {
+      const title = extractField(el, source.chapters!.title)
+      const url = resolveExtracted(extractField(el, source.chapters!.itemUrl), pageUrl)
+      if (title && url && !seenUrls.has(url)) {
+        seenUrls.add(url)
+        chapters.push({ title, url })
+      }
+    }
+    pageUrl = source.chapters.next ? nextPageUrl(doc, source.chapters.next, pageUrl, seenPages) : null
+  }
+  return chapters
+}
+
+/** 抓取正文并清洗（支持 next 分页：自动跟随拼接直到无链接或达上限） */
 export async function fetchContent(source: BookSource, chapterUrl: string): Promise<string> {
   if (!source.content) throw new Error(`书源「${source.name}」未配置正文规则`)
-  const url = resolveUrl(renderTemplate(source.content.url, { chapterUrl }), source.baseUrl)
-  const html = await fetchHtml(url)
-  const doc = parseHtml(html)
-  const rule = source.content.content
-  const at = rule.lastIndexOf('@')
-  const selector = at >= 0 ? rule.slice(0, at).trim() : rule.trim()
-  const attr = at >= 0 ? rule.slice(at + 1).split('|')[0].trim() : 'text'
-  const el = doc.querySelector(selector)
-  if (!el) throw new Error('正文提取失败：未匹配到选择器')
-  let text = extractField(el, rule) // 应用管道
-  if (attr === 'html') text = htmlToText(el)
-  return cleanContent(text)
+  const parts: string[] = []
+  const seenPages = new Set<string>()
+  let pageUrl: string | null = resolveUrl(renderTemplate(source.content.url, { chapterUrl }), source.baseUrl)
+  let pages = 0
+  while (pageUrl && pages < MAX_CONTENT_PAGES) {
+    pages++
+    const html = await fetchHtml(pageUrl)
+    const doc = parseHtml(html)
+    const { selector, attr, pipes } = parseFieldRule(source.content.content)
+    const el = doc.querySelector(selector)
+    if (!el) {
+      // 已有内容时，后续页缺正文视为分页结束（站点末页结构可能不同）
+      if (parts.length > 0) break
+      throw new Error('正文提取失败：未匹配到选择器')
+    }
+    // 直接对匹配元素取值（不再二次 querySelector，@text 规则也能命中元素自身）
+    let text: string
+    if (attr === 'html') text = htmlToText(el)
+    else if (attr === 'text') text = el.textContent ?? ''
+    else if (attr === 'outerHTML') text = el.outerHTML
+    else if (attr === 'href') text = el.getAttribute('href') ?? ''
+    else text = el.getAttribute(attr) ?? ''
+    for (const { from, to } of pipes) text = text.split(from).join(to)
+    parts.push(text)
+    pageUrl = source.content.next ? nextPageUrl(doc, source.content.next, pageUrl, seenPages) : null
+  }
+  return cleanContent(parts.join('\n\n'))
 }
 
 /** 书源规则校验（返回错误信息，空表示合法） */

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { loadSources, saveSources, addSource, updateSource, removeSource, importSources, exportSources, DEMO_SOURCE } from '@/book-source/store'
+import { computed, ref } from 'vue'
+import { loadSources, saveSources, addSource, updateSource, removeSource, importSources, exportSources, shareSourceUrl, DEMO_SOURCE } from '@/book-source/store'
 import { loadProxyConfig, saveProxyConfig, testProxy } from '@/book-source/requester'
 import { searchSource, validateSource, sourceTemplate } from '@/book-source/engine'
 import { downloadBlob } from '@/utils/file'
@@ -85,21 +85,68 @@ function onRemove(index: number): void {
 // ---------- 导入导出 ----------
 const importText = ref('')
 const showImport = ref(false)
+const overwriteImport = ref(false)
+const importFileInput = ref<HTMLInputElement | null>(null)
 
 function onImport(): void {
   try {
-    const added = importSources(importText.value)
+    const r = importSources(importText.value, { overwrite: overwriteImport.value })
     sources.value = loadSources()
     showImport.value = false
     importText.value = ''
-    editorError.value = added > 0 ? `导入成功：新增 ${added} 个书源` : '没有新增（ID 已存在或格式无效）'
+    overwriteImport.value = false
+    editorError.value =
+      r.added + r.updated > 0
+        ? `导入成功：新增 ${r.added} 个，覆盖 ${r.updated} 个，跳过 ${r.skipped} 个`
+        : `没有新增：跳过 ${r.skipped} 个（ID 已存在或格式无效）`
   } catch (e) {
     editorError.value = `导入失败：${e instanceof Error ? e.message : String(e)}`
   }
 }
 
+function pickImportFile(): void {
+  importFileInput.value?.click()
+}
+
+async function onImportFile(e: Event): Promise<void> {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  try {
+    importText.value = await file.text()
+    editorError.value = ''
+  } catch (err) {
+    editorError.value = `读取文件失败：${err instanceof Error ? err.message : String(err)}`
+  } finally {
+    input.value = ''
+  }
+}
+
 function onExport(): void {
   downloadBlob(new Blob([exportSources()], { type: 'application/json' }), 'qingyue-sources.json')
+}
+
+// ---------- 分享 ----------
+const shareIndex = ref<number | null>(null)
+const shareNote = ref('')
+const shareSource = computed<BookSource | null>(() =>
+  shareIndex.value === null ? null : (sources.value[shareIndex.value] ?? null)
+)
+const shareLink = computed(() => (shareSource.value ? shareSourceUrl(shareSource.value) : ''))
+const shareJson = computed(() => (shareSource.value ? JSON.stringify(shareSource.value, null, 2) : ''))
+
+function openShare(index: number): void {
+  shareIndex.value = index
+  shareNote.value = ''
+}
+
+async function copyText(text: string, label: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(text)
+    shareNote.value = `${label}已复制到剪贴板`
+  } catch {
+    shareNote.value = `${label}复制失败，请手动选择复制`
+  }
 }
 
 // ---------- 搜索测试 ----------
@@ -181,6 +228,7 @@ async function runSearchTest(index: number): Promise<void> {
             <span class="source-id">{{ s.id }}</span>
             <button class="btn-small" @click="startEdit(i)">编辑</button>
             <button class="btn-small" @click="openTestPanel(i)">搜索测试</button>
+            <button class="btn-small" @click="openShare(i)">分享</button>
             <button class="btn-small danger" :disabled="s.id === DEMO_SOURCE.id" @click="onRemove(i)">删除</button>
           </div>
         </div>
@@ -200,6 +248,21 @@ async function runSearchTest(index: number): Promise<void> {
               <span class="test-source">{{ r.sourceName }}</span>
             </div>
           </div>
+        </div>
+
+        <!-- 分享面板 -->
+        <div v-if="shareSource" class="test-panel">
+          <p class="share-title">分享「{{ shareSource.name }}」</p>
+          <div class="share-row">
+            <input class="share-input" type="text" readonly :value="shareLink" @focus="($event.target as HTMLInputElement).select()" />
+            <button class="btn" @click="copyText(shareLink, '分享链接')">复制链接</button>
+          </div>
+          <div class="share-row">
+            <button class="btn" @click="copyText(shareJson, '书源 JSON')">复制 JSON</button>
+            <button class="btn" @click="shareIndex = null; shareNote = ''">关闭</button>
+          </div>
+          <p class="section-desc">分享链接打开后会自动进入导入页，一键添加书源。</p>
+          <p v-if="shareNote" class="proxy-result">{{ shareNote }}</p>
         </div>
 
         <div class="source-actions">
@@ -229,6 +292,14 @@ async function runSearchTest(index: number): Promise<void> {
             rows="12"
             spellcheck="false"
           ></textarea>
+          <div class="import-options">
+            <label class="import-overwrite">
+              <input v-model="overwriteImport" type="checkbox" />
+              <span>覆盖同 ID 书源</span>
+            </label>
+            <button class="btn" @click="pickImportFile">选择 JSON 文件</button>
+            <input ref="importFileInput" type="file" accept=".json,application/json" class="hidden-file" @change="onImportFile" />
+          </div>
           <p v-if="editorError" class="test-error">{{ editorError }}</p>
           <div class="editor-actions">
             <button class="btn btn-primary" @click="onImport">导入书源</button>
@@ -413,6 +484,43 @@ async function runSearchTest(index: number): Promise<void> {
   gap: 8px;
   align-items: baseline;
   font-size: 13px;
+}
+.share-title {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.share-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.share-input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--panel-border);
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 12px;
+  outline: none;
+}
+.import-options {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.import-overwrite {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.hidden-file {
+  display: none;
 }
 .test-title {
   font-weight: 600;

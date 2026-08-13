@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { extractField, fetchChapters, fetchContent, renderTemplate, resolveExtracted, searchSource } from '../engine'
+import { extractField, fetchChapters, fetchContent, renderTemplate, resolveExtracted, searchSource, MAX_TOC_PAGES, MAX_CONTENT_PAGES } from '../engine'
 import { DEMO_SOURCE } from '../store'
 import type { BookSource } from '../types'
 
@@ -8,6 +8,21 @@ function stubFetch(html: string) {
   vi.stubGlobal(
     'fetch',
     vi.fn(async () => new Response(html, { status: 200, headers: { 'content-type': 'text/html; charset=utf-8' } }))
+  )
+}
+
+/** 按目标 URL 分发响应的 fetch mock（兼容代理通道：从 ?url= 参数还原目标地址） */
+function stubFetchMap(map: Record<string, string>) {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: string) => {
+      const raw = String(input)
+      const q = raw.indexOf('?url=')
+      const target = q >= 0 ? decodeURIComponent(raw.slice(q + 5)) : raw
+      const html = map[target]
+      if (html === undefined) return new Response('not found', { status: 404 })
+      return new Response(html, { status: 200, headers: { 'content-type': 'text/html; charset=utf-8' } })
+    })
   )
 }
 
@@ -124,8 +139,105 @@ describe('fetchContent 正文抓取', () => {
     await expect(fetchContent(DEMO_SOURCE, 'https://localhost/c1.html')).rejects.toThrow(/未匹配到选择器/)
   })
 
+  it('@text 规则取元素自身文本并应用管道', async () => {
+    stubFetch('<html><body><div id="content"><p>页一</p><p>页二</p></div></body></html>')
+    const source: BookSource = {
+      ...DEMO_SOURCE,
+      content: { url: '{{chapterUrl}}', content: '#content@text|replace:页,段' },
+    }
+    const text = await fetchContent(source, 'https://localhost/c1.html')
+    expect(text).toContain('段一')
+    expect(text).toContain('段二')
+  })
+
   it('未配置正文规则报错', async () => {
     const source: BookSource = { id: 'x', name: 'x', baseUrl: '', enabled: true, chapters: DEMO_SOURCE.chapters }
     await expect(fetchContent(source, 'https://localhost/c1.html')).rejects.toThrow(/未配置正文规则/)
+  })
+})
+
+describe('fetchChapters 分页目录', () => {
+  const source: BookSource = {
+    ...DEMO_SOURCE,
+    chapters: { ...DEMO_SOURCE.chapters!, next: '.toc-next' },
+  }
+
+  it('跟随 next 链接跨页抓取并合并', async () => {
+    stubFetchMap({
+      'https://localhost/books/paged-book.html': `<ul id="toc">
+        <li><a href="../chapters/paged-01.html">第一章 风起</a></li>
+        <li><a href="../chapters/paged-02.html">第二章 云涌</a></li>
+      </ul><a class="toc-next" href="paged-book-2.html">下一页 ›</a>`,
+      'https://localhost/books/paged-book-2.html': `<ul id="toc">
+        <li><a href="../chapters/paged-03.html">第三章 雨落</a></li>
+        <li><a href="../chapters/paged-04.html">第四章 雷动</a></li>
+      </ul>`,
+    })
+    const chapters = await fetchChapters(source, 'https://localhost/books/paged-book.html')
+    expect(chapters).toHaveLength(4)
+    expect(chapters.map((c) => c.title)).toEqual(['第一章 风起', '第二章 云涌', '第三章 雨落', '第四章 雷动'])
+    expect(chapters[3].url).toContain('chapters/paged-04.html')
+  })
+
+  it('next 指向自身时停止（防死循环）', async () => {
+    stubFetchMap({
+      'https://localhost/books/loop.html': `<ul id="toc"><li><a href="../chapters/c1.html">第一章</a></li></ul>
+        <a class="toc-next" href="loop.html">下一页</a>`,
+    })
+    const chapters = await fetchChapters(source, 'https://localhost/books/loop.html')
+    expect(chapters).toHaveLength(1)
+  })
+
+  it('超过目录分页上限时停止', async () => {
+    const map: Record<string, string> = {}
+    for (let i = 0; i <= MAX_TOC_PAGES; i++) {
+      const next = i < MAX_TOC_PAGES ? `<a class="toc-next" href="p${i + 1}.html">下一页</a>` : ''
+      map[`https://localhost/books/p${i}.html`] = `<ul id="toc"><li><a href="../chapters/c${i}.html">第${i}章</a></li></ul>${next}`
+    }
+    stubFetchMap(map)
+    const chapters = await fetchChapters(source, 'https://localhost/books/p0.html')
+    expect(chapters).toHaveLength(MAX_TOC_PAGES)
+  })
+})
+
+describe('fetchContent 正文分页', () => {
+  const source: BookSource = {
+    ...DEMO_SOURCE,
+    content: { ...DEMO_SOURCE.content!, next: '.content-next' },
+  }
+
+  it('跟随 next 链接拼接多页正文', async () => {
+    stubFetchMap({
+      'https://localhost/chapters/c1.html': `<div id="content"><p>　　第一页内容。</p></div>
+        <a class="content-next" href="c1b.html">下一页 ›</a>`,
+      'https://localhost/chapters/c1b.html': `<div id="content"><p>　　第二页内容。</p></div>`,
+    })
+    const text = await fetchContent(source, 'https://localhost/chapters/c1.html')
+    expect(text).toContain('第一页内容')
+    expect(text).toContain('第二页内容')
+  })
+
+  it('后续页缺正文时停止拼接（不报错）', async () => {
+    stubFetchMap({
+      'https://localhost/chapters/c1.html': `<div id="content"><p>　　第一页内容。</p></div>
+        <a class="content-next" href="c1b.html">下一页 ›</a>`,
+      'https://localhost/chapters/c1b.html': `<html><body><div id="nope">x</div></body></html>`,
+    })
+    const text = await fetchContent(source, 'https://localhost/chapters/c1.html')
+    expect(text).toContain('第一页内容')
+    expect(text).not.toContain('第二页内容')
+  })
+
+  it('超过正文分页上限时停止', async () => {
+    const map: Record<string, string> = {}
+    for (let i = 0; i <= MAX_CONTENT_PAGES; i++) {
+      const next = i < MAX_CONTENT_PAGES ? `<a class="content-next" href="c${i + 1}.html">下一页</a>` : ''
+      map[`https://localhost/chapters/c${i}.html`] = `<div id="content"><p>　　第${i}页片段。</p></div>${next}`
+    }
+    stubFetchMap(map)
+    const text = await fetchContent(source, 'https://localhost/chapters/c0.html')
+    for (let i = 0; i < MAX_CONTENT_PAGES; i++) {
+      expect(text).toContain(`第${i}页片段`)
+    }
   })
 })
