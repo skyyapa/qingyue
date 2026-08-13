@@ -11,6 +11,8 @@
   --shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
   --topbar: rgba(247, 245, 240, 0.92);
   --danger: #e05c5c;
+  /* 拟真书页的纸张纹理（灰度噪声，叠在面板色上） */
+  --paper-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23g)' opacity='0.055'/%3E%3C/svg%3E");
 }
 [data-theme='night'] {
   --bg: #17181c;
@@ -47,6 +49,78 @@
   --shadow: 0 4px 24px rgba(0, 0, 0, 0.1);
   --topbar: rgba(243, 234, 214, 0.92);
   --danger: #c05656;
+}
+[data-theme='pure'] {
+  --bg: #ffffff;
+  --fg: #1f2328;
+  --fg-weak: #8a9199;
+  --panel: #ffffff;
+  --panel-border: rgba(0, 0, 0, 0.1);
+  --accent: #2f6fed;
+  --accent-weak: rgba(47, 110, 237, 0.1);
+  --shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  --topbar: rgba(255, 255, 255, 0.92);
+  --danger: #e05c5c;
+}
+[data-theme='celadon'] {
+  --bg: #e6f0ec;
+  --fg: #32423b;
+  --fg-weak: #7a9088;
+  --panel: #f2f9f6;
+  --panel-border: rgba(0, 0, 0, 0.06);
+  --accent: #2f8f78;
+  --accent-weak: rgba(47, 143, 120, 0.14);
+  --shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  --topbar: rgba(230, 240, 236, 0.92);
+  --danger: #c05656;
+}
+[data-theme='pink'] {
+  --bg: #fdeef1;
+  --fg: #4a3640;
+  --fg-weak: #a08a92;
+  --panel: #fff5f7;
+  --panel-border: rgba(0, 0, 0, 0.06);
+  --accent: #d75f84;
+  --accent-weak: rgba(215, 95, 132, 0.14);
+  --shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  --topbar: rgba(253, 238, 241, 0.92);
+  --danger: #c05656;
+}
+[data-theme='ocean'] {
+  --bg: #1b2334;
+  --fg: #c3ccdb;
+  --fg-weak: #6b768a;
+  --panel: #242e42;
+  --panel-border: rgba(255, 255, 255, 0.08);
+  --accent: #7aa0ff;
+  --accent-weak: rgba(122, 160, 255, 0.16);
+  --shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+  --topbar: rgba(27, 35, 52, 0.92);
+  --danger: #e06c6c;
+}
+[data-theme='pine'] {
+  --bg: #1e2a23;
+  --fg: #c7d4cb;
+  --fg-weak: #6f7f75;
+  --panel: #27352c;
+  --panel-border: rgba(255, 255, 255, 0.08);
+  --accent: #7fbfa2;
+  --accent-weak: rgba(127, 191, 162, 0.16);
+  --shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+  --topbar: rgba(30, 42, 35, 0.92);
+  --danger: #e06c6c;
+}
+[data-theme='graphite'] {
+  --bg: #26282c;
+  --fg: #c8ccd1;
+  --fg-weak: #767b82;
+  --panel: #313439;
+  --panel-border: rgba(255, 255, 255, 0.08);
+  --accent: #9aa5b1;
+  --accent-weak: rgba(154, 165, 177, 0.16);
+  --shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+  --topbar: rgba(38, 40, 44, 0.92);
+  --danger: #e06c6c;
 }
 
 /* ===================== 基础 ===================== */

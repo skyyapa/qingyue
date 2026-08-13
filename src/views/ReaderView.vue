@@ -218,9 +218,9 @@ watch(
   }
 )
 
-// 设置（字号/行距/字体/翻页方式）变化后重排并尽量保持阅读位置
+// 设置（字号/行距/字体/翻页方式/书页效果）变化后重排并尽量保持阅读位置
 watch(
-  () => [settings.settings.fontSize, settings.settings.lineHeight, settings.settings.font, settings.settings.pageMode],
+  () => [settings.settings.fontSize, settings.settings.lineHeight, settings.settings.font, settings.settings.pageMode, settings.settings.bookPage],
   async () => {
     await nextTick()
     await restoreRatio(readRatio())
@@ -247,7 +247,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="reader" :class="`reader-${pageMode}`">
+  <div class="reader" :class="[`reader-${pageMode}`, { bookpage: settings.settings.bookPage }]">
     <header class="reader-top">
       <button class="icon-btn" title="返回书架" @click="router.push('/')">←</button>
       <div class="reader-title">
@@ -421,6 +421,20 @@ onBeforeUnmount(() => {
 .paged-content .para-img {
   break-inside: avoid;
 }
+/* 拟真书页：正文渲染为带纸张质感与阴影的书页 */
+.reader.bookpage .scroll-inner {
+  background-color: var(--panel);
+  background-image: var(--paper-grain);
+  border-radius: 14px;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, 0.14), 0 2px 8px rgba(0, 0, 0, 0.08),
+    inset 0 0 0 1px var(--panel-border);
+  padding: 40px 36px 56px;
+  margin: 28px auto 48px;
+}
+.reader.bookpage .paged-area {
+  background-color: var(--panel);
+  background-image: var(--paper-grain);
+}
 .chapter-heading {
   text-align: center;
   font-size: 1.15em;
@@ -521,6 +535,10 @@ onBeforeUnmount(() => {
 @media (max-width: 560px) {
   .scroll-inner {
     padding: 20px 16px 48px;
+  }
+  .reader.bookpage .scroll-inner {
+    padding: 28px 20px 48px;
+    margin: 16px 12px 32px;
   }
 }
 </style>

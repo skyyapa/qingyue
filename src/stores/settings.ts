@@ -11,6 +11,7 @@ export const DEFAULT_SETTINGS: ReaderSettings = {
   theme: 'default',
   font: 'system',
   showNextHint: true,
+  bookPage: true,
 }
 
 function loadSettings(): ReaderSettings {

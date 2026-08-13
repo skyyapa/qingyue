@@ -31,4 +31,26 @@ test.describe('书架与阅读', () => {
     await expect(page.locator('.book-title')).toHaveText('江湖夜雨')
     await expect(page.locator('.progress-text')).toContainText('第 2/5 章')
   })
+
+  test('阅读界面：切换主题皮肤与拟真书页', async ({ page }) => {
+    await page.goto('/')
+    await page.getByRole('button', { name: '＋ 导入书籍' }).click()
+    await page.locator('input[type="file"]').setInputFiles('e2e/fixtures/江湖夜雨.txt')
+    await page.waitForURL(/#\/reader\//)
+    await expect(page.locator('.title-book')).toHaveText('江湖夜雨')
+    // 拟真书页默认开启
+    await expect(page.locator('.reader.bookpage')).toBeVisible()
+    // 打开阅读设置
+    await page.locator('button[title="阅读设置"]').click()
+    // 主题画廊应含 10 套皮肤
+    await expect(page.locator('.theme-card')).toHaveCount(10)
+    // 切换主题：深蓝 → html data-theme 随之变化
+    await page.getByRole('button', { name: '深蓝' }).click()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'ocean')
+    // 关闭拟真书页 → 再开启
+    await page.getByRole('button', { name: '简洁' }).click()
+    await expect(page.locator('.reader.bookpage')).toHaveCount(0)
+    await page.getByRole('button', { name: '拟真书页' }).click()
+    await expect(page.locator('.reader.bookpage')).toBeVisible()
+  })
 })

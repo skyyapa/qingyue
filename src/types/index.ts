@@ -56,8 +56,18 @@ export interface ReadProgress {
 /** 翻页方式 */
 export type PageMode = 'scroll' | 'paged'
 
-/** 主题 */
-export type ThemeName = 'default' | 'night' | 'eye' | 'paper'
+/** 主题（阅读界面皮肤） */
+export type ThemeName =
+  | 'default'
+  | 'pure'
+  | 'paper'
+  | 'celadon'
+  | 'eye'
+  | 'pink'
+  | 'night'
+  | 'ocean'
+  | 'pine'
+  | 'graphite'
 
 /** 正文字体 */
 export type FontName = 'system' | 'serif' | 'song' | 'hei' | 'kai'
@@ -73,6 +83,8 @@ export interface ReaderSettings {
   font: FontName
   /** 章节末尾显示「下一章」入口 */
   showNextHint: boolean
+  /** 拟真书页效果：正文渲染为带纸张质感与阴影的书页 */
+  bookPage: boolean
 }
 
 /** TXT 解码编码选项 */

@@ -5,11 +5,17 @@ import type { FontName, ThemeName } from '@/types'
 const emit = defineEmits<{ close: [] }>()
 const settings = useSettingsStore()
 
-const themes: { name: ThemeName; label: string; swatch: string }[] = [
-  { name: 'default', label: '默认', swatch: '#f7f5f0' },
-  { name: 'night', label: '夜间', swatch: '#17181c' },
-  { name: 'eye', label: '护眼', swatch: '#cfe7cf' },
-  { name: 'paper', label: '羊皮纸', swatch: '#f3ead6' },
+const themes: { name: ThemeName; label: string; swatch: string; accent: string }[] = [
+  { name: 'default', label: '默认', swatch: '#f7f5f0', accent: '#4f7cff' },
+  { name: 'pure', label: '极简白', swatch: '#ffffff', accent: '#2f6fed' },
+  { name: 'paper', label: '羊皮纸', swatch: '#f3ead6', accent: '#a0703c' },
+  { name: 'celadon', label: '青瓷', swatch: '#e6f0ec', accent: '#2f8f78' },
+  { name: 'eye', label: '护眼', swatch: '#cfe7cf', accent: '#3d8b3d' },
+  { name: 'pink', label: '樱花粉', swatch: '#fdeef1', accent: '#d75f84' },
+  { name: 'night', label: '夜间', swatch: '#17181c', accent: '#6d95ff' },
+  { name: 'ocean', label: '深蓝', swatch: '#1b2334', accent: '#7aa0ff' },
+  { name: 'pine', label: '墨绿', swatch: '#1e2a23', accent: '#7fbfa2' },
+  { name: 'graphite', label: '石墨', swatch: '#26282c', accent: '#9aa5b1' },
 ]
 
 const fonts: { name: FontName; label: string }[] = [
@@ -45,16 +51,39 @@ const fonts: { name: FontName; label: string }[] = [
 
         <section class="setting-group">
           <p class="group-title">主题</p>
-          <div class="theme-row">
+          <div class="theme-grid">
             <button
               v-for="t in themes"
               :key="t.name"
-              class="theme-swatch"
+              class="theme-card"
               :class="{ active: settings.settings.theme === t.name }"
-              :style="{ background: t.swatch }"
-              :title="t.label"
               @click="settings.settings.theme = t.name"
-            ></button>
+            >
+              <span class="theme-preview" :style="{ background: t.swatch }">
+                <i class="theme-dot" :style="{ background: t.accent }"></i>
+              </span>
+              <span class="theme-label">{{ t.label }}</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="setting-group">
+          <p class="group-title">书页效果</p>
+          <div class="chip-row">
+            <button
+              class="chip"
+              :class="{ active: settings.settings.bookPage }"
+              @click="settings.settings.bookPage = true"
+            >
+              拟真书页
+            </button>
+            <button
+              class="chip"
+              :class="{ active: !settings.settings.bookPage }"
+              @click="settings.settings.bookPage = false"
+            >
+              简洁
+            </button>
           </div>
         </section>
 
@@ -158,21 +187,48 @@ const fonts: { name: FontName; label: string }[] = [
   font-size: 13px;
   color: var(--accent);
 }
-.theme-row {
+.theme-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.theme-card {
   display: flex;
-  gap: 14px;
-}
-.theme-swatch {
-  width: 44px;
-  height: 44px;
+  flex-direction: column;
+  gap: 6px;
+  align-items: stretch;
+  padding: 6px;
+  border: 1px solid var(--panel-border);
   border-radius: 10px;
-  border: 2px solid var(--panel-border);
+  background: transparent;
   cursor: pointer;
-  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
 }
-.theme-swatch.active {
+.theme-card:hover {
+  border-color: var(--accent);
+}
+.theme-card.active {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px var(--accent-weak);
+}
+.theme-preview {
+  position: relative;
+  height: 40px;
+  border-radius: 7px;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+}
+.theme-dot {
+  position: absolute;
+  right: 7px;
+  bottom: 7px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+}
+.theme-label {
+  font-size: 12px;
+  color: var(--fg);
+  text-align: center;
 }
 .chip-row {
   display: flex;
