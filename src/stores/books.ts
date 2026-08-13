@@ -40,6 +40,9 @@ export const useBooksStore = defineStore('books', () => {
   const loaded = ref(false)
   const importing = ref(false)
   const importError = ref('')
+  /** 导入进度：正在导入的文件名与读取进度 0-1 */
+  const importFileName = ref('')
+  const importProgress = ref(0)
 
   /** 自定义分组名列表（'' 为默认分组，不在列表内） */
   const groups = ref<string[]>(loadStringArray(GROUPS_KEY))
@@ -64,7 +67,12 @@ export const useBooksStore = defineStore('books', () => {
     let last: BookMeta | null = null
     try {
       for (const file of Array.from(files)) {
-        const parsed = await importBook(file, encoding)
+        importFileName.value = file.name
+        importProgress.value = 0
+        const parsed = await importBook(file, encoding, (r) => {
+          importProgress.value = r
+        })
+        importProgress.value = 1 // 读取完成，进入解析/入库阶段
         const id = genId()
         const chapterChars = parsed.chapters.map((c) => c.text.length)
         const meta: BookMeta = {
@@ -89,10 +97,17 @@ export const useBooksStore = defineStore('books', () => {
       await refresh()
       return last
     } catch (error) {
-      importError.value = error instanceof Error ? error.message : String(error)
+      importError.value =
+        error instanceof Error
+          ? error.name === 'QuotaExceededError'
+            ? '浏览器存储空间不足，无法保存该书，请清理书架后重试'
+            : error.message
+          : String(error)
       return null
     } finally {
       importing.value = false
+      importFileName.value = ''
+      importProgress.value = 0
     }
   }
 
@@ -164,6 +179,8 @@ export const useBooksStore = defineStore('books', () => {
     loaded,
     importing,
     importError,
+    importFileName,
+    importProgress,
     groups,
     groupOrder,
     sortMode,

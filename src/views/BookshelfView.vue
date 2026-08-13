@@ -7,6 +7,7 @@ import { formatDuration } from '@/utils/progress'
 import BookCard from '@/components/BookCard.vue'
 import ImportDialog from '@/components/ImportDialog.vue'
 import AppDialog from '@/components/AppDialog.vue'
+import BackupDialog from '@/components/BackupDialog.vue'
 import type { BookMeta } from '@/types'
 
 const books = useBooksStore()
@@ -14,6 +15,7 @@ const stats = useStatsStore()
 const router = useRouter()
 
 const showImport = ref(false)
+const showBackup = ref(false)
 const dragging = ref(false)
 
 /** 应用内对话框（替代原生 confirm/prompt） */
@@ -179,6 +181,7 @@ const emptyText = computed(() => {
         <span class="stat-chip stat-total">累计 {{ formatDuration(stats.totalSeconds) }}</span>
       </div>
       <input v-model="searchQuery" class="search-input" type="search" placeholder="搜索书名 / 作者" />
+      <button class="btn btn-ghost-icon" title="数据备份（导出/导入）" @click="showBackup = true">⇅</button>
       <button class="btn btn-primary" @click="showImport = true">＋ 导入书籍</button>
     </header>
 
@@ -225,6 +228,7 @@ const emptyText = computed(() => {
     <div v-if="dragging" class="drop-overlay">松开鼠标导入书籍</div>
 
     <ImportDialog v-if="showImport" @close="showImport = false" @imported="onImported" />
+    <BackupDialog v-if="showBackup" @close="showBackup = false" @imported="books.refresh" />
     <AppDialog
       v-if="dialog"
       :title="dialog.title"
@@ -317,6 +321,10 @@ const emptyText = computed(() => {
 }
 .search-input:focus {
   border-color: var(--accent);
+}
+.btn-ghost-icon {
+  padding: 7px 12px;
+  flex-shrink: 0;
 }
 .group-bar {
   display: flex;

@@ -22,15 +22,43 @@ function tryDecodeUtf8(bytes: Uint8Array): string | null {
   }
 }
 
-/** 解码文本：BOM 优先 → UTF-8 → GB18030 回退；也可手动指定编码 */
+/** 文本“合理性”评分：常用字符加分，控制符 / 替换符扣分（用于候选编码择优） */
+function scoreText(text: string): number {
+  let score = 0
+  const n = Math.min(text.length, 20000)
+  for (let i = 0; i < n; i++) {
+    const c = text.charCodeAt(i)
+    if (c === 0xfffd) {
+      score -= 50 // 替换符（解码错位）
+      continue
+    }
+    if (c < 32 && c !== 9 && c !== 10 && c !== 13) {
+      score -= 10 // 异常控制符
+      continue
+    }
+    if ((c >= 0x4e00 && c <= 0x9fff) || (c >= 0x3000 && c <= 0x303f) || (c >= 0xff00 && c <= 0xffef)) {
+      score += 2 // 中日韩汉字 / 中文标点 / 全角字符
+      continue
+    }
+    if (c >= 32 && c <= 126) {
+      score += 1 // ASCII 可打印
+      continue
+    }
+    score -= 1
+  }
+  return score
+}
+
+/** 解码文本：显式指定 → 直接解码；自动 → BOM → UTF-8 → 文件头 4 编码评分择优（GB18030 / Big5 / UTF-16LE / UTF-16BE） */
 export function decodeText(buffer: ArrayBuffer, encoding: TextEncoding = 'auto'): string {
   const bytes = new Uint8Array(buffer)
   if (encoding !== 'auto') {
     const label = encoding === 'utf-16' ? 'utf-16le' : encoding
     return new TextDecoder(label).decode(bytes)
   }
+  // BOM 优先
   if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
-    return new TextDecoder('utf-8').decode(bytes) // UTF-8 BOM
+    return new TextDecoder('utf-8').decode(bytes)
   }
   if (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) {
     return new TextDecoder('utf-16le').decode(bytes)
@@ -38,10 +66,23 @@ export function decodeText(buffer: ArrayBuffer, encoding: TextEncoding = 'auto')
   if (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff) {
     return new TextDecoder('utf-16be').decode(bytes)
   }
+  // UTF-8（严格模式，任何非法序列都视为非 UTF-8）
   const utf8 = tryDecodeUtf8(bytes)
   if (utf8 !== null) return utf8
-  // 常见中文编码回退（gb18030 是 GBK 的超集，可覆盖绝大多数情况）
-  return new TextDecoder('gb18030').decode(bytes)
+  // 其余编码用文件头（256KB）评分择优，避免对大文件重复全量解码；
+  // 评分相同按常见度排序：GB18030 > Big5 > UTF-16LE > UTF-16BE
+  const head = bytes.subarray(0, Math.min(bytes.length, 256 * 1024))
+  const candidates: [string, string][] = [
+    ['gb18030', new TextDecoder('gb18030').decode(head)],
+    ['big5', new TextDecoder('big5').decode(head)],
+    ['utf-16le', new TextDecoder('utf-16le').decode(head)],
+    ['utf-16be', new TextDecoder('utf-16be').decode(head)],
+  ]
+  let best = candidates[0]
+  for (const candidate of candidates) {
+    if (scoreText(candidate[1]) > scoreText(best[1])) best = candidate
+  }
+  return new TextDecoder(best[0]).decode(bytes)
 }
 
 /** 归一化文本：统一换行、去掉行尾空白、合并连续空行 */

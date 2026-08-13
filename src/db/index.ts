@@ -142,3 +142,8 @@ export function saveChapters(chapters: Chapter[]): Promise<void> {
 export function getChapter(bookId: string, index: number): Promise<Chapter | undefined> {
   return req(CHAPTERS_STORE, 'readonly', (s) => s.get(`${bookId}:${index}`))
 }
+
+/** 读取全部章节（数据备份用） */
+export function listAllChapters(): Promise<Chapter[]> {
+  return req(CHAPTERS_STORE, 'readonly', (s) => s.getAll())
+}

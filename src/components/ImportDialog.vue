@@ -8,7 +8,6 @@ const books = useBooksStore()
 
 const encoding = ref<TextEncoding>('auto')
 const fileInput = ref<HTMLInputElement>()
-const fileName = ref('')
 
 const encodingLabel: Record<TextEncoding, string> = {
   auto: '自动检测',
@@ -25,9 +24,6 @@ function pickFiles(): void {
 
 async function handleFiles(files: FileList | null): Promise<void> {
   if (!files || files.length === 0) return
-  fileName.value = Array.from(files)
-    .map((f) => f.name)
-    .join('、')
   const meta = await books.importFiles(files, encoding.value)
   emit('imported', meta?.id ?? null)
 }
@@ -64,7 +60,14 @@ function onDrop(e: DragEvent): void {
         </select>
       </div>
 
-      <p v-if="books.importing" class="import-tip">正在导入「{{ fileName }}」…</p>
+      <p v-if="books.importing" class="import-tip">
+        正在导入「{{ books.importFileName }}」…
+        <template v-if="books.importProgress < 1">（{{ Math.round(books.importProgress * 100) }}%）</template>
+        <template v-else>（解析中…）</template>
+      </p>
+      <div v-if="books.importing" class="import-bar">
+        <i :style="{ width: Math.max(2, books.importProgress * 100) + '%' }" />
+      </div>
       <p v-if="books.importError" class="import-error">{{ books.importError }}</p>
 
       <div class="modal-actions">
@@ -124,6 +127,20 @@ function onDrop(e: DragEvent): void {
   margin: 12px 0 0;
   font-size: 13px;
   color: var(--fg-weak);
+}
+.import-bar {
+  margin-top: 8px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--panel-border);
+  overflow: hidden;
+}
+.import-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--accent);
+  transition: width 0.15s ease;
 }
 .import-error {
   margin: 12px 0 0;
