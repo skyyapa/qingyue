@@ -1,0 +1,35 @@
+# 打 tag（v*）时：质量门 + 构建「离线版」zip 并发布到 GitHub Release
+# 离线版使用相对路径（--base=./），解压后双击 index.html 即可使用
+name: Release 离线版
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run type-check
+      - run: npm run test
+      - name: 构建离线版（相对路径）
+        run: npx vite build --base=./
+      - name: 打包 zip
+        run: |
+          mkdir -p release/qingyue
+          cp -r dist/* release/qingyue/
+          cd release && zip -r ../qingyue-offline.zip qingyue
+      - name: 发布 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: qingyue-offline.zip
+          generate_release_notes: true

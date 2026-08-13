@@ -4,6 +4,25 @@
 
 > 书籍与进度只保存在你自己的浏览器（IndexedDB）里，不上传任何数据。
 
+## 🚀 立即使用（不用下载）
+
+**轻阅是网页应用，不需要安装，打开链接就能用：**
+
+<p align="center">
+  <a href="https://skyyapa.github.io/qingyue/"><img src="https://img.shields.io/badge/🚀-在线打开轻阅-4f7cff?style=for-the-badge" alt="在线打开" /></a>
+  <a href="https://github.com/skyyapa/qingyue/releases/latest"><img src="https://img.shields.io/badge/⬇️-下载离线版-2ea44f?style=for-the-badge" alt="下载离线版" /></a>
+</p>
+
+**三种用法，选一个：**
+
+| 方式 | 适合谁 | 怎么做 |
+| --- | --- | --- |
+| 🌐 **在线使用** | 大多数人 | 点上方「在线打开轻阅」，浏览器直接用，数据存本机 |
+| 📱 **装到桌面** | 想像普通 App 一样用 | 打开在线版后，点页面底部「安装」按钮（手机 iOS 用 Safari「分享 → 添加到主屏幕」） |
+| ⬇️ **下载离线版** | 想真正"下载"到电脑 | 下载上方「离线版」zip → 解压 → **双击 index.html** 就能用，断网也能读本地书 |
+
+> 💡 给朋友的一句话：**不用在 GitHub 上下载什么**——直接打开 https://skyyapa.github.io/qingyue/ 就能看书了；想要离线文件才下载离线版。
+
 ## ✨ 功能特性
 
 - **本地导入阅读** — 支持 TXT / EPUB 格式，点击选择或直接拖拽，可多选批量导入；超大文件带进度条，单文件上限 200MB
