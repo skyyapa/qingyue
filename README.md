@@ -55,12 +55,11 @@ src/
 
 ## 🚢 部署到 GitHub Pages
 
-`vite.config.ts` 中默认 `base: '/'`，部署到项目子路径（如 `https://<用户名>.github.io/<仓库名>/`）时，将 `base` 改为 `'/<仓库名>/'` 后：
+仓库已内置 GitHub Actions 工作流（`.github/workflows/deploy-pages.yml`）：推送到 `main` 分支后自动构建并部署。
 
-```bash
-npm run build
-npx gh-pages -d dist   # 或使用 GitHub Actions 自动部署
-```
+首次部署需在仓库 **Settings → Pages** 中把 Source 设为 **GitHub Actions**。若仓库改名，记得同步修改工作流里的 `--base=/qingyue/` 为 `--base=/新仓库名/`。
+
+线上地址：<https://skyyapa.github.io/qingyue/>
 
 ## 🗺️ 路线图
 
