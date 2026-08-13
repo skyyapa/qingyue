@@ -102,7 +102,7 @@ src/
 - 生产环境才注册 SW（dev 跳过，避免缓存干扰开发）
 - InstallPrompt 安装引导条：beforeinstallprompt 一键安装 / iOS 添加到主屏幕指引 / 可关闭记忆
 
-**迭代 6 —— 测试体系与 CI（待提交）**
+**迭代 6 —— 测试体系与 CI（5ed3ebb）**
 - Lint：ESLint 9 flat config + typescript-eslint + eslint-plugin-vue（浏览器/Node 全局变量、
   关掉格式风格类规则，`npm run lint` 零错误）
 - 单元测试：Vitest + jsdom + fake-indexeddb，58 用例全过，6 个套件：
