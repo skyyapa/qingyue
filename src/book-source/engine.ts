@@ -31,8 +31,8 @@ function toAbsoluteUrl(url: string): string {
   }
 }
 
-/** 提取到的 href 解析：相对路径按 HTML 语义相对「被抓取页面」解析 */
-function resolveExtracted(href: string, pageUrl: string): string {
+/** 提取到的 href 解析：相对路径按 HTML 语义相对「被抓取页面」解析（导出供测试） */
+export function resolveExtracted(href: string, pageUrl: string): string {
   const h = (href ?? '').trim()
   if (!h || h.startsWith('#')) return ''
   if (/^(https?:|data:)/i.test(h)) return h
@@ -78,7 +78,7 @@ export function extractField(el: Element | null, rule: string): string {
   const { selector, attr, pipes } = parseFieldRule(rule)
   const target = selector ? el.querySelector(selector) : el
   if (!target) return ''
-  let value = ''
+  let value: string
   if (attr === 'text') value = target.textContent ?? ''
   else if (attr === 'html') value = target.innerHTML
   else if (attr === 'outerHTML') value = target.outerHTML
@@ -181,9 +181,7 @@ export async function fetchContent(source: BookSource, chapterUrl: string): Prom
   const attr = at >= 0 ? rule.slice(at + 1).split('|')[0].trim() : 'text'
   const el = doc.querySelector(selector)
   if (!el) throw new Error('正文提取失败：未匹配到选择器')
-  let text = attr === 'html' ? htmlToText(el) : (el.textContent ?? '')
-  // 应用管道（复用字段规则解析）
-  text = extractField(el, rule)
+  let text = extractField(el, rule) // 应用管道
   if (attr === 'html') text = htmlToText(el)
   return cleanContent(text)
 }

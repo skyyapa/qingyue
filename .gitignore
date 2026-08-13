@@ -4,6 +4,8 @@ dist
 *.log
 .DS_Store
 .tmp
+playwright-report
+test-results
 
 # ZCode 内部文件
 .zcode

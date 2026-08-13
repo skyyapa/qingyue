@@ -94,7 +94,27 @@ src/
   搜索测试；内置「轻阅演示」书源（public/demo-source/ 自托管原创内容，开箱即用）
 - 备份包含书源；在线书不参与知识库分析（卡片「析」禁用）
 
-**迭代 5 —— PWA 可安装（待提交）**
+**迭代 5 —— PWA 可安装（f7b8483）**
+- manifest.json（standalone、主题色、192/512/180 图标）+ 图标生成脚本（.tmp/make-icons.mjs，
+  纯 Node zlib 手写 PNG 编码，零依赖）
+- sw.js：安装时预缓存应用壳（相对路径，兼容任意 base）、运行时缓存优先、导航离线回退应用壳、
+  版本化缓存清理
+- 生产环境才注册 SW（dev 跳过，避免缓存干扰开发）
+- InstallPrompt 安装引导条：beforeinstallprompt 一键安装 / iOS 添加到主屏幕指引 / 可关闭记忆
+
+**迭代 6 —— 测试体系与 CI（待提交）**
+- Lint：ESLint 9 flat config + typescript-eslint + eslint-plugin-vue（浏览器/Node 全局变量、
+  关掉格式风格类规则，`npm run lint` 零错误）
+- 单元测试：Vitest + jsdom + fake-indexeddb，58 用例全过，6 个套件：
+  txt（编码检测/章节切分/元信息）、epub（正常解析/容错矩阵）、analyze（新词发现/分类投票——
+  把迭代 3 调优的参数固化为回归保护）、book-source engine（模板/字段提取/链接解析/搜索目录正文，
+  fetch mock）、progress、db（fake-indexeddb 增删查）
+  - 测试期间修复真实 bug：FUNC_EXTRA 误含「落」→「落星谷」类地名被粘连抑制误杀
+- E2E：Playwright chromium，5 用例：书架引导/导入阅读翻章刷新续读/在线书源全流程/
+  书源管理对话框/知识库分析人物识别（webServer 自动起 dev）
+- CI：.github/workflows/ci.yml（lint+type-check+test+build+e2e，Node 24）；
+  部署工作流 node-version 20→24（消除 Node 20 deprecation 警告）
+- 新增脚本：lint / test / test:watch / e2e
 - manifest.json（standalone、主题色、192/512/180 图标）+ 图标生成脚本（.tmp/make-icons.mjs，
   纯 Node zlib 手写 PNG 编码，零依赖）
 - sw.js：安装时预缓存应用壳（相对路径，兼容任意 base）、运行时缓存优先、导航离线回退应用壳、

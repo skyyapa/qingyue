@@ -187,7 +187,7 @@ export function discoverCandidates(
   // 说明它是被链粘连的短语（如「林夜对/林夜掏」内含高频的「林夜」），丢弃
   // 3 字词仅当多余字符为功能字时抑制（「黑衣人」的「人」是实义字，保留）；
   // 4 字词要求部分词频 ≥0.8×（「老师傅看」含「老师傅」）
-  const FUNC_EXTRA = '对跟向被让和与同给随陪说道看着在到去回来往从进出离走返赶奔飞落站住坐躲藏躺的了着过是'
+  const FUNC_EXTRA = '对跟向被让和与同给随陪说道看着在到去来往从进出离走返站住坐躲藏躺的了着过是'
   const shortWords = [...result.entries()].filter(([w]) => w.length <= 3)
   for (const [word, c] of [...result]) {
     if (word.length === 2) continue

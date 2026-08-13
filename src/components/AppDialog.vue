@@ -2,7 +2,7 @@
 import { ref } from 'vue'
 
 /** 应用内对话框：支持确认文案 / 危险操作 / 输入框三种形态，替代原生 confirm / prompt */
-const props = defineProps<{
+defineProps<{
   title: string
   message?: string
   /** 显示输入框（输入框模式下 message 作为 placeholder） */

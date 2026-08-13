@@ -81,6 +81,6 @@ export async function testProxy(url: string): Promise<string> {
     const html = await fetchHtml('https://example.com/', { mode: 'custom', customUrl: url })
     return html.includes('Example Domain') ? '连接正常' : '连接成功（返回内容异常）'
   } catch (e) {
-    throw new Error(e instanceof Error ? e.message : String(e))
+    throw new Error(e instanceof Error ? e.message : String(e), { cause: e })
   }
 }

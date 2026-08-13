@@ -51,8 +51,20 @@ npm install        # 安装依赖
 npm run dev        # 启动开发服务器（http://localhost:5173）
 npm run build      # 类型检查 + 生产构建（输出 dist/）
 npm run preview    # 预览构建产物
-npm run type-check # 仅类型检查
 ```
+
+## ✅ 质量保障
+
+```bash
+npm run lint       # ESLint 代码检查
+npm run type-check # TypeScript 类型检查
+npm run test       # 单元测试（Vitest，58 用例：编码检测/EPUB/知识库算法/书源引擎/工具/数据库）
+npm run e2e        # 端到端测试（Playwright，首次需 npx playwright install chromium）
+```
+
+GitHub Actions 自动运行：推送到 `main` 或发起 PR 时执行 CI（lint + type-check + 单测 + 构建 + E2E），部署前自动验证。
+
+[![CI](https://github.com/skyyapa/qingyue/actions/workflows/ci.yml/badge.svg)](https://github.com/skyyapa/qingyue/actions/workflows/ci.yml)
 
 ## 🛠️ 技术栈
 
