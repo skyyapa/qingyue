@@ -84,4 +84,30 @@ describe('IndexedDB 封装（fake-indexeddb）', () => {
     expect(await db.listChapterIndexes('e')).toHaveLength(0)
     expect(await db.listRelations('e')).toHaveLength(0)
   })
+
+  it('replaceRelations 整体替换：旧关系不残留（幽灵关系修复）', async () => {
+    await db.addBook(makeMeta('f'))
+    // 先写入 3 条旧关系
+    await db.saveRelations([
+      { id: 'f:a:b', bookId: 'f', a: 'a', b: 'b', weight: 5 },
+      { id: 'f:a:c', bookId: 'f', a: 'a', b: 'c', weight: 3 },
+      { id: 'f:b:c', bookId: 'f', a: 'b', b: 'c', weight: 2 },
+    ])
+    // 整体替换为 1 条（模拟实体删除后重建）
+    await db.replaceRelations('f', [{ id: 'f:a:b', bookId: 'f', a: 'a', b: 'b', weight: 7 }])
+    const after = await db.listRelations('f')
+    expect(after).toHaveLength(1)
+    expect(after[0].a).toBe('a')
+    expect(after[0].weight).toBe(7)
+
+    // 替换为空数组 = 清空
+    await db.replaceRelations('f', [])
+    expect(await db.listRelations('f')).toHaveLength(0)
+
+    // 其他书的关系不受影响
+    await db.addBook(makeMeta('g'))
+    await db.saveRelations([{ id: 'g:x:y', bookId: 'g', a: 'x', b: 'y', weight: 1 }])
+    await db.replaceRelations('f', [])
+    expect(await db.listRelations('g')).toHaveLength(1)
+  })
 })

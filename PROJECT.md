@@ -115,6 +115,15 @@ src/
 - CI：.github/workflows/ci.yml（lint+type-check+test+build+e2e，Node 24）；
   部署工作流 node-version 20→24（消除 Node 20 deprecation 警告）
 - 新增脚本：lint / test / test:watch / e2e
+
+**迭代 7 —— 数据一致性修复（待提交）**
+- 幽灵关系修复：db.replaceRelations（单事务删旧写新），三个调用方切换
+  （stripReferences / rewriteReferences / analyzeBook 重新分析）；修复过程中发现并解决
+  IndexedDB 事务请求排序陷阱（put 先于游标删除入队会把新数据删掉）
+- 分析管线流式化：三遍扫描逐章读入即弃，全书正文不再驻留内存
+  （segment.ts 拆分为 buildStrongSet / scanChapterWindows / filterWindows）
+- 单元测试 +3（61 用例）：replaceRelations 替换/清空/隔离语义、
+  analyzeBook 端到端（识别实体+共现关系）、重新分析后旧关系清零
 - manifest.json（standalone、主题色、192/512/180 图标）+ 图标生成脚本（.tmp/make-icons.mjs，
   纯 Node zlib 手写 PNG 编码，零依赖）
 - sw.js：安装时预缓存应用壳（相对路径，兼容任意 base）、运行时缓存优先、导航离线回退应用壳、
@@ -228,6 +237,21 @@ src/
     要用显式 `/demo-source/index.html`（线上 GitHub Pages 目录路径正常，但统一用显式路径最稳）
 28. **规则引擎字段提取**：字段规则里的选择器是相对列表项的**子查询**，
     提取前必须先 `el.querySelector(selector)`（否则拿到整个列表项的文本）
+
+### 数据一致性 / 内存（迭代 6 新增）
+29. **IndexedDB 事务内请求顺序陷阱**：`replaceRelations` 若在函数开头同步 put 新记录、
+    再在游标 onsuccess 里 delete 旧记录——删除请求排在 put 之后入队，会把刚写入的
+    新记录一并删掉。必须**游标遍历完（最后 onsuccess）再 put**。
+    同理：整体替换某集合时不能只用 put（被过滤掉的旧记录会残留成"幽灵关系"），
+    必须 删旧+写新 在同一事务完成（db.replaceRelations）
+30. **小语料 PMI 边界波动**：人名 PMI 与语料规模正相关（PMI≈ln(T/词频)），
+    迷你测试书（几百字）可能刚好卡在阈值边缘（苏晚 PMI=2.49 vs 阈值 2.5）。
+    测试夹具用程序化生成 6 章以上保证稳定；真实大书无此问题
+31. **分析管线流式化**：三遍扫描逐章从 IndexedDB 读取、用毕即弃，
+    全书正文不再驻留内存（segment.ts 拆为 buildStrongSet / scanChapterWindows /
+    filterWindows 供流式调用；discoverCandidates 保留为便捷包装供测试）
+32. **Big5 自动检测**：已实现（BOM → UTF-8 严格校验 → 四编码评分择优含 Big5），
+    有单测覆盖；README 描述与实际一致（勿误判为未实现）
 
 ## 测试方法备忘
 

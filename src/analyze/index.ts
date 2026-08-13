@@ -1,12 +1,14 @@
 /** 全书知识库分析管线（无 AI，确定性算法）
- *  三遍扫描（内存友好，逐章读入即可）：
+ *  三遍扫描，每遍逐章从 IndexedDB 读取、用毕即弃 —— 全书正文不驻留内存，
+ *  大文件（上百 MB）峰值内存 ≈ 单章文本 + 字频/二元组统计映射。
  *   1. 字频/二元组统计 → 2. PMI 链发现候选词 → 3. 上下文分类 + 章节索引 + 共现关系
- *  产物写入 IndexedDB（entities / chapterIndex / relations），可重复分析（用户锁定/忽略项保留）
+ *  产物写入 IndexedDB（entities / chapterIndex / relations，关系为整体替换，
+ *  旧分析残留不会成为幽灵数据），可重复分析（用户锁定/忽略项保留）
  */
 import * as db from '@/db'
 import { genId } from '@/utils/id'
 import type { AnalysisState, ChapterIndex, Entity, EntityType, Relation } from '@/types'
-import { createStats, discoverCandidates, isCJK, type WordCandidate } from './segment'
+import { buildStrongSet, createStats, filterWindows, isCJK, scanChapterWindows, type WindowStat, type WordCandidate } from './segment'
 import { decideType, voteContext, type Votes } from './classify'
 
 export interface AnalyzeCallbacks {
@@ -199,41 +201,50 @@ export async function analyzeBook(bookId: string, cb: AnalyzeCallbacks): Promise
   const chapterCount = meta.chapterCount
 
   try {
-    // ---- 第 1 遍：统计字频/二元组（同时收集章节文本） ----
+    // ---- 第 1 遍：统计字频/二元组（逐章读入即弃，全书正文不驻留内存） ----
     cb.onProgress(0.02, '统计字词')
     const stats = createStats()
-    const texts: string[] = []
+    let chapterCountReal = 0
     for (let i = 0; i < chapterCount; i++) {
       const chapter = await db.getChapter(bookId, i)
       if (chapter) {
-        texts.push(chapter.text)
+        chapterCountReal++
         stats.addText(chapter.text)
       }
       cb.onProgress(0.02 + (i / chapterCount) * 0.3, '统计字词')
     }
-    if (texts.length === 0) throw new Error('没有可分析的正文内容')
+    if (chapterCountReal === 0) throw new Error('没有可分析的正文内容')
 
-    // ---- 第 2 遍：PMI 链发现候选词 ----
+    // ---- 第 2 遍：PMI 链发现候选词（流式扫描） ----
     cb.onProgress(0.35, '发现候选词')
-    const candidates = discoverCandidates(texts, stats)
+    const strong = buildStrongSet(stats)
+    const windows = new Map<string, WindowStat>()
+    for (let i = 0; i < chapterCount; i++) {
+      const chapter = await db.getChapter(bookId, i)
+      if (chapter) scanChapterWindows(chapter.text, strong, windows, i)
+    }
+    const candidates = filterWindows(windows)
     const graphNames = new Set(
       [...candidates.values()]
         .filter((c) => c.count >= GRAPH_MIN_COUNT && !ignored.has(c.word))
         .map((c) => c.word)
     )
+    windows.clear() // 释放窗口统计内存
 
-    // ---- 第 3 遍：分类 + 章节索引 + 共现 + 例句 ----
+    // ---- 第 3 遍：分类 + 章节索引 + 共现 + 例句（逐章读入即弃） ----
     const globalCounts = new Map<string, number>()
     const globalVotes = new Map<string, Votes>()
     const samples = new Map<string, string[]>()
     const chapterWalks: WalkResult[] = []
-    for (let i = 0; i < texts.length; i++) {
-      const walk = walkChapter(texts[i], candidates, graphNames, globalVotes, samples)
+    for (let i = 0; i < chapterCount; i++) {
+      const chapter = await db.getChapter(bookId, i)
+      if (!chapter) continue
+      const walk = walkChapter(chapter.text, candidates, graphNames, globalVotes, samples)
       chapterWalks.push(walk)
       for (const [name, count] of walk.counts) {
         globalCounts.set(name, (globalCounts.get(name) ?? 0) + count)
       }
-      cb.onProgress(0.4 + (i / texts.length) * 0.5, '识别实体')
+      cb.onProgress(0.4 + (i / chapterCount) * 0.5, '识别实体')
     }
 
     // ---- 实体落库（保留用户锁定/自定义项） ----
@@ -333,7 +344,8 @@ export async function analyzeBook(bookId: string, cb: AnalyzeCallbacks): Promise
     }
     relations.sort((x, y) => y.weight - x.weight)
     if (relations.length > MAX_RELATIONS) relations.length = MAX_RELATIONS
-    if (relations.length) await db.saveRelations(relations)
+    // 整体替换：旧分析残留的关系（实体已删除/被忽略后不再生成）一并清除
+    await db.replaceRelations(bookId, relations)
 
     // ---- 更新分析状态 ----
     const state: AnalysisState = {

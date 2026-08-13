@@ -101,7 +101,7 @@ class NeighborCounter {
   }
 }
 
-interface WindowStat {
+export interface WindowStat {
   count: number
   chapters: number[]
   left: NeighborCounter
@@ -111,15 +111,9 @@ interface WindowStat {
 /** 候选词最大长度（过长说明链跨了词边界） */
 const MAX_WORD_LEN = 4
 
-/** 沿强二元组链统计 2-4 字窗口；用左右邻字符多样性过滤粘连噪音（如「夜对」永远夹在 林/苏 之间） */
-export function discoverCandidates(
-  chapterTexts: string[],
-  stats: TextStats,
-  options: DiscoverOptions = {}
-): Map<string, WordCandidate> {
+/** 由统计构建强二元组集合（频率 + PMI 双门槛），可与扫描分离以支持流式处理大书 */
+export function buildStrongSet(stats: TextStats, options: DiscoverOptions = {}): Set<string> {
   const opt = { ...DEFAULT_OPTIONS, ...options }
-
-  // 强二元组集合（频率 + PMI 双门槛）
   const strong = new Set<string>()
   for (const [bg, count] of stats.bigrams) {
     if (count >= opt.minFreq && bigramPMI(bg, stats) >= opt.minPMI) {
@@ -127,38 +121,43 @@ export function discoverCandidates(
       if (strong.size >= 50000) break
     }
   }
+  return strong
+}
 
-  const windows = new Map<string, WindowStat>()
-  for (let ci = 0; ci < chapterTexts.length; ci++) {
-    const text = chapterTexts[ci]
-    const n = text.length
-    let i = 0
-    while (i < n) {
-      if (!isCJK(text[i])) {
-        i++
-        continue
-      }
-      // 沿强二元组链延伸最大运行段
-      let j = i + 1
-      while (j < n && isCJK(text[j]) && strong.has(text.slice(j - 1, j + 1))) j++
-      // 运行段内的每个 2-4 字窗口都作为候选统计
-      for (let s = i; s < Math.min(j, i + 3); s++) {
-        for (let len = 2; len <= MAX_WORD_LEN && s + len <= j; len++) {
-          const w = text.slice(s, s + len)
-          let ws = windows.get(w)
-          if (!ws) {
-            ws = { count: 0, chapters: [], left: new NeighborCounter(), right: new NeighborCounter() }
-            windows.set(w, ws)
-          }
-          ws.count++
-          if (ws.chapters[ws.chapters.length - 1] !== ci) ws.chapters.push(ci)
-          ws.left.add(text[s - 1] ?? '')
-          ws.right.add(text[s + len] ?? '')
-        }
-      }
+/** 扫描一章文本：沿强二元组链统计 2-4 字窗口并累加进 windows（章节可逐个处理、用完即弃） */
+export function scanChapterWindows(text: string, strong: Set<string>, windows: Map<string, WindowStat>, ci: number): void {
+  const n = text.length
+  let i = 0
+  while (i < n) {
+    if (!isCJK(text[i])) {
       i++
+      continue
     }
+    // 沿强二元组链延伸最大运行段
+    let j = i + 1
+    while (j < n && isCJK(text[j]) && strong.has(text.slice(j - 1, j + 1))) j++
+    // 运行段内的每个 2-4 字窗口都作为候选统计
+    for (let s = i; s < Math.min(j, i + 3); s++) {
+      for (let len = 2; len <= MAX_WORD_LEN && s + len <= j; len++) {
+        const w = text.slice(s, s + len)
+        let ws = windows.get(w)
+        if (!ws) {
+          ws = { count: 0, chapters: [], left: new NeighborCounter(), right: new NeighborCounter() }
+          windows.set(w, ws)
+        }
+        ws.count++
+        if (ws.chapters[ws.chapters.length - 1] !== ci) ws.chapters.push(ci)
+        ws.left.add(text[s - 1] ?? '')
+        ws.right.add(text[s + len] ?? '')
+      }
+    }
+    i++
   }
+}
+
+/** 过滤窗口统计：频率/跨章/首尾虚字/纯重复字 + 左右邻多样性 + 粘连词抑制 */
+export function filterWindows(windows: Map<string, WindowStat>, options: DiscoverOptions = {}): Map<string, WordCandidate> {
+  const opt = { ...DEFAULT_OPTIONS, ...options }
 
   // 过滤：频率/跨章/首尾虚字/纯重复字 + 左右邻多样性
   const result = new Map<string, WordCandidate>()
@@ -212,4 +211,18 @@ export function discoverCandidates(
   const capped = new Map<string, WordCandidate>()
   for (const c of sorted.slice(0, opt.maxWords)) capped.set(c.word, c)
   return capped
+}
+
+/** 便捷入口：传入全部章节文本（小书 / 测试用）。大书请用 buildStrongSet + scanChapterWindows 流式处理 */
+export function discoverCandidates(
+  chapterTexts: string[],
+  stats: TextStats,
+  options: DiscoverOptions = {}
+): Map<string, WordCandidate> {
+  const strong = buildStrongSet(stats, options)
+  const windows = new Map<string, WindowStat>()
+  for (let ci = 0; ci < chapterTexts.length; ci++) {
+    scanChapterWindows(chapterTexts[ci], strong, windows, ci)
+  }
+  return filterWindows(windows, options)
 }

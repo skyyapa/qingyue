@@ -143,7 +143,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
     if (kept.length !== relations.length) changed = true
     if (changed) {
       if (indexes.length) await db.saveChapterIndexes(indexes)
-      if (kept.length) await db.saveRelations(kept)
+      await db.replaceRelations(bookId, kept)
     }
   }
 
@@ -172,7 +172,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
     }
     if (changed) {
       if (indexes.length) await db.saveChapterIndexes(indexes)
-      if (kept.length) await db.saveRelations(kept)
+      await db.replaceRelations(bookId, kept)
     }
   }
 

@@ -285,3 +285,31 @@ export function saveRelations(list: Relation[]): Promise<void> {
 export function listRelations(bookId: string): Promise<Relation[]> {
   return listByBook<Relation>(RELATIONS_STORE, bookId)
 }
+
+/** 整体替换某本书的关系：同一事务内删除旧关系再写入新关系
+ *  （避免只用 put 追加时，已不在新列表中的旧关系残留成"幽灵关系"）
+ *  注意：put 必须在游标遍历结束后再入队，否则删除请求排在 put 之后，
+ *  会把刚写入的新关系一并删掉 */
+export function replaceRelations(bookId: string, relations: Relation[]): Promise<void> {
+  return openDB().then(
+    (db) =>
+      new Promise((resolve, reject) => {
+        const tx = db.transaction(RELATIONS_STORE, 'readwrite')
+        const store = tx.objectStore(RELATIONS_STORE)
+        const cursor = store.index('bookId').openKeyCursor(IDBKeyRange.only(bookId))
+        cursor.onsuccess = () => {
+          const current = cursor.result
+          if (current) {
+            store.delete(current.primaryKey as IDBValidKey)
+            current.continue()
+          } else {
+            // 游标耗尽：旧关系已全部删除，此时再写入新关系
+            for (const rel of relations) store.put(rel)
+          }
+        }
+        tx.oncomplete = () => resolve()
+        tx.onerror = () => reject(tx.error)
+        tx.onabort = () => reject(tx.error ?? new Error('事务被中止'))
+      })
+  )
+}
