@@ -125,12 +125,21 @@ src/
 - 单元测试 +3（61 用例）：replaceRelations 替换/清空/隔离语义、
   analyzeBook 端到端（识别实体+共现关系）、重新分析后旧关系清零
 
-**迭代 8 —— 小白友好下载（待提交）**
+**迭代 8 —— 小白友好下载（已提交）**
 - README 顶部「立即使用」区：在线打开 / 装到桌面 / 下载离线版 三入口
-  + 给小白的一句话说明（不用在 GitHub 下载，直接打开链接）
 - Release 离线版工作流（release-offline.yml）：打 v* tag 时质量门 +
   构建相对路径离线版（vite build --base=./，file:// 双击可用）zip 发布
 - v1.0.0 Release 已发布，离线包 381KB（含演示内容，导入 TXT/EPUB 全功能）
+- 后续：版本号同步 1.0.0；README 移除私人口吻备注；知识库描述去包装化
+
+**迭代 9 —— EPUB 增强（待提交）**
+- NCX（EPUB2）/ nav（EPUB3）目录解析：章节标题优先级 = 目录对齐 > 正文 h1-h3 > 文件名
+- 正文内嵌图片提取为 data URL（Chapter.images，文本 [img:N] 占位），阅读器渲染
+  （滚动/翻页模式均支持，图片 break-inside: avoid）
+- 章节内小标题（h2-h6）保留为 `# ` 标记段落，阅读器渲染为加粗居中
+- 数据流：Chapter.images 随 IndexedDB 缓存与备份序列化（自动包含）
+- 单测 +5（65 用例），E2E +1（6 用例，含图+NCX 夹具真实浏览器验证）
+- 未做（路线图保留）：EPUB 内嵌 CSS 样式与字体
 - manifest.json（standalone、主题色、192/512/180 图标）+ 图标生成脚本（.tmp/make-icons.mjs，
   纯 Node zlib 手写 PNG 编码，零依赖）
 - sw.js：安装时预缓存应用壳（相对路径，兼容任意 base）、运行时缓存优先、导航离线回退应用壳、

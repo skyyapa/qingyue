@@ -2,16 +2,22 @@ import JSZip from 'jszip'
 import type { ParsedBook } from './txt'
 
 const BLOCK_TAGS = new Set([
-  'P', 'DIV', 'SECTION', 'ARTICLE',
-  'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
-  'LI', 'BLOCKQUOTE', 'PRE', 'TR',
+  'P', 'DIV', 'SECTION', 'ARTICLE', 'LI', 'BLOCKQUOTE', 'PRE', 'TR',
 ])
 
-/** 可作正文的 media-type 前缀（跳过图片/样式/脚本/字体等资源条目） */
-const TEXT_MEDIA_TYPES = ['application/xhtml+xml', 'text/html', 'application/xml', 'text/xml']
+/** 章节内小标题标记（行首 `# `，阅读器渲染为加粗居中；h1 章节标题由调用方单独处理） */
+const HEADING_PREFIX = '# '
 
-/** XHTML 转纯文本，保留段落结构 */
-function htmlToText(body: HTMLElement): string {
+/** 目录条目（NCX / EPUB3 nav） */
+interface TocEntry {
+  title: string
+  /** 指向章节文档的路径（相对 OPF 目录） */
+  src: string
+}
+
+/** XHTML 转纯文本：保留段落、标记小标题、提取图片 src
+ *  onImage(src) 返回占位符字符串（如 [img:0]），调用方负责收集 src 列表 */
+function htmlToText(body: HTMLElement, onImage: (src: string) => string): string {
   const parts: string[] = []
   const walk = (node: Node) => {
     if (node.nodeType === Node.TEXT_NODE) {
@@ -20,20 +26,32 @@ function htmlToText(body: HTMLElement): string {
     }
     if (node.nodeType !== Node.ELEMENT_NODE) return
     const el = node as Element
-    if (el.tagName === 'SCRIPT' || el.tagName === 'STYLE' || el.tagName === 'NAV') return
-    if (el.tagName === 'BR') {
+    const tag = el.tagName
+    if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NAV') return
+    if (tag === 'BR') {
       parts.push('\n')
       return
     }
-    if (BLOCK_TAGS.has(el.tagName)) parts.push('\n')
+    if (tag === 'IMG') {
+      const src = el.getAttribute('src') ?? ''
+      if (src) {
+        parts.push(onImage(src))
+      } else if (el.getAttribute('alt')) {
+        parts.push(el.getAttribute('alt') ?? '')
+      }
+      return
+    }
+    const isHeading = /^H[1-6]$/.test(tag)
+    if (isHeading) parts.push('\n' + HEADING_PREFIX)
+    else if (BLOCK_TAGS.has(tag)) parts.push('\n')
     for (const child of el.childNodes) walk(child)
-    if (BLOCK_TAGS.has(el.tagName)) parts.push('\n')
+    if (BLOCK_TAGS.has(tag)) parts.push('\n')
   }
   walk(body)
   return parts
     .join('')
-    .replace(/[ \t]+\n/g, '\n') // 行尾空白
-    .replace(/[ \t]{2,}/g, ' ') // XHTML 排版缩进的连续空格
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/[ \t]{2,}/g, ' ')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
 }
@@ -52,8 +70,69 @@ function isExternalHref(href: string): boolean {
   return /^(https?:|data:|mailto:|#)/i.test(href.trim()) || href.trim().startsWith('//')
 }
 
-/** 解析 EPUB：解压 → container.xml 定位 OPF → manifest/spine 按序提取正文（对损坏文件容错） */
-export async function parseEpub(buffer: ArrayBuffer, fallbackTitle: string): Promise<ParsedBook> {
+/** 在 zip 中按路径取文件（含 decodeURIComponent 兜底） */
+function findZipFile(zip: JSZip, path: string): JSZip.JSZipObject | null {
+  return zip.file(path) ?? zip.file(decodeURIComponent(path))
+}
+
+/** 图片 mime 推断 */
+function imageMime(name: string): string {
+  const ext = name.split('.').pop()?.toLowerCase() ?? ''
+  const map: Record<string, string> = {
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    gif: 'image/gif',
+    webp: 'image/webp',
+    svg: 'image/svg+xml',
+    bmp: 'image/bmp',
+  }
+  return map[ext] ?? 'image/png'
+}
+
+/** 解析 EPUB3 的 nav 文档（<nav epub:type="toc"> 下的链接列表，支持嵌套 ol/li） */
+function parseNavToc(doc: Document): TocEntry[] {
+  const entries: TocEntry[] = []
+  const nav = doc.querySelector('nav[epub\\:type="toc" i]')
+  const root = nav ?? doc.body
+  const walk = (container: Element) => {
+    for (const ol of container.querySelectorAll(':scope > ol')) {
+      for (const li of ol.children) {
+        if (li.tagName !== 'LI') continue
+        const a = li.querySelector(':scope > a')
+        if (a) {
+          const href = a.getAttribute('href') ?? ''
+          const title = a.textContent?.trim()
+          if (title && href) entries.push({ title, src: href.split('#')[0] })
+        }
+        walk(li) // 嵌套 ol
+      }
+    }
+  }
+  walk(root)
+  return entries
+}
+
+/** 解析 EPUB2 的 NCX（navMap 递归收集 navPoint） */
+function parseNcxToc(doc: Document): TocEntry[] {
+  const entries: TocEntry[] = []
+  const collect = (navPoints: NodeListOf<Element>) => {
+    for (const point of navPoints) {
+      const label = point.querySelector(':scope > navLabel > text')?.textContent?.trim()
+      const src = point.querySelector(':scope > content')?.getAttribute('src')?.split('#')[0]
+      if (label && src) entries.push({ title: label, src })
+      const nested = point.querySelectorAll(':scope > navPoint')
+      if (nested.length) collect(nested)
+    }
+  }
+  collect(doc.querySelectorAll('navMap > navPoint'))
+  return entries
+}
+
+/** 解析 EPUB（解压 → container.xml 定位 OPF → manifest/spine 按序提取正文，对损坏文件容错）
+ *  章节标题优先级：目录（EPUB3 nav / EPUB2 NCX）对齐 > 正文首个 h1-h3 > 文件名；
+ *  正文内嵌图片提取为 data URL（Chapter.images，文本中 [img:N] 占位） */
+export async function parseEpub(buffer: ArrayBuffer, fallbackTitle: string): Promise<ParsedBook & { chapterImages: string[][] }> {
   let zip: JSZip
   try {
     zip = await JSZip.loadAsync(buffer)
@@ -67,7 +146,7 @@ export async function parseEpub(buffer: ArrayBuffer, fallbackTitle: string): Pro
   const opfPath = containerDoc.querySelector('rootfile')?.getAttribute('full-path')
   if (!opfPath) throw new Error('不是有效的 EPUB 文件：container.xml 中未声明 OPF 文件')
 
-  const opfFile = zip.file(opfPath)
+  const opfFile = findZipFile(zip, opfPath)
   if (!opfFile) throw new Error(`EPUB 中找不到 OPF 描述文件：${opfPath}`)
   const opfDoc = parseXml(await opfFile.async('string'))
 
@@ -97,9 +176,9 @@ export async function parseEpub(buffer: ArrayBuffer, fallbackTitle: string): Pro
     throw new Error('EPUB 的目录（spine）为空，没有可阅读的内容')
   }
 
-  /** 相对 OPF 目录解析 zip 内路径 */
-  const resolvePath = (rel: string) => {
-    const parts = [...opfDir.split('/').filter(Boolean), ...rel.replace(/\\/g, '/').split('/')]
+  /** 相对基础路径解析 zip 内路径 */
+  const resolvePath = (rel: string, baseDir: string) => {
+    const parts = [...baseDir.split('/').filter(Boolean), ...rel.replace(/\\/g, '/').split('/')]
     const out: string[] = []
     for (const part of parts) {
       if (part === '.' || part === '') continue
@@ -109,7 +188,47 @@ export async function parseEpub(buffer: ArrayBuffer, fallbackTitle: string): Pro
     return out.join('/')
   }
 
+  // ---------- 目录解析（EPUB3 nav 优先，其次 EPUB2 NCX） ----------
+  let tocEntries: TocEntry[] = []
+  try {
+    // EPUB3：manifest 中 properties="nav" 或文件名以 nav/toc 开头的文档
+    const navItem = [...manifest.entries()].find(([, v]) => {
+      const href = v.href.toLowerCase()
+      return v.mediaType.includes('xhtml') && (/(^|\/)nav[^/]*\.x?html?$/i.test(href) || /(^|\/)toc[^/]*\.x?html?$/i.test(href))
+    })
+    const navFile = navItem ? findZipFile(zip, resolvePath(navItem[1].href, opfDir)) : null
+    if (navFile) {
+      const navDoc = new DOMParser().parseFromString(await navFile.async('string'), 'text/html')
+      tocEntries = parseNavToc(navDoc)
+    }
+  } catch {
+    tocEntries = []
+  }
+  if (tocEntries.length === 0) {
+    try {
+      const ncxItem = [...manifest.entries()].find(([, v]) => v.mediaType.includes('dtbncx'))
+      const ncxFile = ncxItem ? findZipFile(zip, resolvePath(ncxItem[1].href, opfDir)) : null
+      if (ncxFile) {
+        const ncxDoc = parseXml(await ncxFile.async('string'))
+        tocEntries = parseNcxToc(ncxDoc)
+      }
+    } catch {
+      tocEntries = []
+    }
+  }
+
+  /** spine item 的 zip 路径 → 目录标题（取第一个指向它的条目） */
+  const tocTitleByPath = new Map<string, string>()
+  if (tocEntries.length) {
+    for (const entry of tocEntries) {
+      const path = resolvePath(entry.src, opfDir)
+      if (!tocTitleByPath.has(path)) tocTitleByPath.set(path, entry.title)
+    }
+  }
+
+  // ---------- 按 spine 提取章节 ----------
   const chapters: { title: string; text: string }[] = []
+  const chapterImages: string[][] = []
   const skipped: string[] = []
   for (const idref of spineIds) {
     const entry = manifest.get(idref)
@@ -119,7 +238,7 @@ export async function parseEpub(buffer: ArrayBuffer, fallbackTitle: string): Pro
     }
     const { href, mediaType } = entry
     // 跳过非正文资源（图片/样式/脚本等）与外部链接
-    if (mediaType && !TEXT_MEDIA_TYPES.some((t) => mediaType.includes(t))) {
+    if (mediaType && !['xhtml', 'html', 'xml'].some((t) => mediaType.includes(t))) {
       skipped.push(idref)
       continue
     }
@@ -127,8 +246,8 @@ export async function parseEpub(buffer: ArrayBuffer, fallbackTitle: string): Pro
       skipped.push(idref)
       continue
     }
-    const path = resolvePath(href.split('#')[0])
-    const file = zip.file(path) ?? zip.file(decodeURIComponent(path))
+    const path = resolvePath(href.split('#')[0], opfDir)
+    const file = findZipFile(zip, path)
     if (!file) {
       skipped.push(idref)
       continue
@@ -140,21 +259,48 @@ export async function parseEpub(buffer: ArrayBuffer, fallbackTitle: string): Pro
       skipped.push(idref)
       continue
     }
-    // 提取章节标题；标题会由阅读器单独渲染，从正文中移除避免重复
+    // 提取章节标题（目录标题优先）；标题会由阅读器单独渲染，从正文中移除避免重复
     const heading = doc.body.querySelector('h1, h2, h3')
-    const chapterTitle = heading?.textContent?.trim() || ''
+    const headingText = heading?.textContent?.trim() || ''
     if (heading) heading.remove()
-    const text = htmlToText(doc.body)
-    if (!text) {
+    const dirPath = path.includes('/') ? path.slice(0, path.lastIndexOf('/') + 1) : ''
+    const tocTitle = tocTitleByPath.get(path)
+
+    // 收集正文中的图片 src（onImage 直接输出带下标的占位符）
+    const placeholderSrcs: string[] = []
+    const text = htmlToText(doc.body, (src) => {
+      const idx = placeholderSrcs.length
+      placeholderSrcs.push(src)
+      return `[img:${idx}]`
+    })
+    if (!text.trim()) {
       skipped.push(idref)
       continue
     }
 
+    // 异步解出图片 data URL（data: 直接使用；相对路径相对当前章节文档解析）
+    const images = await Promise.all(
+      placeholderSrcs.map(async (src) => {
+        if (/^data:/i.test(src)) return src
+        const imgPath = resolvePath(src.split('#')[0], dirPath)
+        const imgFile = findZipFile(zip, imgPath)
+        if (!imgFile) return null
+        try {
+          const base64 = await imgFile.async('base64')
+          return `data:${imageMime(imgFile.name)};base64,${base64}`
+        } catch {
+          return null
+        }
+      })
+    )
+    const validImages = images.filter((v): v is string => !!v)
+
     const name = path.split('/').pop() ?? ''
     chapters.push({
-      title: chapterTitle || name.replace(/\.[^.]+$/, '').trim() || `第 ${chapters.length + 1} 章`,
+      title: tocTitle || headingText || name.replace(/\.[^.]+$/, '').trim() || `第 ${chapters.length + 1} 章`,
       text,
     })
+    chapterImages.push(validImages)
   }
 
   if (chapters.length === 0) {
@@ -163,5 +309,5 @@ export async function parseEpub(buffer: ArrayBuffer, fallbackTitle: string): Pro
     }
     throw new Error('EPUB 中没有可读取的正文内容')
   }
-  return { title, author, chapters }
+  return { title, author, chapters, chapterImages }
 }

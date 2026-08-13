@@ -41,6 +41,8 @@ export interface Chapter {
   index: number
   title: string
   text: string
+  /** 正文内嵌图片（data URL，EPUB 特有；文本中以 [img:N] 占位） */
+  images?: string[]
 }
 
 /** 阅读进度：章序号 + 章内阅读位置（滚动模式 scrollTop / 翻页模式 scrollLeft，均按可滚范围归一化为 0-1） */

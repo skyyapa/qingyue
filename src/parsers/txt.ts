@@ -5,6 +5,8 @@ export interface ParsedBook {
   title: string
   author: string
   chapters: { title: string; text: string }[]
+  /** 各章节的内嵌图片（data URL，EPUB 特有；TXT 为 undefined） */
+  chapterImages?: string[][]
 }
 
 /** 章节标题识别：行首的「第X章/回/节/卷/集/部/篇」或常见卷首语 */

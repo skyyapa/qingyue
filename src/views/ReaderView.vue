@@ -56,12 +56,43 @@ const pagePos = ref({ current: 1, total: 1 })
 const COL_GAP = 48
 const pagedColWidth = computed(() => Math.min(600, Math.max(320, window.innerWidth - 96)))
 
-const paragraphs = computed(() => {
-  const text = reader.chapter?.text ?? ''
-  return text
-    .split(/\n{2,}/)
-    .map((p) => p.trim())
-    .filter(Boolean)
+/** 正文段落：文本 / 内嵌图片 / 小标题 */
+interface Paragraph {
+  kind: 'text' | 'image' | 'heading'
+  text?: string
+  src?: string
+}
+
+const paragraphs = computed<Paragraph[]>(() => {
+  const chapter = reader.chapter
+  if (!chapter) return []
+  const images = chapter.images ?? []
+  const out: Paragraph[] = []
+  for (const raw of chapter.text.split(/\n{2,}/)) {
+    const p = raw.trim()
+    if (!p) continue
+    if (p.startsWith('# ')) {
+      out.push({ kind: 'heading', text: p.slice(2).trim() })
+      continue
+    }
+    // 拆出 [img:N] 占位符（可能出现在段落中间）
+    let pos = 0
+    while (pos < p.length) {
+      const next = p.indexOf('[img:', pos)
+      if (next < 0) {
+        const rest = p.slice(pos).trim()
+        if (rest) out.push({ kind: 'text', text: rest })
+        break
+      }
+      const before = p.slice(pos, next).trim()
+      if (before) out.push({ kind: 'text', text: before })
+      const m = p.slice(next).match(/^\[img:(\d+)\]/)
+      const src = m ? images[Number(m[1])] : undefined
+      if (m && src) out.push({ kind: 'image', src })
+      pos = next + (m?.[0].length ?? 0)
+    }
+  }
+  return out
 })
 
 const hasNext = computed(() => reader.chapterIndex < reader.chapterCount - 1)
@@ -248,7 +279,11 @@ onBeforeUnmount(() => {
         :style="{ fontSize: settings.settings.fontSize + 'px', lineHeight: settings.settings.lineHeight, fontFamily: FONT_FAMILIES[settings.settings.font] }"
       >
         <h1 class="chapter-heading">{{ reader.chapter?.title }}</h1>
-        <p v-for="(p, i) in paragraphs" :key="i" class="para">{{ p }}</p>
+        <template v-for="(p, i) in paragraphs" :key="i">
+          <img v-if="p.kind === 'image'" class="para-img" :src="p.src" alt="" loading="lazy" />
+          <h2 v-else-if="p.kind === 'heading'" class="para-heading">{{ p.text }}</h2>
+          <p v-else class="para">{{ p.text }}</p>
+        </template>
         <button v-if="hasNext && settings.settings.showNextHint" class="next-hint" @click="goChapter(reader.chapterIndex + 1)">
           下一章：{{ nextTitle }} →
         </button>
@@ -269,7 +304,11 @@ onBeforeUnmount(() => {
         }"
       >
         <h1 class="chapter-heading">{{ reader.chapter?.title }}</h1>
-        <p v-for="(p, i) in paragraphs" :key="i" class="para">{{ p }}</p>
+        <template v-for="(p, i) in paragraphs" :key="i">
+          <img v-if="p.kind === 'image'" class="para-img" :src="p.src" alt="" loading="lazy" />
+          <h2 v-else-if="p.kind === 'heading'" class="para-heading">{{ p.text }}</h2>
+          <p v-else class="para">{{ p.text }}</p>
+        </template>
       </div>
     </main>
 
@@ -378,7 +417,8 @@ onBeforeUnmount(() => {
   padding: 28px 0 40px;
 }
 .paged-content .para,
-.paged-content .chapter-heading {
+.paged-content .chapter-heading,
+.paged-content .para-img {
   break-inside: avoid;
 }
 .chapter-heading {
@@ -386,6 +426,20 @@ onBeforeUnmount(() => {
   font-size: 1.15em;
   font-weight: 600;
   margin: 0 0 1.8em;
+}
+.para-heading {
+  text-align: center;
+  font-size: 1em;
+  font-weight: 700;
+  margin: 1.6em 0 1.2em;
+}
+.para-img {
+  display: block;
+  max-width: 100%;
+  max-height: 70vh;
+  margin: 1.2em auto;
+  object-fit: contain;
+  border-radius: 6px;
 }
 .para {
   margin: 0 0 1.2em;

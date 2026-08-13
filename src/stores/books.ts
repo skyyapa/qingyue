@@ -92,7 +92,14 @@ export const useBooksStore = defineStore('books', () => {
         }
         await db.addBook(meta)
         await db.saveChapters(
-          parsed.chapters.map((c, i) => ({ id: `${id}:${i}`, bookId: id, index: i, title: c.title, text: c.text }))
+          parsed.chapters.map((c, i) => ({
+            id: `${id}:${i}`,
+            bookId: id,
+            index: i,
+            title: c.title,
+            text: c.text,
+            images: parsed.chapterImages?.[i],
+          }))
         )
         last = meta
       }

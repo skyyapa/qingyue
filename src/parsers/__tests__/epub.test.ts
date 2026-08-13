@@ -55,6 +55,88 @@ describe('parseEpub 正常解析', () => {
     expect(book.chapters[1].title).toBe('第二章 森林')
   })
 
+  it('正文内嵌图片提取为 data URL，文本留占位符', async () => {
+    const pngBase64 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+    const epub = await buildEpub({
+      'META-INF/container.xml': CONTAINER,
+      'OEBPS/content.opf': OPF(
+        ['c1'],
+        '<item id="c1" href="text/c1.xhtml" media-type="application/xhtml+xml"/><item id="img1" href="images/pic.png" media-type="image/png"/>'
+      ),
+      'OEBPS/text/c1.xhtml': `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml"><head><title>第一章</title></head>
+<body><h1>第一章</h1><p>图片前文字。</p><p>插图：<img src="../images/pic.png" alt="测试图"/></p><p>图片后文字。</p></body></html>`,
+      'OEBPS/images/pic.png': Buffer.from(pngBase64, 'base64'),
+    })
+    const book = await parseEpub(epub, 'fallback')
+    expect(book.chapterImages?.[0]).toHaveLength(1)
+    expect(book.chapterImages![0][0]).toMatch(/^data:image\/png;base64,/)
+    expect(book.chapters[0].text).toContain('[img:0]')
+    expect(book.chapters[0].text).toContain('图片前文字')
+    expect(book.chapters[0].text).toContain('图片后文字')
+  })
+
+  it('章节内小标题（h2）保留为标记段落', async () => {
+    const epub = await buildEpub({
+      'META-INF/container.xml': CONTAINER,
+      'OEBPS/content.opf': OPF(
+        ['c1'],
+        '<item id="c1" href="c1.xhtml" media-type="application/xhtml+xml"/>'
+      ),
+      'OEBPS/c1.xhtml': `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml"><head><title>第一章</title></head>
+<body><h1>第一章</h1><p>开头。</p><h2>一、山雨</h2><p>正文一。</p><h2>二、欲来</h2><p>正文二。</p></body></html>`,
+    })
+    const book = await parseEpub(epub, 'fallback')
+    expect(book.chapters[0].text).toContain('# 一、山雨')
+    expect(book.chapters[0].text).toContain('# 二、欲来')
+    expect(book.chapters[0].text).not.toContain('# 第一章') // 章节标题已移除，不标记
+  })
+
+  it('EPUB2 NCX 目录优先于正文标题', async () => {
+    const epub = await buildEpub({
+      'META-INF/container.xml': CONTAINER,
+      'OEBPS/content.opf': OPF(
+        ['c1', 'c2'],
+        '<item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>' +
+          '<item id="c1" href="c1.xhtml" media-type="application/xhtml+xml"/>' +
+          '<item id="c2" href="c2.xhtml" media-type="application/xhtml+xml"/>'
+      ),
+      'OEBPS/toc.ncx': `<?xml version="1.0" encoding="UTF-8"?>
+<ncx xmlns="http://www.daisy.org/z3986/2005/ncx/" version="2005-1">
+  <navMap>
+    <navPoint id="n1" playOrder="1"><navLabel><text>第一章 官方目录名</text></navLabel><content src="c1.xhtml"/></navPoint>
+    <navPoint id="n2" playOrder="2"><navLabel><text>第二章 官方目录名</text></navLabel><content src="c2.xhtml"/></navPoint>
+  </navMap>
+</ncx>`,
+      'OEBPS/c1.xhtml': XHTML('第一章 正文标题', '<p>正文一。</p>'),
+      'OEBPS/c2.xhtml': XHTML('第二章 正文标题', '<p>正文二。</p>'),
+    })
+    const book = await parseEpub(epub, 'fallback')
+    expect(book.chapters[0].title).toBe('第一章 官方目录名')
+    expect(book.chapters[1].title).toBe('第二章 官方目录名')
+  })
+
+  it('EPUB3 nav 目录优先于正文标题', async () => {
+    const epub = await buildEpub({
+      'META-INF/container.xml': CONTAINER,
+      'OEBPS/content.opf': OPF(
+        ['nav1', 'c1'],
+        '<item id="nav1" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>' +
+          '<item id="c1" href="c1.xhtml" media-type="application/xhtml+xml"/>'
+      ),
+      'OEBPS/nav.xhtml': `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html><html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+<head><title>目录</title></head>
+<body><nav epub:type="toc"><ol>
+  <li><a href="c1.xhtml">第三章 nav目录名</a></li>
+</ol></nav></body></html>`,
+      'OEBPS/c1.xhtml': XHTML('第三章 正文标题', '<p>正文。</p>'),
+    })
+    const book = await parseEpub(epub, 'fallback')
+    expect(book.chapters[0].title).toBe('第三章 nav目录名')
+  })
+
   it('跳过图片/样式条目与外部链接', async () => {
     const epub = await buildEpub({
       'META-INF/container.xml': CONTAINER,
