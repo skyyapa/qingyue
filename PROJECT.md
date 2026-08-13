@@ -116,7 +116,7 @@ src/
   部署工作流 node-version 20→24（消除 Node 20 deprecation 警告）
 - 新增脚本：lint / test / test:watch / e2e
 
-**迭代 7 —— 数据一致性修复（待提交）**
+**迭代 7 —— 数据一致性修复（992bdc0）**
 - 幽灵关系修复：db.replaceRelations（单事务删旧写新），三个调用方切换
   （stripReferences / rewriteReferences / analyzeBook 重新分析）；修复过程中发现并解决
   IndexedDB 事务请求排序陷阱（put 先于游标删除入队会把新数据删掉）
@@ -124,6 +124,13 @@ src/
   （segment.ts 拆分为 buildStrongSet / scanChapterWindows / filterWindows）
 - 单元测试 +3（61 用例）：replaceRelations 替换/清空/隔离语义、
   analyzeBook 端到端（识别实体+共现关系）、重新分析后旧关系清零
+
+**迭代 8 —— 小白友好下载（待提交）**
+- README 顶部「立即使用」区：在线打开 / 装到桌面 / 下载离线版 三入口
+  + 给小白的一句话说明（不用在 GitHub 下载，直接打开链接）
+- Release 离线版工作流（release-offline.yml）：打 v* tag 时质量门 +
+  构建相对路径离线版（vite build --base=./，file:// 双击可用）zip 发布
+- v1.0.0 Release 已发布，离线包 381KB（含演示内容，导入 TXT/EPUB 全功能）
 - manifest.json（standalone、主题色、192/512/180 图标）+ 图标生成脚本（.tmp/make-icons.mjs，
   纯 Node zlib 手写 PNG 编码，零依赖）
 - sw.js：安装时预缓存应用壳（相对路径，兼容任意 base）、运行时缓存优先、导航离线回退应用壳、
