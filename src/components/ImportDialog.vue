@@ -1,0 +1,138 @@
+<script setup lang="ts">
+import { ref } from 'vue'
+import { useBooksStore } from '@/stores/books'
+import type { TextEncoding } from '@/types'
+
+const emit = defineEmits<{ close: []; imported: [id: string | null] }>()
+const books = useBooksStore()
+
+const encoding = ref<TextEncoding>('auto')
+const fileInput = ref<HTMLInputElement>()
+const fileName = ref('')
+
+const encodingLabel: Record<TextEncoding, string> = {
+  auto: '自动检测',
+  'utf-8': 'UTF-8',
+  gb18030: 'GB18030（兼容 GBK）',
+  big5: 'Big5（繁体）',
+  'utf-16': 'UTF-16',
+}
+const encodings = Object.keys(encodingLabel) as TextEncoding[]
+
+function pickFiles(): void {
+  fileInput.value?.click()
+}
+
+async function handleFiles(files: FileList | null): Promise<void> {
+  if (!files || files.length === 0) return
+  fileName.value = Array.from(files)
+    .map((f) => f.name)
+    .join('、')
+  const meta = await books.importFiles(files, encoding.value)
+  emit('imported', meta?.id ?? null)
+}
+
+function onDrop(e: DragEvent): void {
+  e.preventDefault()
+  handleFiles(e.dataTransfer?.files ?? null)
+}
+</script>
+
+<template>
+  <div class="mask" @click.self="emit('close')">
+    <div class="modal">
+      <h2 class="modal-title">导入书籍</h2>
+
+      <div class="drop-zone" @dragover.prevent @drop="onDrop" @click="pickFiles">
+        <p class="drop-icon">📂</p>
+        <p class="drop-text">点击选择文件，或将 TXT / EPUB 拖到这里</p>
+        <p class="drop-sub">支持多选；中文文本编码自动检测</p>
+        <input
+          ref="fileInput"
+          type="file"
+          accept=".txt,.epub,text/plain,application/epub+zip"
+          multiple
+          hidden
+          @change="(e) => handleFiles((e.target as HTMLInputElement).files)"
+        />
+      </div>
+
+      <div class="encoding-row">
+        <span>TXT 编码</span>
+        <select v-model="encoding">
+          <option v-for="e in encodings" :key="e" :value="e">{{ encodingLabel[e] }}</option>
+        </select>
+      </div>
+
+      <p v-if="books.importing" class="import-tip">正在导入「{{ fileName }}」…</p>
+      <p v-if="books.importError" class="import-error">{{ books.importError }}</p>
+
+      <div class="modal-actions">
+        <button class="btn" :disabled="books.importing" @click="emit('close')">取消</button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.modal-title {
+  margin: 0 0 16px;
+  font-size: 18px;
+}
+.drop-zone {
+  border: 2px dashed var(--panel-border);
+  border-radius: 12px;
+  padding: 34px 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+.drop-zone:hover {
+  border-color: var(--accent);
+  background: var(--accent-weak);
+}
+.drop-icon {
+  font-size: 36px;
+  margin: 0 0 8px;
+}
+.drop-text {
+  margin: 0 0 6px;
+  font-size: 14px;
+}
+.drop-sub {
+  margin: 0;
+  font-size: 12px;
+  color: var(--fg-weak);
+}
+.encoding-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16px;
+  font-size: 14px;
+}
+.encoding-row select {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--panel-border);
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 14px;
+  outline: none;
+}
+.import-tip {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--fg-weak);
+}
+.import-error {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--danger);
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+</style>

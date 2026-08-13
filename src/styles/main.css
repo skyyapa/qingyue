@@ -1,0 +1,201 @@
+/* ===================== 主题变量 ===================== */
+:root,
+[data-theme='default'] {
+  --bg: #f7f5f0;
+  --fg: #2b2b2b;
+  --fg-weak: #8a867e;
+  --panel: #ffffff;
+  --panel-border: rgba(0, 0, 0, 0.08);
+  --accent: #4f7cff;
+  --accent-weak: rgba(79, 124, 255, 0.12);
+  --shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  --topbar: rgba(247, 245, 240, 0.92);
+  --danger: #e05c5c;
+}
+[data-theme='night'] {
+  --bg: #17181c;
+  --fg: #b8bcc4;
+  --fg-weak: #666b75;
+  --panel: #202228;
+  --panel-border: rgba(255, 255, 255, 0.08);
+  --accent: #6d95ff;
+  --accent-weak: rgba(109, 149, 255, 0.16);
+  --shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+  --topbar: rgba(23, 24, 28, 0.92);
+  --danger: #e06c6c;
+}
+[data-theme='eye'] {
+  --bg: #cfe7cf;
+  --fg: #2f3b2f;
+  --fg-weak: #7c927c;
+  --panel: #dcefdc;
+  --panel-border: rgba(0, 0, 0, 0.06);
+  --accent: #3d8b3d;
+  --accent-weak: rgba(61, 139, 61, 0.14);
+  --shadow: 0 4px 24px rgba(0, 0, 0, 0.1);
+  --topbar: rgba(207, 231, 207, 0.92);
+  --danger: #c05656;
+}
+[data-theme='paper'] {
+  --bg: #f3ead6;
+  --fg: #574b36;
+  --fg-weak: #a29374;
+  --panel: #faf3e2;
+  --panel-border: rgba(0, 0, 0, 0.08);
+  --accent: #a0703c;
+  --accent-weak: rgba(160, 112, 60, 0.14);
+  --shadow: 0 4px 24px rgba(0, 0, 0, 0.1);
+  --topbar: rgba(243, 234, 214, 0.92);
+  --danger: #c05656;
+}
+
+/* ===================== 基础 ===================== */
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#app {
+  height: 100%;
+}
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.25s, color 0.25s;
+}
+button {
+  font-family: inherit;
+}
+
+/* ===================== 通用组件 ===================== */
+.btn {
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--panel-border);
+  background: var(--panel);
+  color: var(--fg);
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, opacity 0.15s;
+}
+.btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.btn-primary:hover {
+  opacity: 0.9;
+  color: #fff;
+}
+.icon-btn {
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--fg);
+  font-size: 17px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.icon-btn:hover {
+  background: var(--accent-weak);
+}
+.btn-ghost {
+  border: none;
+  background: transparent;
+  color: var(--fg-weak);
+  font-size: 15px;
+  cursor: pointer;
+}
+.btn-ghost:hover {
+  color: var(--fg);
+}
+
+/* 遮罩：居中弹窗 */
+.mask {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* 遮罩：左侧抽屉 */
+.mask-left {
+  justify-content: flex-start;
+  align-items: stretch;
+}
+/* 遮罩：右侧抽屉 */
+.mask-right {
+  justify-content: flex-end;
+  align-items: stretch;
+}
+.modal {
+  width: min(92vw, 480px);
+  max-height: 86vh;
+  overflow-y: auto;
+  background: var(--panel);
+  color: var(--fg);
+  border-radius: 14px;
+  padding: 24px;
+  box-shadow: var(--shadow);
+  animation: pop-in 0.18s ease;
+}
+.drawer {
+  width: min(86vw, 360px);
+  height: 100%;
+  background: var(--panel);
+  color: var(--fg);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  animation: slide-in 0.18s ease;
+}
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes slide-in {
+  from {
+    transform: translateX(-12px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* 滚动条 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--panel-border);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--fg-weak);
+}

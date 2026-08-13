@@ -1,0 +1,26 @@
+{
+  "name": "qingyue",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "轻阅 QingYue —— 一个开源的小说阅读器（Web）",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "type-check": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "jszip": "^3.10.1",
+    "pinia": "^4.0.3",
+    "vue": "^3.5.41",
+    "vue-router": "^5.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "@vitejs/plugin-vue": "^6.0.8",
+    "typescript": "5.9",
+    "vite": "^8.2.1",
+    "vue-tsc": "^3.3.9"
+  }
+}
