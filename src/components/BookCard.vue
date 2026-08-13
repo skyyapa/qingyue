@@ -9,6 +9,7 @@ const emit = defineEmits<{
   open: [id: string]
   remove: [book: BookMeta]
   move: [group: string]
+  analyze: []
   dragstart: [book: BookMeta]
   dragover: [book: BookMeta]
   dragend: []
@@ -54,6 +55,7 @@ function onMove(group: string): void {
     <div class="cover" :style="coverStyle">
       <span class="cover-char">{{ firstChar }}</span>
       <div class="cover-actions" @click.stop>
+        <button class="cover-btn" title="分析知识库（人物/设定/关系图）" @click="emit('analyze')">析</button>
         <button class="cover-btn" title="移动到分组" @click="menuOpen = !menuOpen">⋯</button>
         <button class="cover-btn danger" title="删除书籍" @click="emit('remove', book)">✕</button>
         <div v-if="menuOpen" class="move-menu" @click.stop>
@@ -78,6 +80,13 @@ function onMove(group: string): void {
         <span class="progress-text">{{ progressText }}</span>
         <div class="progress-bar"><i :style="{ width: Math.min(100, readPercent) + '%' }" /></div>
       </div>
+      <div v-if="book.analysis?.status === 'running'" class="analysis-mini">
+        <i :style="{ width: Math.max(2, (book.analysis.progress ?? 0) * 100) + '%' }" />
+      </div>
+      <p v-else-if="book.analysis?.status === 'done'" class="analysis-done">
+        已分析 {{ book.analysis.entityCount }} 实体
+      </p>
+      <p v-else-if="book.analysis?.status === 'error'" class="analysis-error">分析失败 · 点击重试</p>
     </div>
   </article>
 </template>
@@ -221,5 +230,29 @@ function onMove(group: string): void {
   border-radius: 2px;
   background: var(--accent);
   transition: width 0.3s ease;
+}
+.analysis-mini {
+  margin-top: 6px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--panel-border);
+  overflow: hidden;
+}
+.analysis-mini i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+  transition: width 0.2s ease;
+}
+.analysis-done {
+  margin: 5px 0 0;
+  font-size: 11px;
+  color: var(--accent);
+}
+.analysis-error {
+  margin: 5px 0 0;
+  font-size: 11px;
+  color: var(--danger);
 }
 </style>

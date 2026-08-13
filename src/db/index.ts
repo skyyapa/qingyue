@@ -1,13 +1,19 @@
-import type { BookMeta, Chapter, ReadProgress } from '@/types'
+import type { BookMeta, Chapter, ChapterIndex, Entity, ReadProgress, Relation } from '@/types'
 
-/** IndexedDB 封装。两个 object store：
- *  - books：书籍元数据（书架、目录、进度）
+/** IndexedDB 封装。object store：
+ *  - books：书籍元数据（书架、目录、进度、分析状态）
  *  - chapters：章节正文，key = `${bookId}:${index}`
+ *  - entities：知识库实体（人物/地点/技能/物品）
+ *  - chapterIndex：章节索引（每章实体词频/高频词/摘要）
+ *  - relations：实体共现关系（关系图边）
  */
 const DB_NAME = 'qingyue'
-const DB_VERSION = 1
+const DB_VERSION = 2
 const BOOKS_STORE = 'books'
 const CHAPTERS_STORE = 'chapters'
+const ENTITIES_STORE = 'entities'
+const CHAPTER_INDEX_STORE = 'chapterIndex'
+const RELATIONS_STORE = 'relations'
 
 let dbPromise: Promise<IDBDatabase> | null = null
 
@@ -22,6 +28,18 @@ function openDB(): Promise<IDBDatabase> {
         }
         if (!db.objectStoreNames.contains(CHAPTERS_STORE)) {
           const store = db.createObjectStore(CHAPTERS_STORE, { keyPath: 'id' })
+          store.createIndex('bookId', 'bookId', { unique: false })
+        }
+        if (!db.objectStoreNames.contains(ENTITIES_STORE)) {
+          const store = db.createObjectStore(ENTITIES_STORE, { keyPath: 'id' })
+          store.createIndex('bookId', 'bookId', { unique: false })
+        }
+        if (!db.objectStoreNames.contains(CHAPTER_INDEX_STORE)) {
+          const store = db.createObjectStore(CHAPTER_INDEX_STORE, { keyPath: 'id' })
+          store.createIndex('bookId', 'bookId', { unique: false })
+        }
+        if (!db.objectStoreNames.contains(RELATIONS_STORE)) {
+          const store = db.createObjectStore(RELATIONS_STORE, { keyPath: 'id' })
           store.createIndex('bookId', 'bookId', { unique: false })
         }
       }
@@ -40,6 +58,20 @@ function req<T>(storeName: string, mode: IDBTransactionMode, build: (store: IDBO
         const tx = db.transaction(storeName, mode)
         const request = build(tx.objectStore(storeName))
         request.onsuccess = () => resolve(request.result)
+        request.onerror = () => reject(request.error)
+      })
+  )
+}
+
+/** 按 bookId 读取某 store 的全部记录 */
+function listByBook<T>(storeName: string, bookId: string): Promise<T[]> {
+  return openDB().then(
+    (db) =>
+      new Promise<T[]>((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readonly')
+        const index = tx.objectStore(storeName).index('bookId')
+        const request = index.getAll(IDBKeyRange.only(bookId))
+        request.onsuccess = () => resolve(request.result as T[])
         request.onerror = () => reject(request.error)
       })
   )
@@ -77,6 +109,7 @@ export function updateBookProgress(id: string, progress: ReadProgress): Promise<
         }
         tx.oncomplete = () => resolve()
         tx.onerror = () => reject(tx.error)
+        tx.onabort = () => reject(tx.error ?? new Error('事务被中止'))
       })
   )
 }
@@ -98,28 +131,60 @@ export function updateBookGroup(id: string, group: string): Promise<void> {
         }
         tx.oncomplete = () => resolve()
         tx.onerror = () => reject(tx.error)
+        tx.onabort = () => reject(tx.error ?? new Error('事务被中止'))
       })
   )
 }
 
-/** 删除书籍及其全部章节 */
-export function deleteBook(id: string): Promise<void> {
+/** 更新书籍分析状态（analysis 可能来自 Pinia 响应式状态，需先重建为普通对象再入库） */
+export function updateBookAnalysis(id: string, analysis: BookMeta['analysis']): Promise<void> {
   return openDB().then(
     (db) =>
       new Promise((resolve, reject) => {
-        const tx = db.transaction([BOOKS_STORE, CHAPTERS_STORE], 'readwrite')
-        tx.objectStore(BOOKS_STORE).delete(id)
-        const chapterStore = tx.objectStore(CHAPTERS_STORE)
-        const cursor = chapterStore.index('bookId').openKeyCursor(IDBKeyRange.only(id))
-        cursor.onsuccess = () => {
-          const current = cursor.result
-          if (current) {
-            chapterStore.delete(current.primaryKey as IDBValidKey)
-            current.continue()
+        const tx = db.transaction(BOOKS_STORE, 'readwrite')
+        const store = tx.objectStore(BOOKS_STORE)
+        const get = store.get(id)
+        get.onsuccess = () => {
+          const meta = get.result as BookMeta | undefined
+          if (meta) {
+            meta.analysis = analysis
+              ? { ...analysis, ignoredNames: [...(analysis.ignoredNames ?? [])] }
+              : undefined
+            store.put(meta)
           }
         }
         tx.oncomplete = () => resolve()
         tx.onerror = () => reject(tx.error)
+        tx.onabort = () => reject(tx.error ?? new Error('事务被中止'))
+        tx.onabort = () => reject(tx.error ?? new Error('事务被中止'))
+      })
+  )
+}
+
+/** 删除书籍及其全部关联数据（章节/实体/索引/关系） */
+export function deleteBook(id: string): Promise<void> {
+  return openDB().then(
+    (db) =>
+      new Promise((resolve, reject) => {
+        const tx = db.transaction(
+          [BOOKS_STORE, CHAPTERS_STORE, ENTITIES_STORE, CHAPTER_INDEX_STORE, RELATIONS_STORE],
+          'readwrite'
+        )
+        tx.objectStore(BOOKS_STORE).delete(id)
+        for (const storeName of [CHAPTERS_STORE, ENTITIES_STORE, CHAPTER_INDEX_STORE, RELATIONS_STORE]) {
+          const store = tx.objectStore(storeName)
+          const cursor = store.index('bookId').openKeyCursor(IDBKeyRange.only(id))
+          cursor.onsuccess = () => {
+            const current = cursor.result
+            if (current) {
+              store.delete(current.primaryKey as IDBValidKey)
+              current.continue()
+            }
+          }
+        }
+        tx.oncomplete = () => resolve()
+        tx.onerror = () => reject(tx.error)
+        tx.onabort = () => reject(tx.error ?? new Error('事务被中止'))
       })
   )
 }
@@ -135,6 +200,7 @@ export function saveChapters(chapters: Chapter[]): Promise<void> {
         for (const chapter of chapters) store.put(chapter)
         tx.oncomplete = () => resolve()
         tx.onerror = () => reject(tx.error)
+        tx.onabort = () => reject(tx.error ?? new Error('事务被中止'))
       })
   )
 }
@@ -146,4 +212,76 @@ export function getChapter(bookId: string, index: number): Promise<Chapter | und
 /** 读取全部章节（数据备份用） */
 export function listAllChapters(): Promise<Chapter[]> {
   return req(CHAPTERS_STORE, 'readonly', (s) => s.getAll())
+}
+
+// ---------- 知识库实体 ----------
+
+export function putEntity(entity: Entity): Promise<void> {
+  return req(ENTITIES_STORE, 'readwrite', (s) => s.put(entity)).then(() => undefined)
+}
+
+export function putEntities(entities: Entity[]): Promise<void> {
+  return openDB().then(
+    (db) =>
+      new Promise((resolve, reject) => {
+        const tx = db.transaction(ENTITIES_STORE, 'readwrite')
+        const store = tx.objectStore(ENTITIES_STORE)
+        for (const entity of entities) store.put(entity)
+        tx.oncomplete = () => resolve()
+        tx.onerror = () => reject(tx.error)
+        tx.onabort = () => reject(tx.error ?? new Error('事务被中止'))
+      })
+  )
+}
+
+export function listEntities(bookId: string): Promise<Entity[]> {
+  return listByBook<Entity>(ENTITIES_STORE, bookId)
+}
+
+export function getEntity(id: string): Promise<Entity | undefined> {
+  return req(ENTITIES_STORE, 'readonly', (s) => s.get(id))
+}
+
+export function deleteEntity(id: string): Promise<void> {
+  return req(ENTITIES_STORE, 'readwrite', (s) => s.delete(id)).then(() => undefined)
+}
+
+// ---------- 章节索引 ----------
+
+export function saveChapterIndexes(list: ChapterIndex[]): Promise<void> {
+  return openDB().then(
+    (db) =>
+      new Promise((resolve, reject) => {
+        const tx = db.transaction(CHAPTER_INDEX_STORE, 'readwrite')
+        const store = tx.objectStore(CHAPTER_INDEX_STORE)
+        for (const item of list) store.put(item)
+        tx.oncomplete = () => resolve()
+        tx.onerror = () => reject(tx.error)
+        tx.onabort = () => reject(tx.error ?? new Error('事务被中止'))
+      })
+  )
+}
+
+export function listChapterIndexes(bookId: string): Promise<ChapterIndex[]> {
+  return listByBook<ChapterIndex>(CHAPTER_INDEX_STORE, bookId)
+}
+
+// ---------- 关系 ----------
+
+export function saveRelations(list: Relation[]): Promise<void> {
+  return openDB().then(
+    (db) =>
+      new Promise((resolve, reject) => {
+        const tx = db.transaction(RELATIONS_STORE, 'readwrite')
+        const store = tx.objectStore(RELATIONS_STORE)
+        for (const rel of list) store.put(rel)
+        tx.oncomplete = () => resolve()
+        tx.onerror = () => reject(tx.error)
+        tx.onabort = () => reject(tx.error ?? new Error('事务被中止'))
+      })
+  )
+}
+
+export function listRelations(bookId: string): Promise<Relation[]> {
+  return listByBook<Relation>(RELATIONS_STORE, bookId)
 }

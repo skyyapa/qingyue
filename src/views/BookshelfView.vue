@@ -8,10 +8,12 @@ import BookCard from '@/components/BookCard.vue'
 import ImportDialog from '@/components/ImportDialog.vue'
 import AppDialog from '@/components/AppDialog.vue'
 import BackupDialog from '@/components/BackupDialog.vue'
+import { useAnalysisStore } from '@/stores/analysis'
 import type { BookMeta } from '@/types'
 
 const books = useBooksStore()
 const stats = useStatsStore()
+const analysis = useAnalysisStore()
 const router = useRouter()
 
 const showImport = ref(false)
@@ -218,6 +220,7 @@ const emptyText = computed(() => {
           @open="openBook"
           @remove="confirmRemoveBook"
           @move="(g) => books.moveBook(b.id, g)"
+          @analyze="analysis.analyze(b.id)"
           @dragstart="onDragStart"
           @dragover="onDragOver"
           @dragend="onDragEnd"

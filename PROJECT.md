@@ -28,14 +28,21 @@
 
 ```
 src/
-├── db/          # IndexedDB 原生封装（promise 包装，books/chapters 双 store）
+├── db/          # IndexedDB 原生封装（books/chapters/entities/chapterIndex/relations 五 store）
 ├── parsers/     # txt.ts 编码检测+章节切分；epub.ts 解压+spine 提取（容错）；index.ts 统一入口
-├── stores/      # Pinia：books（书架/分组/排序/导入）、settings（阅读设置）、reader、stats（计时）
-├── utils/       # progress.ts（全书占比/格式化）、file.ts（带进度读取/下载）、backup.ts（导出/恢复）
+├── analyze/     # 无 AI 知识库管线：segment（新词发现）+ classify（上下文分类）+ index（编排）
+├── ai/          # AI Provider 接口契约与注册表（v1 预留，未实现远程调用）
+├── stores/      # Pinia：books（书架/分组/排序/导入）、settings、reader、stats、analysis（分析+实体操作）
+├── utils/       # progress（占比）、file（读取/下载）、backup（备份）、id
 ├── views/       # BookshelfView（书架）、ReaderView（阅读器）
-├── components/  # ImportDialog、BackupDialog、AppDialog（通用）、BookCard、TocPanel、SettingsPanel
+├── components/  # ImportDialog、BackupDialog、AppDialog、BookCard、TocPanel、SettingsPanel、
+│                # AssistantPanel（助手抽屉）、EntityCard、RelationGraph（SVG）、TextSelectionBar
 └── styles/      # main.css：四套主题 CSS 变量 + 全局组件样式
 ```
+
+存储（IndexedDB v2）：
+- books（元数据/进度/分组/字数/分析状态）、chapters（正文）
+- entities（知识库实体：人物/地点/技能/物品，可人工锁定）、chapterIndex（每章实体词频+摘要）、relations（共现边）
 
 ## 已经完成
 
@@ -65,13 +72,26 @@ src/
 - 数据备份：导出全部书籍/章节/分组/统计为单个 JSON（>512KB 自动 gzip），
   合并式恢复（同 ID 跳过）、gzip 魔数自动识别、非法文件校验
 
+**迭代 3 —— 阅读助手·本地知识库（待提交）**
+- 无 AI 知识库管线：PMI 链新词发现（窗口统计 + 左右邻多样性过滤 + 粘连词抑制）、
+  上下文模式分类（人名/地名/技能/物品/势力）、段落级共现关系、模板式章节摘要
+- IndexedDB v2：新增 entities / chapterIndex / relations 三 store
+- 助手抽屉：人物/设定/关系图/章节/回顾 五 tab；SVG 圆环关系图（零依赖）
+- 实体卡片：出现章节跳转、共现权重、例句、改名/合并/删除/备注（人工修正机制，
+  锁定与忽略列表防自动分析覆盖）
+- 选中正文文字悬浮工具条：查实体 / 加入知识库
+- AI Provider 接口契约（explain / summarizeChapter / describeEntity）+ 注册表预留
+- 书架卡片「析」按钮触发分析，进度条 + 状态显示
+
 ## 未完成任务
 
+- [ ] **AI 语义能力接入**：远程 API（CORS 方案待定）或本地模型，消费知识库数据
+      （Provider 接口已就绪，src/ai/index.ts）
+- [ ] 语义级事件提取（三年之约）——需 LLM，v1 用章节实体快照替代
 - [ ] **在线书源 + 规则引擎**（最大亮点；关键前置决策：纯前端受 CORS 限制，
       需定方案 —— 公共 CORS 代理 / 自建后端 / 用户自配代理）
 - [ ] EPUB 内嵌样式、插图与 NCX/nav 目录支持
 - [ ] PWA 离线安装（manifest + service worker）
-- [ ] 阅读数据导出 CSV（JSON 备份已有，见 utils/backup.ts）
 - [ ] README 加 GitHub Actions badge；演示 GIF
 
 ## 关键约束
@@ -114,35 +134,60 @@ src/
 9. **浏览器 TextDecoder('gb18030') 永不解码失败**：任何字节都能映射，
    所以"解码失败就换编码"的思路不成立，必须评分
 
+### 知识库分析（无 AI）
+10. **PMI 阈值区分不了人名与短语内部二元组**：小语料里「林夜对苏晚说」的 林夜/夜对/对苏/苏晚
+    PMI 几乎相同 → 真正的过滤器是**左右邻字符多样性**（真词两侧邻居多变，
+    固定搭配的粘连片段会被剔除）；阈值调低到 2.5 靠多样性兜底
+11. **最长链会吞词**：链式延伸会把「老师傅看着林夜」连成 6 字运行段 → 统计**段内所有 2-4 字窗口**
+    而非只统计整段；再对 3/4 字粘连词做**部分词频抑制**（林夜对 ⊃ 林夜 且多出的字是功能字时丢弃，
+    黑衣人 的「人」是实义字要保留）
+12. **单字后缀/介词误伤**：「老师傅看着**林**夜」因「林」在地点后缀集合被误判为地点 → 从后缀表移除；
+    「拿**出**星辉石」的「出」是介词但实为动宾结构 → 前二字是技能/物品动词时抑制地点投票
+
+### 存储 / IndexedDB
+13. **Pinia 响应式 Proxy 无法被 IndexedDB 结构化克隆**：把 store 里的 `meta.analysis`（reactive proxy）
+    直接写库会抛 DataCloneError → 事务中止 → 但代码只监听 `oncomplete/onerror`，
+    **中止触发的是 `onabort`** → Promise 永不 resolve，表现为"调用挂死且无报错"！
+    教训：写库前重建普通对象（`{...analysis, ignoredNames: [...arr]}`），且所有事务补 `onabort` 兜底
+
 ### Windows / 进程
-10. **TaskStop 杀不干净 node 子进程**（Windows）：dev 服务器被 stop 后仍占 5173 端口，
+14. **TaskStop 杀不干净 node 子进程**（Windows）：dev 服务器被 stop 后仍占 5173 端口，
     新服务器自动换 5174，而旧进程提供**过期模块缓存** → 表现为"代码改了但浏览器行为没变"。
     排查：`netstat -ano | grep :5173` 看残留 PID → `taskkill //PID <pid> //F`
     （Git Bash 必须双斜杠转义）。重启 dev 前务必检查端口
-11. **PowerShell 5.1 读 .ps1 用 ANSI**：无 BOM 的 UTF-8 中文脚本直接解析报错 →
+15. **PowerShell 5.1 读 .ps1 用 ANSI**：无 BOM 的 UTF-8 中文脚本直接解析报错 →
     脚本文件需加 UTF-8 BOM；单引号字符串里 `\n` 是字面量，换行要用双引号 + `` `n ``
 
 ### 测试环境（ZCode IAB）
-12. **evaluate 是只读的**：动态 `import()` 模块、elementFromPoint 等会被拒 →
-    用 `public/` 下的临时种子页（seed-test.html）跑应用模块验证，测完删除
-13. **标签页长时间使用后定位器退化**：中文名/文本 locator 超时、快照与 DOM 不同步、
+16. **evaluate 是只读的且行为随机**：动态 `import()`、`elementFromPoint`、`getBoundingClientRect`
+    等可能被拒（有时通过有时拒绝）→ 用 `public/` 下的临时种子页跑应用模块断言；
+    Playwright 定位器点击失效时，用 **cua 坐标点击**（`tab.cua.click({x,y})`）驱动 UI，
+    布局变化会导致坐标偏移（新增状态行/徽章后卡片中心下移），坐标算不准时
+    先用 locator 读文本定位再估算
+17. **标签页长时间使用后定位器退化**：中文名/文本 locator 超时、快照与 DOM 不同步、
     cua.keypress/drag 报 `broker response id mismatch` → 关掉旧标签页新建即可恢复
-14. **悬停态跨调用丢失**：hover 才显示的元素（卡片 ⋯/✕），必须在**同一次调用**内完成
+18. **悬停态跨调用丢失**：hover 才显示的元素（卡片 ⋯/✕/析），必须在**同一次调用**内完成
     悬停（cua.move）→ 读坐标 → 点击
-15. **原生 confirm/prompt 无法自动操作**（对话框被静默处理且时机不可控）→
+19. **原生 confirm/prompt 无法自动操作**（对话框被静默处理且时机不可控）→
     一律用应用内对话框（AppDialog）承载交互
-16. **备份导出测试的下载文件会落在项目目录**：测试后检查根目录，别提交进 git
+20. **种子页脚本是纯 JS**：不要写 TS 类型注解（`const x: T = ...` 会 SyntaxError 导致整页不跑）；
+    多次编辑时注意 `const` 重名冲突（整页直接静默失败，只有 加载中…）
 
 ### 其他
-17. **git add -A 会把 .zcode/ 内部文件带进仓库**：已在 .gitignore 排除（.zcode、.tmp、dist）
-18. **Vite dev 模块无强缓存但 HMR 偶发失效**：改代码后行为异常时，
+21. **git add -A 会把 .zcode/ 内部文件带进仓库**：已在 .gitignore 排除（.zcode、.tmp、dist）
+22. **Vite dev 模块无强缓存但 HMR 偶发失效**：改代码后行为异常时，
     先 curl 转换后的模块（如 `/src/components/X.vue`）确认服务端内容，再怀疑浏览器缓存
+23. **备份导出测试的下载文件会落在项目目录**：测试后检查根目录，别提交进 git
 
 ## 测试方法备忘
 
 - 常规回归：`npm run type-check && npm run build`；`npm run dev` 后浏览器实测
-- 解析器/备份逻辑：在 `public/seed-test.html`（临时，测完删除）用动态 import 跑断言，
-  样书生成脚本在 `.tmp/make-samples.mjs`、`.tmp/make-hard-samples.mjs`、
+- 解析器/知识库/备份/store 逻辑：在 `public/seed-test.html`（临时，测完删除）用动态 import 跑断言，
+  模式：`?analyze`（跑分析管线+输出实体分类）、`?store`（跑实体操作）、`?dump`、`?wipe`；
+  样书生成脚本在 `.tmp/make-samples.mjs`、`.tmp/make-hard-samples.mjs`、`.tmp/make-assistant-sample.mjs`、
   `.tmp/make-enc-samples.ps1`（PowerShell 需 BOM）
+- 种子页约束：纯 JS 无类型注解；避免 const 重名（整页静默失败）
+- UI 交互：IAB 定位器点击可能失效 → `tab.cua.click({x,y})` 坐标点击（布局变化坐标会漂移，
+  先读文本定位再估算）；悬停类元素（⋯/✕/析）需单次调用内 悬停→读坐标→点击
 - 发布：提交后 GitHub Actions 自动部署，约 2 分钟内生效；
   验证线上：`curl https://skyyapa.github.io/qingyue/ | grep index-`

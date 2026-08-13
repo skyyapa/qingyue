@@ -7,7 +7,9 @@ import { useStatsStore } from '@/stores/stats'
 import { bookReadPercent, formatPercent } from '@/utils/progress'
 import TocPanel from '@/components/TocPanel.vue'
 import SettingsPanel from '@/components/SettingsPanel.vue'
-import type { FontName } from '@/types'
+import AssistantPanel from '@/components/AssistantPanel.vue'
+import TextSelectionBar from '@/components/TextSelectionBar.vue'
+import type { Entity, FontName } from '@/types'
 
 const route = useRoute()
 const router = useRouter()
@@ -33,6 +35,18 @@ const pagedArea = ref<HTMLElement>()
 // 面板
 const showToc = ref(false)
 const showSettings = ref(false)
+const showAssistant = ref(false)
+const assistantRef = ref<InstanceType<typeof AssistantPanel>>()
+
+/** 选中文字命中实体 → 打开助手并定位详情 */
+function onOpenEntity(entity: Entity): void {
+  showAssistant.value = true
+  // 面板挂载后定位到实体
+  const timer = window.setTimeout(() => {
+    assistantRef.value?.openEntity(entity.id)
+    window.clearTimeout(timer)
+  }, 50)
+}
 
 // 位置显示（滚动模式百分比 / 翻页模式页数）
 const posPercent = ref('0%')
@@ -210,6 +224,7 @@ onBeforeUnmount(() => {
         <span class="title-chapter">{{ reader.chapter?.title }}</span>
       </div>
       <button class="icon-btn" title="目录" @click="showToc = true">☰</button>
+      <button class="icon-btn" title="阅读助手" @click="showAssistant = true">助</button>
       <button class="icon-btn" title="阅读设置" @click="showSettings = true">⚙</button>
     </header>
 
@@ -270,6 +285,15 @@ onBeforeUnmount(() => {
       @select="(i) => { goChapter(i); showToc = false }"
     />
     <SettingsPanel v-if="showSettings" @close="showSettings = false" />
+    <AssistantPanel
+      v-if="showAssistant"
+      ref="assistantRef"
+      :book-id="bookId"
+      :current-chapter="reader.chapterIndex"
+      @close="showAssistant = false"
+      @jump="(i) => { goChapter(i) }"
+    />
+    <TextSelectionBar :book-id="bookId" @open="onOpenEntity" />
   </div>
 </template>
 
