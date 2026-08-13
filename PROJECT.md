@@ -129,27 +129,8 @@ src/
 - [ ] 语义级事件提取（三年之约）——需 LLM，v1 用章节实体快照替代
 - [ ] 书源规则增强：分页目录/正文、规则分享、批量导入书源包
 - [ ] EPUB 内嵌样式、插图与 NCX/nav 目录支持
-- [ ] README 加 GitHub Actions badge；演示 GIF
-- 无 AI 知识库管线：PMI 链新词发现（窗口统计 + 左右邻多样性过滤 + 粘连词抑制）、
-  上下文模式分类（人名/地名/技能/物品/势力）、段落级共现关系、模板式章节摘要
-- IndexedDB v2：新增 entities / chapterIndex / relations 三 store
-- 助手抽屉：人物/设定/关系图/章节/回顾 五 tab；SVG 圆环关系图（零依赖）
-- 实体卡片：出现章节跳转、共现权重、例句、改名/合并/删除/备注（人工修正机制，
-  锁定与忽略列表防自动分析覆盖）
-- 选中正文文字悬浮工具条：查实体 / 加入知识库
-- AI Provider 接口契约（explain / summarizeChapter / describeEntity）+ 注册表预留
-- 书架卡片「析」按钮触发分析，进度条 + 状态显示
-
-## 未完成任务
-
-- [ ] **AI 语义能力接入**：远程 API（CORS 方案待定）或本地模型，消费知识库数据
-      （Provider 接口已就绪，src/ai/index.ts）
-- [ ] 语义级事件提取（三年之约）——需 LLM，v1 用章节实体快照替代
-- [ ] **在线书源 + 规则引擎**（最大亮点；关键前置决策：纯前端受 CORS 限制，
-      需定方案 —— 公共 CORS 代理 / 自建后端 / 用户自配代理）
-- [ ] EPUB 内嵌样式、插图与 NCX/nav 目录支持
-- [ ] PWA 离线安装（manifest + service worker）
-- [ ] README 加 GitHub Actions badge；演示 GIF
+- [ ] 测试覆盖扩展：store 层（pinia）、备份往返、在线书知识库（缓存章节分析）
+- [ ] README 演示 GIF
 
 ## 关键约束
 

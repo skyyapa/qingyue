@@ -116,12 +116,18 @@ node proxy/server.mjs   # 默认 8787 端口
 ## 🗺️ 路线图
 
 - [ ] **AI 语义能力接入**（剧情解释 / 语义摘要 / 世界观描述）——知识库数据已就绪，Provider 接口已预留
-- [ ] 书源规则增强：分页目录、正文分页、规则分享社区
+- [ ] 语义级事件提取（「三年之约」类剧情事件）——需 LLM，v1 用章节实体快照替代
+- [ ] 书源规则增强：分页目录 / 正文分页 / 规则分享社区
 - [ ] EPUB 内嵌样式、插图与目录（NCX / nav）支持
+- [ ] 演示 GIF
 
 ## 🤝 贡献
 
-欢迎提交 Issue 和 PR！请先运行 `npm run type-check` 确保类型通过。
+欢迎提交 Issue 和 PR！提交前请先通过质量检查：
+
+```bash
+npm run lint && npm run type-check && npm run test
+```
 
 ## 📄 License
 
