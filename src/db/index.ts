@@ -81,6 +81,27 @@ export function updateBookProgress(id: string, progress: ReadProgress): Promise<
   )
 }
 
+/** 更新书籍所属分组 */
+export function updateBookGroup(id: string, group: string): Promise<void> {
+  return openDB().then(
+    (db) =>
+      new Promise((resolve, reject) => {
+        const tx = db.transaction(BOOKS_STORE, 'readwrite')
+        const store = tx.objectStore(BOOKS_STORE)
+        const get = store.get(id)
+        get.onsuccess = () => {
+          const meta = get.result as BookMeta | undefined
+          if (meta) {
+            meta.group = group
+            store.put(meta)
+          }
+        }
+        tx.oncomplete = () => resolve()
+        tx.onerror = () => reject(tx.error)
+      })
+  )
+}
+
 /** 删除书籍及其全部章节 */
 export function deleteBook(id: string): Promise<void> {
   return openDB().then(

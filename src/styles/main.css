@@ -98,6 +98,15 @@ button {
   opacity: 0.9;
   color: #fff;
 }
+.btn-danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+.btn-danger:hover {
+  opacity: 0.9;
+  color: #fff;
+}
 .icon-btn {
   width: 36px;
   height: 36px;

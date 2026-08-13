@@ -1,10 +1,18 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useBooksStore } from '@/stores/books'
+import { bookReadPercent, formatPercent } from '@/utils/progress'
 import type { BookMeta } from '@/types'
 
 const props = defineProps<{ book: BookMeta }>()
-const emit = defineEmits<{ open: [id: string] }>()
+const emit = defineEmits<{
+  open: [id: string]
+  remove: [book: BookMeta]
+  move: [group: string]
+  dragstart: [book: BookMeta]
+  dragover: [book: BookMeta]
+  dragend: []
+}>()
 
 const books = useBooksStore()
 
@@ -20,30 +28,55 @@ const coverStyle = computed(() => {
 
 const firstChar = computed(() => [...props.book.title][0] ?? '书')
 
-const progressText = computed(() => `${props.book.progress.chapterIndex + 1} / ${props.book.chapterCount} 章`)
-const progressPct = computed(() =>
-  props.book.chapterCount > 0 ? Math.round(((props.book.progress.chapterIndex + 1) / props.book.chapterCount) * 100) : 0
+const readPercent = computed(() => bookReadPercent(props.book))
+const progressText = computed(
+  () => `第 ${props.book.progress.chapterIndex + 1}/${props.book.chapterCount} 章 · ${formatPercent(readPercent.value)}`
 )
 
-function onRemove(): void {
-  if (confirm(`确定删除《${props.book.title}》吗？阅读进度将一并清除。`)) {
-    books.removeBook(props.book.id)
-  }
+// 移动到分组的小菜单
+const menuOpen = ref(false)
+
+function onMove(group: string): void {
+  menuOpen.value = false
+  emit('move', group)
 }
 </script>
 
 <template>
-  <article class="book-card" @click="emit('open', book.id)">
+  <article
+    class="book-card"
+    draggable="true"
+    @click="emit('open', book.id)"
+    @dragstart="emit('dragstart', book)"
+    @dragover.prevent="emit('dragover', book)"
+    @dragend="emit('dragend')"
+  >
     <div class="cover" :style="coverStyle">
       <span class="cover-char">{{ firstChar }}</span>
-      <button class="cover-del" title="删除书籍" @click.stop="onRemove">✕</button>
+      <div class="cover-actions" @click.stop>
+        <button class="cover-btn" title="移动到分组" @click="menuOpen = !menuOpen">⋯</button>
+        <button class="cover-btn danger" title="删除书籍" @click="emit('remove', book)">✕</button>
+        <div v-if="menuOpen" class="move-menu" @click.stop>
+          <p class="move-menu-title">移动到分组</p>
+          <button class="move-item" :class="{ active: book.group === '' }" @click="onMove('')">默认</button>
+          <button
+            v-for="g in books.groups"
+            :key="g"
+            class="move-item"
+            :class="{ active: book.group === g }"
+            @click="onMove(g)"
+          >
+            {{ g }}
+          </button>
+        </div>
+      </div>
     </div>
     <div class="book-info">
       <h3 class="book-title" :title="book.title">{{ book.title }}</h3>
       <p class="book-author">{{ book.author }}</p>
       <div class="book-progress">
         <span class="progress-text">{{ progressText }}</span>
-        <div class="progress-bar"><i :style="{ width: progressPct + '%' }" /></div>
+        <div class="progress-bar"><i :style="{ width: Math.min(100, readPercent) + '%' }" /></div>
       </div>
     </div>
   </article>
@@ -57,6 +90,9 @@ function onRemove(): void {
 .book-card:hover {
   transform: translateY(-3px);
 }
+.book-card.dragging {
+  opacity: 0.4;
+}
 .cover {
   position: relative;
   aspect-ratio: 3 / 4;
@@ -65,7 +101,7 @@ function onRemove(): void {
   align-items: center;
   justify-content: center;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
-  overflow: hidden;
+  overflow: visible;
   user-select: none;
 }
 .cover-char {
@@ -74,10 +110,15 @@ function onRemove(): void {
   color: rgba(255, 255, 255, 0.92);
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
 }
-.cover-del {
+.cover-actions {
   position: absolute;
   top: 6px;
   right: 6px;
+  display: flex;
+  gap: 4px;
+  z-index: 2;
+}
+.cover-btn {
   width: 24px;
   height: 24px;
   border: none;
@@ -90,11 +131,54 @@ function onRemove(): void {
   align-items: center;
   justify-content: center;
 }
-.cover-del:hover {
+.cover-btn:hover {
+  background: rgba(0, 0, 0, 0.55);
+}
+.cover-btn.danger:hover {
   background: var(--danger);
 }
-.book-card:hover .cover-del {
+.book-card:hover .cover-btn {
   display: inline-flex;
+}
+.move-menu {
+  position: absolute;
+  top: 30px;
+  right: 0;
+  min-width: 132px;
+  padding: 8px;
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--fg);
+  box-shadow: var(--shadow);
+  border: 1px solid var(--panel-border);
+  z-index: 5;
+}
+.move-menu-title {
+  margin: 0 6px 6px;
+  font-size: 11px;
+  color: var(--fg-weak);
+}
+.move-item {
+  display: block;
+  width: 100%;
+  padding: 7px 8px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--fg);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.move-item:hover {
+  background: var(--accent-weak);
+}
+.move-item.active {
+  color: var(--accent);
+  font-weight: 600;
 }
 .book-info {
   padding: 10px 4px 0;
@@ -117,16 +201,15 @@ function onRemove(): void {
 }
 .book-progress {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
+  gap: 5px;
 }
 .progress-text {
   font-size: 11px;
   color: var(--fg-weak);
-  flex-shrink: 0;
 }
 .progress-bar {
-  flex: 1;
+  width: 100%;
   height: 3px;
   border-radius: 2px;
   background: var(--panel-border);
@@ -137,5 +220,6 @@ function onRemove(): void {
   height: 100%;
   border-radius: 2px;
   background: var(--accent);
+  transition: width 0.3s ease;
 }
 </style>

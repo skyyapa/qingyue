@@ -1,8 +1,33 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import * as db from '@/db'
 import { importBook } from '@/parsers'
 import type { BookMeta, ReadProgress, TextEncoding } from '@/types'
+
+/** 排序方式 */
+export type SortMode = 'recent' | 'imported' | 'title' | 'manual'
+
+const GROUPS_KEY = 'qingyue:groups'
+const ORDER_KEY = 'qingyue:order'
+const SORT_KEY = 'qingyue:sort'
+
+function loadStringArray(key: string): string[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(key) ?? 'null')
+    return Array.isArray(v) ? v.filter((x) => typeof x === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+function loadOrderMap(key: string): Record<string, string[]> {
+  try {
+    const v = JSON.parse(localStorage.getItem(key) ?? 'null')
+    return v && typeof v === 'object' && !Array.isArray(v) ? v : {}
+  } catch {
+    return {}
+  }
+}
 
 /** 生成书籍 ID（非安全上下文下回退到时间戳+随机数） */
 function genId(): string {
@@ -15,6 +40,17 @@ export const useBooksStore = defineStore('books', () => {
   const loaded = ref(false)
   const importing = ref(false)
   const importError = ref('')
+
+  /** 自定义分组名列表（'' 为默认分组，不在列表内） */
+  const groups = ref<string[]>(loadStringArray(GROUPS_KEY))
+  /** 各分组内手动排序的书籍 ID 列表，key 为分组名（'' = 默认分组） */
+  const groupOrder = ref<Record<string, string[]>>(loadOrderMap(ORDER_KEY))
+  /** 全局排序方式 */
+  const sortMode = ref<SortMode>((localStorage.getItem(SORT_KEY) as SortMode) || 'recent')
+
+  watch(groups, (v) => localStorage.setItem(GROUPS_KEY, JSON.stringify(v)), { deep: true })
+  watch(groupOrder, (v) => localStorage.setItem(ORDER_KEY, JSON.stringify(v)), { deep: true })
+  watch(sortMode, (v) => localStorage.setItem(SORT_KEY, v))
 
   async function refresh(): Promise<void> {
     books.value = await db.listBookMetas()
@@ -30,6 +66,7 @@ export const useBooksStore = defineStore('books', () => {
       for (const file of Array.from(files)) {
         const parsed = await importBook(file, encoding)
         const id = genId()
+        const chapterChars = parsed.chapters.map((c) => c.text.length)
         const meta: BookMeta = {
           id,
           title: parsed.title,
@@ -37,6 +74,9 @@ export const useBooksStore = defineStore('books', () => {
           source: file.name.toLowerCase().endsWith('.epub') ? 'epub' : 'txt',
           chapterCount: parsed.chapters.length,
           chapterTitles: parsed.chapters.map((c) => c.title),
+          chapterChars,
+          totalChars: chapterChars.reduce((a, b) => a + b, 0),
+          group: '',
           createdAt: Date.now(),
           progress: { chapterIndex: 0, scrollRatio: 0, updatedAt: Date.now() },
         }
@@ -56,9 +96,12 @@ export const useBooksStore = defineStore('books', () => {
     }
   }
 
-  /** 删除书籍（连同全部章节） */
+  /** 删除书籍（连同全部章节与手动排序记录） */
   async function removeBook(id: string): Promise<void> {
     await db.deleteBook(id)
+    for (const key of Object.keys(groupOrder.value)) {
+      groupOrder.value[key] = groupOrder.value[key].filter((bid) => bid !== id)
+    }
     await refresh()
   }
 
@@ -69,5 +112,69 @@ export const useBooksStore = defineStore('books', () => {
     if (meta) meta.progress = progress
   }
 
-  return { books, loaded, importing, importError, refresh, importFiles, removeBook, saveProgress }
+  // ---------- 分组管理 ----------
+
+  /** 新建分组（重名忽略） */
+  function createGroup(name: string): boolean {
+    const n = name.trim()
+    if (!n || groups.value.includes(n)) return false
+    groups.value.push(n)
+    return true
+  }
+
+  /** 删除分组：组内书籍回到默认分组 */
+  async function removeGroup(name: string): Promise<void> {
+    if (!groups.value.includes(name)) return
+    groups.value = groups.value.filter((g) => g !== name)
+    delete groupOrder.value[name]
+    const moved = books.value.filter((b) => b.group === name)
+    for (const meta of moved) {
+      meta.group = ''
+      await db.updateBookGroup(meta.id, '')
+    }
+  }
+
+  /** 移动书籍到指定分组 */
+  async function moveBook(id: string, group: string): Promise<void> {
+    const meta = books.value.find((b) => b.id === id)
+    if (!meta || meta.group === group) return
+    meta.group = group
+    await db.updateBookGroup(id, group)
+  }
+
+  // ---------- 手动排序 ----------
+
+  /** 以当前可见顺序初始化某分组的手动排序 */
+  function initGroupOrder(group: string, ids: string[]): void {
+    groupOrder.value[group] = [...ids]
+  }
+
+  /** 交换分组内两本书的位置（拖拽实时预览） */
+  function swapOrder(group: string, a: string, b: string): void {
+    const list = [...(groupOrder.value[group] ?? [])]
+    const ia = list.indexOf(a)
+    const ib = list.indexOf(b)
+    if (ia === -1 || ib === -1) return
+    ;[list[ia], list[ib]] = [list[ib], list[ia]]
+    groupOrder.value[group] = list
+  }
+
+  return {
+    books,
+    loaded,
+    importing,
+    importError,
+    groups,
+    groupOrder,
+    sortMode,
+    refresh,
+    importFiles,
+    removeBook,
+    saveProgress,
+    createGroup,
+    removeGroup,
+    moveBook,
+    initGroupOrder,
+    swapOrder,
+  }
 })

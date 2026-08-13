@@ -45,11 +45,13 @@ export const useReaderStore = defineStore('reader', () => {
   /** 保存进度（章内滚动比例由视图层计算传入） */
   async function saveProgress(scrollRatio: number): Promise<void> {
     if (!book.value) return
-    await booksStore.saveProgress(book.value.id, {
+    const progress = {
       chapterIndex: chapterIndex.value,
       scrollRatio,
       updatedAt: Date.now(),
-    })
+    }
+    book.value.progress = progress // 同步内存中进度，供阅读器内「全书 %」实时计算
+    await booksStore.saveProgress(book.value.id, progress)
   }
 
   return { book, chapter, chapterIndex, chapterTitles, chapterCount, loading, error, openBook, loadChapter, saveProgress }

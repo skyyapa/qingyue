@@ -11,6 +11,12 @@ export interface BookMeta {
   chapterCount: number
   /** 全部章节标题（目录面板直接读元数据，秒开） */
   chapterTitles: string[]
+  /** 每章字数（全书阅读占比计算用；旧数据可能缺失） */
+  chapterChars: number[]
+  /** 全书总字数 */
+  totalChars: number
+  /** 所属分组（'' = 默认分组） */
+  group: string
   createdAt: number
   progress: ReadProgress
 }
@@ -56,3 +62,9 @@ export interface ReaderSettings {
 
 /** TXT 解码编码选项 */
 export type TextEncoding = 'auto' | 'utf-8' | 'gb18030' | 'big5' | 'utf-16'
+
+/** 阅读统计（localStorage 持久化） */
+export interface ReadingStats {
+  /** 按日期累计的阅读秒数，key = YYYY-MM-DD（本地时区） */
+  byDate: Record<string, number>
+}

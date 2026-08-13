@@ -3,6 +3,8 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useReaderStore } from '@/stores/reader'
 import { useSettingsStore } from '@/stores/settings'
+import { useStatsStore } from '@/stores/stats'
+import { bookReadPercent, formatPercent } from '@/utils/progress'
 import TocPanel from '@/components/TocPanel.vue'
 import SettingsPanel from '@/components/SettingsPanel.vue'
 import type { FontName } from '@/types'
@@ -11,6 +13,7 @@ const route = useRoute()
 const router = useRouter()
 const reader = useReaderStore()
 const settings = useSettingsStore()
+const stats = useStatsStore()
 
 const bookId = computed(() => String(route.params.id))
 
@@ -49,6 +52,9 @@ const paragraphs = computed(() => {
 
 const hasNext = computed(() => reader.chapterIndex < reader.chapterCount - 1)
 const nextTitle = computed(() => reader.chapterTitles[reader.chapterIndex + 1] ?? '')
+
+/** 全书阅读占比 */
+const bookPercent = computed(() => (reader.book ? formatPercent(bookReadPercent(reader.book)) : '—'))
 
 const pageMode = computed(() => settings.settings.pageMode)
 
@@ -180,6 +186,7 @@ watch(
 onMounted(async () => {
   await reader.openBook(bookId.value)
   await restoreRatio(reader.book?.progress.scrollRatio ?? 0)
+  stats.startTracking() // 阅读计时
   window.addEventListener('resize', onResize)
   window.addEventListener('keydown', onKeydown)
   document.addEventListener('visibilitychange', onVisibilityChange)
@@ -187,6 +194,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   flushSave()
+  stats.stopTracking()
   window.removeEventListener('resize', onResize)
   window.removeEventListener('keydown', onKeydown)
   document.removeEventListener('visibilitychange', onVisibilityChange)
@@ -249,6 +257,7 @@ onBeforeUnmount(() => {
         <span v-if="pageMode === 'scroll'" class="pos-main">{{ posPercent }}</span>
         <span v-else class="pos-main">{{ pagePos.current }} / {{ pagePos.total }} 页</span>
         <span class="pos-chapter">{{ reader.chapterIndex + 1 }} / {{ reader.chapterCount }} 章</span>
+        <span class="pos-book" title="全书阅读占比">全书 {{ bookPercent }}</span>
       </span>
       <button class="btn-nav" :disabled="!hasNext" @click="goChapter(reader.chapterIndex + 1)">下一章</button>
     </footer>
@@ -412,6 +421,13 @@ onBeforeUnmount(() => {
 }
 .pos-chapter {
   font-size: 11px;
+}
+.pos-book {
+  font-size: 11px;
+  color: var(--accent);
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: var(--accent-weak);
 }
 @media (max-width: 560px) {
   .scroll-inner {
