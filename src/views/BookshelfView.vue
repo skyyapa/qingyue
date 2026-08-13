@@ -9,6 +9,7 @@ import ImportDialog from '@/components/ImportDialog.vue'
 import AppDialog from '@/components/AppDialog.vue'
 import BackupDialog from '@/components/BackupDialog.vue'
 import BookSourceDialog from '@/components/BookSourceDialog.vue'
+import InstallPrompt from '@/components/InstallPrompt.vue'
 import { useAnalysisStore } from '@/stores/analysis'
 import { searchSource } from '@/book-source/engine'
 import { getEnabledSources, getSource } from '@/book-source/store'
@@ -310,6 +311,7 @@ const emptyText = computed(() => {
     <ImportDialog v-if="showImport" @close="showImport = false" @imported="onImported" />
     <BackupDialog v-if="showBackup" @close="showBackup = false" @imported="books.refresh" />
     <BookSourceDialog v-if="showSources" @close="showSources = false" />
+    <InstallPrompt />
     <AppDialog
       v-if="dialog"
       :title="dialog.title"

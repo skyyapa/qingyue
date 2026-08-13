@@ -83,7 +83,7 @@ src/
 - AI Provider 接口契约（explain / summarizeChapter / describeEntity）+ 注册表预留
 - 书架卡片「析」按钮触发分析，进度条 + 状态显示
 
-**迭代 4 —— 在线书源引擎（待提交）**
+**迭代 4 —— 在线书源引擎（72ba394）**
 - legado 风格书源规则：搜索/目录/正文 CSS 选择器 + 模板变量（{{keyword}}/{{bookUrl}}/{{chapterUrl}}）
   + 管道处理（replace）；相对 href 按 HTML 语义相对被抓取页面解析
 - 跨域请求器三通道：自部署代理（proxy/worker.js Cloudflare + proxy/server.mjs Node，零依赖）/
@@ -94,6 +94,14 @@ src/
   搜索测试；内置「轻阅演示」书源（public/demo-source/ 自托管原创内容，开箱即用）
 - 备份包含书源；在线书不参与知识库分析（卡片「析」禁用）
 
+**迭代 5 —— PWA 可安装（待提交）**
+- manifest.json（standalone、主题色、192/512/180 图标）+ 图标生成脚本（.tmp/make-icons.mjs，
+  纯 Node zlib 手写 PNG 编码，零依赖）
+- sw.js：安装时预缓存应用壳（相对路径，兼容任意 base）、运行时缓存优先、导航离线回退应用壳、
+  版本化缓存清理
+- 生产环境才注册 SW（dev 跳过，避免缓存干扰开发）
+- InstallPrompt 安装引导条：beforeinstallprompt 一键安装 / iOS 添加到主屏幕指引 / 可关闭记忆
+
 ## 未完成任务
 
 - [ ] **AI 语义能力接入**：远程 API（CORS 方案待定）或本地模型，消费知识库数据
@@ -101,7 +109,6 @@ src/
 - [ ] 语义级事件提取（三年之约）——需 LLM，v1 用章节实体快照替代
 - [ ] 书源规则增强：分页目录/正文、规则分享、批量导入书源包
 - [ ] EPUB 内嵌样式、插图与 NCX/nav 目录支持
-- [ ] PWA 离线安装（manifest + service worker）
 - [ ] README 加 GitHub Actions badge；演示 GIF
 - 无 AI 知识库管线：PMI 链新词发现（窗口统计 + 左右邻多样性过滤 + 粘连词抑制）、
   上下文模式分类（人名/地名/技能/物品/势力）、段落级共现关系、模板式章节摘要
