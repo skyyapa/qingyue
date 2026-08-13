@@ -2,6 +2,8 @@ import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import * as db from '@/db'
 import { importBook } from '@/parsers'
+import { fetchChapters } from '@/book-source/engine'
+import type { BookSource } from '@/book-source/types'
 import type { BookMeta, ReadProgress, TextEncoding } from '@/types'
 
 /** 排序方式 */
@@ -111,6 +113,46 @@ export const useBooksStore = defineStore('books', () => {
     }
   }
 
+  /** 从书源搜索结果创建在线书：抓目录 → 建书（正文按需抓取缓存） */
+  async function createWebBook(source: BookSource, bookUrl: string, title: string, author: string): Promise<BookMeta | null> {
+    importing.value = true
+    importError.value = ''
+    importFileName.value = source.name
+    try {
+      const chapters = await fetchChapters(source, bookUrl)
+      if (chapters.length === 0) throw new Error('目录解析失败：没有解析到章节')
+      const id = genId()
+      const meta: BookMeta = {
+        id,
+        title: title || chapters[0].title,
+        author: author || '未知作者',
+        source: 'web',
+        webInfo: {
+          sourceId: source.id,
+          sourceName: source.name,
+          bookUrl,
+          chapterUrls: chapters.map((c) => c.url),
+        },
+        chapterCount: chapters.length,
+        chapterTitles: chapters.map((c) => c.title),
+        chapterChars: [],
+        totalChars: 0,
+        group: '',
+        createdAt: Date.now(),
+        progress: { chapterIndex: 0, scrollRatio: 0, updatedAt: Date.now() },
+      }
+      await db.addBook(meta)
+      await refresh()
+      return meta
+    } catch (error) {
+      importError.value = error instanceof Error ? error.message : String(error)
+      return null
+    } finally {
+      importing.value = false
+      importFileName.value = ''
+    }
+  }
+
   /** 删除书籍（连同全部章节与手动排序记录） */
   async function removeBook(id: string): Promise<void> {
     await db.deleteBook(id)
@@ -186,6 +228,7 @@ export const useBooksStore = defineStore('books', () => {
     sortMode,
     refresh,
     importFiles,
+    createWebBook,
     removeBook,
     saveProgress,
     createGroup,

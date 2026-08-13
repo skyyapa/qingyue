@@ -55,7 +55,12 @@ function onMove(group: string): void {
     <div class="cover" :style="coverStyle">
       <span class="cover-char">{{ firstChar }}</span>
       <div class="cover-actions" @click.stop>
-        <button class="cover-btn" title="分析知识库（人物/设定/关系图）" @click="emit('analyze')">析</button>
+        <button
+          class="cover-btn"
+          :title="book.source === 'web' ? '在线书暂不支持知识库分析' : '分析知识库（人物/设定/关系图）'"
+          :disabled="book.source === 'web'"
+          @click="emit('analyze')"
+        >析</button>
         <button class="cover-btn" title="移动到分组" @click="menuOpen = !menuOpen">⋯</button>
         <button class="cover-btn danger" title="删除书籍" @click="emit('remove', book)">✕</button>
         <div v-if="menuOpen" class="move-menu" @click.stop>
@@ -142,6 +147,9 @@ function onMove(group: string): void {
 }
 .cover-btn:hover {
   background: rgba(0, 0, 0, 0.55);
+}
+.cover-btn:disabled {
+  display: none;
 }
 .cover-btn.danger:hover {
   background: var(--danger);

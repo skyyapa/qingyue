@@ -72,7 +72,37 @@ src/
 - 数据备份：导出全部书籍/章节/分组/统计为单个 JSON（>512KB 自动 gzip），
   合并式恢复（同 ID 跳过）、gzip 魔数自动识别、非法文件校验
 
-**迭代 3 —— 阅读助手·本地知识库（待提交）**
+**迭代 3 —— 阅读助手·本地知识库（200cce0）**
+- 无 AI 知识库管线：PMI 链新词发现（窗口统计 + 左右邻多样性过滤 + 粘连词抑制）、
+  上下文模式分类（人名/地名/技能/物品/势力）、段落级共现关系、模板式章节摘要
+- IndexedDB v2：新增 entities / chapterIndex / relations 三 store
+- 助手抽屉：人物/设定/关系图/章节/回顾 五 tab；SVG 圆环关系图（零依赖）
+- 实体卡片：出现章节跳转、共现权重、例句、改名/合并/删除/备注（人工修正机制，
+  锁定与忽略列表防自动分析覆盖）
+- 选中正文文字悬浮工具条：查实体 / 加入知识库
+- AI Provider 接口契约（explain / summarizeChapter / describeEntity）+ 注册表预留
+- 书架卡片「析」按钮触发分析，进度条 + 状态显示
+
+**迭代 4 —— 在线书源引擎（待提交）**
+- legado 风格书源规则：搜索/目录/正文 CSS 选择器 + 模板变量（{{keyword}}/{{bookUrl}}/{{chapterUrl}}）
+  + 管道处理（replace）；相对 href 按 HTML 语义相对被抓取页面解析
+- 跨域请求器三通道：自部署代理（proxy/worker.js Cloudflare + proxy/server.mjs Node，零依赖）/
+  自备代理地址 / 公共代理兜底（自动切换）；同源直连；15s 超时；编码自动检测
+- 书架搜索框在线搜索（启用书源并行）→ 一键建在线书（webInfo: sourceId/bookUrl/chapterUrls）
+  → 正文按需抓取写入 chapters 缓存（进度/续读复用）→ 下一章预取
+- 书源管理对话框：代理设置（三模式 + 连接测试）、书源 CRUD/启停、JSON 编辑、导入导出、
+  搜索测试；内置「轻阅演示」书源（public/demo-source/ 自托管原创内容，开箱即用）
+- 备份包含书源；在线书不参与知识库分析（卡片「析」禁用）
+
+## 未完成任务
+
+- [ ] **AI 语义能力接入**：远程 API（CORS 方案待定）或本地模型，消费知识库数据
+      （Provider 接口已就绪，src/ai/index.ts）
+- [ ] 语义级事件提取（三年之约）——需 LLM，v1 用章节实体快照替代
+- [ ] 书源规则增强：分页目录/正文、规则分享、批量导入书源包
+- [ ] EPUB 内嵌样式、插图与 NCX/nav 目录支持
+- [ ] PWA 离线安装（manifest + service worker）
+- [ ] README 加 GitHub Actions badge；演示 GIF
 - 无 AI 知识库管线：PMI 链新词发现（窗口统计 + 左右邻多样性过滤 + 粘连词抑制）、
   上下文模式分类（人名/地名/技能/物品/势力）、段落级共现关系、模板式章节摘要
 - IndexedDB v2：新增 entities / chapterIndex / relations 三 store
@@ -178,6 +208,18 @@ src/
 22. **Vite dev 模块无强缓存但 HMR 偶发失效**：改代码后行为异常时，
     先 curl 转换后的模块（如 `/src/components/X.vue`）确认服务端内容，再怀疑浏览器缓存
 23. **备份导出测试的下载文件会落在项目目录**：测试后检查根目录，别提交进 git
+
+### 书源引擎（迭代 4 新增）
+24. **v-model 不能用于三元/条件表达式**：`v-model="cond ? a : b"` 是模板编译错误
+    （必须可赋值的成员表达式）→ 拆成两个独立 textarea 各自 v-model
+25. **`new URL(href, base)` 的 base 必须是绝对地址**：传相对路径直接抛 TypeError
+    （会被 catch 吞掉表现为"解析不出链接"）→ 先 `new URL(pageUrl, location.origin)` 转绝对
+26. **模板变量编码陷阱**：`{{bookUrl}}` 整体作为 URL 时不能 encodeURIComponent
+    （会把整个 URL 编码成 %3A%2F%2F）→ 模板只有单个变量时原样替换，嵌入长 URL 时才编码
+27. **Vite dev 不解析 public 子目录的目录路径**：`/demo-source/` 会走 SPA 回退返回应用壳，
+    要用显式 `/demo-source/index.html`（线上 GitHub Pages 目录路径正常，但统一用显式路径最稳）
+28. **规则引擎字段提取**：字段规则里的选择器是相对列表项的**子查询**，
+    提取前必须先 `el.querySelector(selector)`（否则拿到整个列表项的文本）
 
 ## 测试方法备忘
 

@@ -1,7 +1,9 @@
 import * as db from '@/db'
+import { loadSources, saveSources } from '@/book-source/store'
+import type { BookSource } from '@/book-source/types'
 import type { BookMeta, Chapter, ReadingStats } from '@/types'
 
-/** 数据备份：导出全部书籍/章节/分组/阅读统计为一个 JSON（大文件自动 gzip），支持合并式恢复 */
+/** 数据备份：导出全部书籍/章节/分组/阅读统计/书源为一个 JSON（大文件自动 gzip），支持合并式恢复 */
 
 export interface BackupData {
   app: 'qingyue'
@@ -11,6 +13,7 @@ export interface BackupData {
   books: BookMeta[]
   chapters: Chapter[]
   stats: ReadingStats
+  sources: BookSource[]
 }
 
 const GROUPS_KEY = 'qingyue:groups'
@@ -37,11 +40,12 @@ function loadStats(): ReadingStats {
 
 /** 构建备份数据 */
 export async function buildBackup(): Promise<BackupData> {
-  const [books, chapters, groups, stats] = await Promise.all([
+  const [books, chapters, groups, stats, sources] = await Promise.all([
     db.listBookMetas(),
     db.listAllChapters(),
     Promise.resolve(loadGroups()),
     Promise.resolve(loadStats()),
+    Promise.resolve(loadSources()),
   ])
   return {
     app: 'qingyue',
@@ -51,6 +55,7 @@ export async function buildBackup(): Promise<BackupData> {
     books,
     chapters,
     stats,
+    sources,
   }
 }
 
@@ -100,6 +105,19 @@ export async function importBackupBuffer(buffer: ArrayBuffer): Promise<{ importe
   // 合并分组
   const groups = new Set([...loadGroups(), ...backup.groups])
   localStorage.setItem(GROUPS_KEY, JSON.stringify([...groups]))
+
+  // 合并书源（按 id 去重）
+  if (Array.isArray(backup.sources)) {
+    const current = loadSources()
+    const ids = new Set(current.map((s) => s.id))
+    for (const s of backup.sources) {
+      if (s?.id && !ids.has(s.id)) {
+        current.push(s)
+        ids.add(s.id)
+      }
+    }
+    saveSources(current)
+  }
 
   // 合并阅读统计
   const stats = loadStats()

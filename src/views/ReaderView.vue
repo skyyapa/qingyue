@@ -233,6 +233,13 @@ onBeforeUnmount(() => {
       <p>{{ reader.error }}</p>
       <button class="btn" @click="router.push('/')">返回书架</button>
     </main>
+    <main v-else-if="reader.fetchError" class="reader-body reader-tip">
+      <p>章节加载失败：{{ reader.fetchError }}</p>
+      <div class="tip-actions">
+        <button class="btn" @click="reader.loadChapter(reader.chapterIndex)">重试</button>
+        <button class="btn" @click="router.push('/')">返回书架</button>
+      </div>
+    </main>
 
     <!-- 连续滚动模式 -->
     <main v-else-if="pageMode === 'scroll'" ref="scrollArea" class="reader-body scroll-area" @scroll="scheduleSave">
@@ -349,6 +356,10 @@ onBeforeUnmount(() => {
   justify-content: center;
   gap: 12px;
   color: var(--fg-weak);
+}
+.tip-actions {
+  display: flex;
+  gap: 10px;
 }
 /* 滚动模式正文 */
 .scroll-inner {

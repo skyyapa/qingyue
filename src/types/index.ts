@@ -1,12 +1,23 @@
 /** 书籍来源类型 */
-export type BookSource = 'txt' | 'epub'
+export type BookKind = 'txt' | 'epub' | 'web'
+
+/** 在线书（书源抓取）信息 */
+export interface WebBookInfo {
+  sourceId: string
+  sourceName: string
+  bookUrl: string
+  /** 章节 URL 列表（与 chapterTitles 一一对应） */
+  chapterUrls: string[]
+}
 
 /** 书籍元数据 —— 书架与目录展示用（IndexedDB books store） */
 export interface BookMeta {
   id: string
   title: string
   author: string
-  source: BookSource
+  source: BookKind
+  /** 在线书（web）的书源信息 */
+  webInfo?: WebBookInfo
   /** 章节总数 */
   chapterCount: number
   /** 全部章节标题（目录面板直接读元数据，秒开） */
