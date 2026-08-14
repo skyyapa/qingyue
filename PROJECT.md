@@ -558,13 +558,14 @@ src/
 - 回归全绿：type-check/lint/test(169)/e2e(48)/build
 - 路线图进度：移动端体验（M0+M1）完成 ✅ → 下一步 **v1.3：Android（TWA/Capacitor 打包）**
 
-**迭代 32 —— v1.3 Android M0：Capacitor 工程集成（用户定 Capacitor 而非 TWA：文件打开/分享/返回键/状态栏等原生能力更有发挥空间）（已提交）**
+**迭代 32 —— v1.3 Android M0：Capacitor 工程集成（用户定 Capacitor 而非 TWA：文件打开/分享/返回键/状态栏等原生能力更有发挥空间）（d8b526c）**
 - **Capacitor 8 集成**：`@capacitor/core/android/cli` + `app/status-bar/filesystem/share` 插件；
   `capacitor.config.ts`（appId `io.github.skyyapa.qingyue`，webDir dist）；`cap add android`
   生成全套 gradle 工程并提交（标准做法，可复现构建）；appId 用 GitHub Pages 反向域名避免冲突
 - **文件管理器「用轻阅打开」**：
-  - AndroidManifest 加 VIEW intent-filter：`content://` + text/plain/epub+zip、
-    `file://` + `.txt/.epub/.json` pathPattern（模板已带 singleTask + exported）
+  - AndroidManifest 加 VIEW intent-filter：现代 Android `content://` + text/plain/epub+zip/octet-stream
+    （按 MIME 独立匹配，模板已带 singleTask + exported）；Android 15 模拟器确认系统可发现轻阅
+  - AndroidManifest 加 SEND intent-filter：text/plain/epub+zip/octet-stream，覆盖系统「分享至轻阅」
   - `src/capacitor.ts` 桥接：`App.addListener('appUrlOpen')` → `Filesystem.readFile`
     （Capacitor 8 原生端返回 base64 字符串）→ `utils/intent-uri.ts` 提取文件名
     （content id 纯数字返回 null、**ExternalStorage document id 的 `primary:` 卷前缀
@@ -578,12 +579,44 @@ src/
   背景色取 `getComputedStyle(body).backgroundColor`（主题切换 watchEffect 自动同步）
 - **工程化**：`android:sync`（build + cap sync）/ `android:open` / `android:doctor` 脚本；
   ESLint 与 .gitignore 排除 android 生成代码与构建产物
-- 单测 +6（175）：fileNameFromUri（content/file URI、primary 卷前缀、纯数字 id、
-  非法编码容错）、base64ToFile UTF-8 字节还原
-- 回归全绿：type-check/lint/test(175)/e2e(48)/build；`cap sync` 资产已同步
-- 注：本机无 Android SDK，gradle APK 构建未跑（需 Android Studio）；v1.3 后续：
-  APK 构建与签名、ACTION_SEND 接收分享文件（appUrlOpen 不覆盖 SEND，需原生扩展）、
-  Android 通知（本地章节摘要提醒等）
+- 单测 +8（177）：fileNameFromUri（content/file URI、primary 卷前缀、纯数字 id、
+  非法编码容错）、extForMime MIME 兜底、base64ToFile UTF-8 字节还原
+- **构建验证**：安装 JDK 21、Android SDK platform 36 / build-tools 35 / platform-tools、
+  API 35 Google APIs x86_64 模拟器；`assembleDebug` 首次构建成功，产物
+  `android/app/build/outputs/apk/debug/app-debug.apk`；模拟器安装启动成功，
+  `content://` VIEW intent 查询可发现轻阅 MainActivity，显式 intent 可送达现有任务栈；
+  返回键在书架根页触发 `App.exitApp`；未宣称真机验证
+- 注：本机通过临时 JDK 21 与 Android SDK 完成 APK 构建；网络受限时 Gradle 依赖需
+  Android Studio/正常 Maven 网络（本机验证曾用用户级阿里云镜像，不进入仓库）。
+  Android 15 模拟器不匹配 legacy `file://` filter，因此 Manifest 保留现代 `content://`
+  MIME intent；真实文件管理器入口需在真机验证其提供的 URI/MIME。v1.3 后续：
+  真机 TXT/EPUB、文件管理器「用轻阅打开」、返回键、深浅主题 + 刘海/手势条、
+  APK 签名、ACTION_SEND 接收分享文件（appUrlOpen 不覆盖 SEND，需原生扩展）、Android 通知
+
+**迭代 33 —— v1.3 Android M1：冷启动 / 真实文件元数据 / SystemBars / 构建与模拟器验证 / ACTION_SEND（已提交）**
+- **桥接闭环审计**：确认 `setupNativeBridge()` 已在 App.vue 运行期注册，BookshelfView 已监听
+  `qingyue:open-files` 并通过 ImportDialog `initialFiles` 自动导入；M1 补 `App.getLaunchUrl()`，
+  冷启动被 VIEW intent 拉起不再漏文件（同 URI 的 appUrlOpen/getLaunchUrl 用 Set 去重）
+- **opaque content URI 真实元数据**：新增原生 `IntentFilePlugin`（MainActivity 注册）——
+  ContentResolver 查 `OpenableColumns.DISPLAY_NAME` / `getType()`（MIME）并流式读出 base64；
+  JS 优先原生插件，失败才回退 Filesystem。`content://.../12345` 这类无文件名尾段也能保留
+  真实名称与类型；补 MIME → 扩展名兜底（单测 +2）
+- **SystemBars 迁移**：卸掉单独的 StatusBar 插件，改 Capacitor 8 内置 `SystemBars`：
+  edge-to-edge 透明栏 + 已有 CSS safe-area；浅主题 `SystemBarsStyle.Light`（深色图标）、
+  深主题 `Dark`（浅色图标），主题切换自动同步
+- **ACTION_SEND**：IntentFilePlugin 增加冷启动 pending URI 与热启动 `shareFile` 事件；
+  JS 复用 URI → File → 自动导入链路。Manifest 加 SEND MIME filter；模拟器包管理器已确认
+  MainActivity 可被系统分享目标发现，显式 `ACTION_SEND` intent 已送达任务栈、无崩溃
+- **构建链打通**：安装 Android Studio、JDK 21（Capacitor 8 插件要求）、SDK platform 36 /
+  build-tools 35 / platform-tools、API 35 Google APIs x86_64 模拟器；首次 Gradle Debug 构建成功，
+  APK 产物 `android/app/build/outputs/apk/debug/app-debug.apk`（约 4.3 MB）
+- **模拟器验证（非真机）**：APK 安装/启动成功；390×2400 手势导航设备截图确认浅色系统栏深色图标、
+  Home 手势条与应用内容不重叠；导入对话框布局完整；系统返回键关闭弹窗、书架根页触发退出；
+  `content://` VIEW 和 ACTION_SEND 包管理器匹配/任务栈送达均通过。深色主题、真实 TXT/EPUB
+  ContentResolver 读取、文件管理器入口仍留待真机验证
+- **网络/工具链记录**：Capacitor 8 Gradle 插件要求 Java 21；本机官方 Google Maven TLS 不通，
+  用用户级阿里云镜像完成构建，镜像配置不入仓库；Android Studio 已安装
+- 回归全绿：type-check/lint/test(177)/e2e(48)/build + cap sync + `assembleDebug`
 
 ## 未完成任务
 

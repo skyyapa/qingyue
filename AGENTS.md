@@ -3,15 +3,15 @@
 > 本文档给被压缩/新开的会话快速续接用。完整迭代史、踩坑与测试方法见 `PROJECT.md`、`README.md`。
 > **注意：每次迭代完成后需同步更新本文件「当前状态」与 PROJECT.md/README。**
 
-## 当前状态（截至迭代 32，v1.3 Android（Capacitor）M0 完成）
+## 当前状态（截至迭代 33，v1.3 Android（Capacitor）M1：Debug APK + API 35 模拟器已验证）
 
 - **版本**：`1.2.0`（package.json 与 v1.2.0 Release 已发布，离线包 workflow success）
-- **测试基线**：单测 **175**（23 套件）/ e2e **48**（chromium 41 + webkit-ios 7）/ type-check / lint / build 全绿
+- **测试基线**：单测 **177**（23 套件）/ e2e **48**（chromium 41 + webkit-ios 7）/ type-check / lint / build 全绿；Android `assembleDebug` 全绿
 - **工作区**：干净，main 与 origin/main 同步
 - **最近迭代**：
-  - 30：移动端体验 M0（PWA 元信息、dvh、safe-area、输入框 16px、实体卡片压缩遮挡修复）
   - 31：移动阅读交互收尾 M1（中央点按工具栏、三区点按翻页、浮层 safe-area、分组删除去 hover、webkit-ios 真 WebKit 验证）
-  - 32：v1.3 Android M0（Capacitor 8 工程集成 + android 平台提交、文件管理器「用轻阅打开」TXT/EPUB 桥接（content URI → base64 → File → 自动导入）、系统返回键逐级处理、状态栏跟随主题、intent-uri 工具与单测）
+  - 32：v1.3 Android M0（Capacitor 8 工程集成、content URI → File → 自动导入、返回键、状态栏桥接）
+  - 33：v1.3 Android M1（getLaunchUrl 冷启动 + URI 去重、IntentFilePlugin 处理 opaque content URI 真实文件名/MIME、SystemBars edge-to-edge、ACTION_SEND、JDK21/SDK/Android Studio 安装、Debug APK + API35 模拟器安装启动/手势条/弹窗返回键/content VIEW+SEND intent 验证）
 
 ## 核心架构速查
 
@@ -30,9 +30,9 @@
 
 ## 下一步候选（用户路线图：移动端体验 ✅ → Android（Capacitor）→ 多设备同步）
 
-- **v1.3 Android 收尾**：APK 构建与签名（需 Android Studio/SDK，本机无）、
-  ACTION_SEND 接收系统分享文件（appUrlOpen 不覆盖 SEND，需原生扩展）、Android 通知、
-  真机验证
+- **v1.3 Android 收尾**：真机验证（TXT / EPUB、文件管理器「用轻阅打开」、ACTION_SEND、
+  返回键、深浅主题 + 刘海/手势条）、签名 release APK；模拟器验证已完成，不能替代真机
+- **Android 后续能力**：本地通知（章节摘要/阅读提醒）、分享导出；ACTION_SEND 已完成
 - **多设备同步**：阅读进度与书库跨设备（需自建后端或第三方服务，超出纯前端约束）
 - 远期（AI 不再堆新功能，用户明确）：语义级事件提取、书源规则分享社区、README 演示 GIF
 

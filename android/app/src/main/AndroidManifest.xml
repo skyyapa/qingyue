@@ -22,21 +22,30 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- 文件管理器「用轻阅打开」：TXT/EPUB（content:// 主流，file:// 兜底） -->
+            <!-- 系统分享文件到轻阅（ACTION_SEND）：content URI 由 IntentFilePlugin 接收 -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+                <data android:mimeType="application/epub+zip" />
+                <data android:mimeType="application/octet-stream" />
+            </intent-filter>
+
+            <!-- 文件管理器「用轻阅打开」：content URI 按 MIME 独立匹配 -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <data android:scheme="content" />
-                <data android:mimeType="text/plain" />
-                <data android:mimeType="application/epub+zip" />
+                <data android:scheme="content" android:mimeType="text/plain" />
             </intent-filter>
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
-                <data android:scheme="file" />
-                <data android:pathPattern=".*\\.txt" />
-                <data android:pathPattern=".*\\.epub" />
-                <data android:pathPattern=".*\\.json" />
+                <data android:scheme="content" android:mimeType="application/epub+zip" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" android:mimeType="application/octet-stream" />
             </intent-filter>
 
         </activity>

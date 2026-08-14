@@ -21,6 +21,17 @@ export function fileNameFromUri(uri: string): string | null {
   }
 }
 
+/** MIME → 扩展名兜底（文件名缺失时用） */
+export function extForMime(mime: string): string | null {
+  const map: Record<string, string> = {
+    'text/plain': '.txt',
+    'application/epub+zip': '.epub',
+    'application/json': '.json',
+    'application/octet-stream': '.bin',
+  }
+  return map[mime] ?? null
+}
+
 /** base64 解码为 File（原生桥接读到的文件内容，UTF-8 字节） */
 export function base64ToFile(base64: string, name: string, mime = ''): File {
   const binary = atob(base64)
