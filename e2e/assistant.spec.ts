@@ -34,9 +34,9 @@ test.describe('阅读助手', () => {
   test('例句「定位」跳转到正文并高亮锚点', async ({ page }) => {
     await importAndAnalyze(page)
     await page.getByRole('button', { name: /林风/ }).first().click()
-    // 夹具各章正文都很短，默认视口装得下——缩小视口高度让滚动发生
+    // 例句带出处章节时显示「定位」按钮；第 1 条例句出自序章（正文过短无法滚动），
+    // 用第 2 条（第一章）验证跨章跳转
     await page.setViewportSize({ width: 900, height: 300 })
-    // 例句带出处章节时显示「定位」按钮；第 1 条例句出自序章，用第 2 条（第一章）验证跨章跳转
     const locate = page.getByRole('button', { name: '定位' }).nth(1)
     await expect(locate).toBeVisible()
     await locate.click()
@@ -46,5 +46,23 @@ test.describe('阅读助手', () => {
     await expect
       .poll(async () => page.locator('.scroll-area').evaluate((el) => el.scrollTop), { timeout: 4000 })
       .toBeGreaterThan(0)
+  })
+
+  test('时间线 tab：全书事件聚合并可跳转', async ({ page }) => {
+    await importAndAnalyze(page)
+    await page.getByRole('button', { name: '时间线', exact: true }).click()
+    // 事件句（「林风对苏瑶说」）聚合显示
+    await expect(page.locator('.timeline-item').first()).toBeVisible()
+    await expect(page.locator('.timeline-text').first()).toContainText('林风对苏瑶说')
+    await expect(page.locator('.timeline-meta').first()).toContainText('出现于')
+    // 点击事件跳转到首次出现章节
+    await page.locator('.timeline-item').first().click()
+    await expect(page.locator('.title-chapter')).toHaveText('第一章 初入江湖')
+  })
+
+  test('设定 tab 包含境界分类', async ({ page }) => {
+    await importAndAnalyze(page)
+    await page.getByRole('button', { name: '设定', exact: true }).click()
+    await expect(page.getByRole('button', { name: '境界', exact: true })).toBeVisible()
   })
 })

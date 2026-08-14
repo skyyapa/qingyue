@@ -161,12 +161,13 @@ export function buildTaskMessages(
       const e = k.entities.find((x) => x.id === params.entityId)
       const places = take(k.entities.filter((x) => x.type === 'place').slice(0, 8), 8)
       const orgs = take(k.entities.filter((x) => x.type === 'org').slice(0, 8), 8)
+      const realms = take(k.entities.filter((x) => x.type === 'realm').slice(0, 10), 10)
       const block = e ? entityBlock(k, e.id) : ''
       return [
         { role: 'system', content: system },
         {
           role: 'user',
-          content: `请解释小说的世界观设定。\n${block ? `重点设定：「${e?.name}」\n${block}\n` : ''}主要地点：${places.map((p) => p.name).join('、') || '暂无'}\n主要势力：${orgs.map((o) => o.name).join('、') || '暂无'}\n全书等级/力量体系请根据出现设定推断（如无明确描述请说明）。`,
+          content: `请解释小说的世界观设定。\n${block ? `重点设定：「${e?.name}」\n${block}\n` : ''}主要地点：${places.map((p) => p.name).join('、') || '暂无'}\n主要势力：${orgs.map((o) => o.name).join('、') || '暂无'}\n境界体系：${realms.map((r) => r.name).join('、') || '暂无明确境界记录'}\n请顺带推断等级/力量体系的晋升脉络（如无法判断请说明）。`,
         },
       ]
     }

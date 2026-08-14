@@ -124,7 +124,7 @@ export interface ReadingStats {
 }
 
 /** 知识库实体类型 */
-export type EntityType = 'person' | 'place' | 'skill' | 'item' | 'org' | 'unknown'
+export type EntityType = 'person' | 'place' | 'skill' | 'item' | 'org' | 'realm' | 'unknown'
 
 /** 小说知识库实体（人物/地点/技能/物品等，无 AI 规则识别 + 用户可修正） */
 export interface Entity {

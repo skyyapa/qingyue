@@ -95,6 +95,28 @@ describe('voteContext 上下文投票', () => {
     voteContext('', '着', '林', '夜', votes)
     expect(votes.place ?? 0).toBe(0)
   })
+
+  it('境界识别：突破X / X境 / 词表点名', () => {
+    // 突破金丹：前缀动词 +3
+    const v1: Record<string, number> = {}
+    voteContext('突破', '破', '金', '丹', v1, '金丹')
+    expect(v1.realm).toBeGreaterThanOrEqual(3)
+    // 金丹境：词表 +2、后缀境 +2
+    const v2: Record<string, number> = {}
+    voteContext('', '', '境', '', v2, '金丹')
+    expect(v2.realm).toBeGreaterThanOrEqual(4)
+    // 踏入筑基期
+    const v3: Record<string, number> = {}
+    voteContext('踏入', '入', '期', '', v3, '筑基')
+    expect(v3.realm).toBeGreaterThanOrEqual(5)
+  })
+
+  it('「拿出金丹」判物品而非境界（动宾优先，键序先到先得）', () => {
+    const votes: Record<string, number> = {}
+    voteContext('拿出', '出', '', '', votes, '金丹')
+    expect(votes.item).toBeGreaterThanOrEqual(2)
+    expect(decideType(votes)).toBe('item')
+  })
 })
 
 describe('decideType 类型决策', () => {

@@ -21,11 +21,23 @@ const ITEM_SUFFIX = new Set(['丹药', '法宝', '宝剑', '戒指', '斗篷', '
 const ORG_SUFFIX = new Set('宗门派族')
 /** 地点后缀（单字）：X城 / X山 / X镇 ……（不含「林」，避免误伤「看着林夜」这类场景） */
 const PLACE_SUFFIX = new Set('城山镇村宫殿府阁塔寺湖河江桥路街坊县国岛洞窟崖峰岭原洲域')
+/** 境界词表（修真/武侠常见等级，覆盖「突破筑基」等直接点名场景） */
+const REALM_WORDS = new Set([
+  '炼气', '筑基', '结丹', '金丹', '元婴', '化神', '炼虚', '合体', '大乘', '渡劫',
+  '斗者', '斗师', '大斗师', '斗灵', '斗王', '斗皇', '斗宗', '斗尊', '斗圣', '斗帝',
+  '武徒', '武者', '武师', '大武师', '武宗', '武尊', '武王', '武皇', '武圣', '武帝',
+  '一品', '二品', '三品', '四品', '五品', '六品', '七品', '八品', '九品',
+  '学徒', '见习', '正式', '精英', '宗师', '大宗师', '王者', '至尊', '圣者', '神级',
+])
+/** 境界前缀动词：突破X / 踏入X / 晋入X …… */
+const REALM_PREV = new Set(['突破', '踏入', '晋入', '迈入', '达到', '晋级', '升入', '晋升'])
+/** 境界后缀（单字/双字）：X境 / X阶 / X期 / X层 / X重 / X段 */
+const REALM_SUFFIX = new Set('境阶期层重段品级')
 
 export type Votes = Partial<Record<EntityType, number>>
 
-/** 对候选词的一次出现做上下文投票 */
-export function voteContext(prev2: string, prev: string, next: string, next2: string, votes: Votes): void {
+/** 对候选词的一次出现做上下文投票（word 为候选词本身，用于境界词表判定） */
+export function voteContext(prev2: string, prev: string, next: string, next2: string, votes: Votes, word?: string): void {
   // 人名：X说 / X道 / X看着 / 对X说 / 跟X / X对Y说
   if (next && SPEECH_VERBS.has(next)) votes.person = (votes.person ?? 0) + 2
   if (next && PERSON_PREP.has(next)) votes.person = (votes.person ?? 0) + 2
@@ -44,6 +56,10 @@ export function voteContext(prev2: string, prev: string, next: string, next2: st
   if (next2 && ITEM_SUFFIX.has(next2)) votes.item = (votes.item ?? 0) + 2
   // 势力：X宗 / X派
   if (next && ORG_SUFFIX.has(next)) votes.org = (votes.org ?? 0) + 2
+  // 境界：突破X / 踏入X（前缀动词）/ X境 / X阶（后缀）/ 直接点名（词表）
+  if (prev2 && REALM_PREV.has(prev2)) votes.realm = (votes.realm ?? 0) + 3
+  if (next && REALM_SUFFIX.has(next)) votes.realm = (votes.realm ?? 0) + 2
+  if (word && REALM_WORDS.has(word)) votes.realm = (votes.realm ?? 0) + 2
 }
 
 /** 依据投票决定实体类型（票数不足视为 unknown，可在 UI 手动修正） */
@@ -66,5 +82,6 @@ export const TYPE_LABELS: Record<EntityType, string> = {
   skill: '技能',
   item: '物品',
   org: '势力',
+  realm: '境界',
   unknown: '其他',
 }

@@ -24,13 +24,14 @@ const ai = useAIStore()
 const book = computed(() => books.books.find((b) => b.id === props.bookId))
 const analysisState = computed(() => book.value?.analysis)
 
-type TabKey = 'person' | 'world' | 'graph' | 'chapters' | 'recap' | 'ai'
+type TabKey = 'person' | 'world' | 'graph' | 'chapters' | 'recap' | 'timeline' | 'ai'
 const tabs: { key: TabKey; label: string }[] = [
   { key: 'person', label: '人物' },
   { key: 'world', label: '设定' },
   { key: 'graph', label: '关系' },
   { key: 'chapters', label: '章节' },
   { key: 'recap', label: '回顾' },
+  { key: 'timeline', label: '时间线' },
   { key: 'ai', label: 'AI' },
 ]
 const activeTab = ref<TabKey>('person')
@@ -52,7 +53,7 @@ const detailId = ref<string | null>(null)
 const detailEntity = computed(() => entities.value.find((e) => e.id === detailId.value) ?? null)
 
 /** 设定 tab 的类型子筛选 */
-const worldTypes: EntityType[] = ['place', 'skill', 'item', 'org', 'unknown']
+const worldTypes: EntityType[] = ['place', 'skill', 'item', 'org', 'realm', 'unknown']
 const worldType = ref<EntityType>('place')
 
 function filterByName(list: Entity[]): Entity[] {
@@ -99,6 +100,30 @@ const recapEntities = computed(() => {
     .sort((a, b) => b[1] - a[1])
     .slice(0, 12)
     .map(([name, count]) => ({ id: idByName.get(name) ?? '', name, count }))
+})
+
+/** 全书事件时间线：跨章聚合事件句，按首次出现章节排序 */
+interface TimelineEvent {
+  text: string
+  chapters: number[]
+  count: number
+}
+const timelineEvents = computed<TimelineEvent[]>(() => {
+  const map = new Map<string, { text: string; chapters: number[]; count: number }>()
+  for (const ci of chapterIndexes.value) {
+    for (const ev of ci.events ?? []) {
+      const item = map.get(ev)
+      if (item) {
+        item.chapters.push(ci.index)
+        item.count++
+      } else {
+        map.set(ev, { text: ev, chapters: [ci.index], count: 1 })
+      }
+    }
+  }
+  return [...map.values()]
+    .map((x) => ({ ...x, chapters: [...new Set(x.chapters)].sort((a, b) => a - b) }))
+    .sort((a, b) => a.chapters[0] - b.chapters[0])
 })
 
 async function load(): Promise<void> {
@@ -376,6 +401,20 @@ defineExpose({ openEntity, openAI })
                   </div>
                 </button>
               </div>
+            </div>
+
+            <!-- 事件时间线 -->
+            <div v-else-if="activeTab === 'timeline'" class="timeline-view">
+              <p v-if="timelineEvents.length === 0" class="list-empty">
+                暂无事件。重新分析知识库后可生成事件句（如「林风对苏瑶说」），跨章节自动聚合。
+              </p>
+              <button v-for="ev in timelineEvents" :key="ev.text" class="timeline-item" @click="emit('jump', ev.chapters[0])">
+                <span class="timeline-idx">{{ ev.chapters[0] + 1 }}</span>
+                <div class="timeline-body">
+                  <p class="timeline-text">{{ ev.text }}</p>
+                  <p class="timeline-meta">出现于 {{ ev.chapters.length }} 章 · {{ ev.count }} 次</p>
+                </div>
+              </button>
             </div>
 
             <!-- AI 助手 -->
@@ -733,6 +772,45 @@ defineExpose({ openEntity, openAI })
   font-size: 12px;
   color: var(--fg-weak);
   line-height: 1.7;
+}
+/* 事件时间线 */
+.timeline-view {
+  display: flex;
+  flex-direction: column;
+}
+.timeline-item {
+  display: flex;
+  gap: 10px;
+  padding: 10px 0;
+  border: none;
+  border-bottom: 1px dashed var(--panel-border);
+  background: transparent;
+  color: var(--fg);
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+}
+.timeline-item:hover .timeline-text {
+  color: var(--accent);
+}
+.timeline-idx {
+  font-size: 12px;
+  color: var(--accent);
+  font-weight: 600;
+  flex-shrink: 0;
+  padding-top: 2px;
+}
+.timeline-body {
+  min-width: 0;
+}
+.timeline-text {
+  margin: 0 0 3px;
+  font-size: 13px;
+}
+.timeline-meta {
+  margin: 0;
+  font-size: 11px;
+  color: var(--fg-weak);
 }
 /* AI 助手 */
 .ai-view {

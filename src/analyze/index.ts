@@ -177,7 +177,7 @@ function walkChapter(
     const next = text[i + matched.length] ?? ''
     const next2 = text.slice(i + matched.length, i + matched.length + 2)
     const votes = globalVotes.get(matched) ?? {}
-    voteContext(prev2, prev, next, next2, votes)
+    voteContext(prev2, prev, next, next2, votes, matched)
     globalVotes.set(matched, votes)
 
     // 例句收集（每实体全书记录去重，截取含实体的短句，带出处章节）
