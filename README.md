@@ -82,8 +82,8 @@ npm run preview    # 预览构建产物
 ```bash
 npm run lint       # ESLint 代码检查
 npm run type-check # TypeScript 类型检查
-npm run test       # 单元测试（Vitest，116 用例：编码检测/EPUB 与 CSS 解析/知识库算法/书源引擎/数据库/Store/组件/备份）
-npm run e2e        # 端到端测试（Playwright 18 用例，首次需 npx playwright install chromium）
+npm run test       # 单元测试（Vitest，118 用例：编码检测/EPUB 与 CSS 解析/知识库算法/书源引擎/数据库/Store/组件/备份）
+npm run e2e        # 端到端测试（Playwright 21 用例，首次需 npx playwright install chromium）
 ```
 
 GitHub Actions 自动运行：推送到 `main` 或发起 PR 时执行 CI（lint + type-check + 单测 + 构建 + E2E），部署前自动验证。
