@@ -63,4 +63,15 @@ describe('settings store 载入校验', () => {
     expect(s.showNextHint).toBe(false)
     expect(s.bookPage).toBe(true)
   })
+
+  it('resetSettings 恢复默认并持久化', async () => {
+    const store = useSettingsStore()
+    store.settings.fontSize = 26
+    store.settings.theme = 'night'
+    store.resetSettings()
+    expect(store.settings).toEqual(DEFAULT_SETTINGS)
+    // deep watch 异步写回 localStorage，等一拍再断言
+    await new Promise((r) => setTimeout(r, 0))
+    expect(JSON.parse(localStorage.getItem(KEY)!)).toEqual(DEFAULT_SETTINGS)
+  })
 })

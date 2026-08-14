@@ -128,6 +128,8 @@ const fonts: { name: FontName; label: string }[] = [
             <input v-model="settings.settings.showNextHint" type="checkbox" />
           </label>
         </section>
+
+        <button class="btn reset-btn" @click="settings.resetSettings()">恢复默认设置</button>
       </div>
     </aside>
   </div>
@@ -249,5 +251,9 @@ const fonts: { name: FontName; label: string }[] = [
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
+}
+.reset-btn {
+  width: 100%;
+  margin-top: 14px;
 }
 </style>

@@ -53,4 +53,26 @@ test.describe('书架与阅读', () => {
     await page.getByRole('button', { name: '拟真书页' }).click()
     await expect(page.locator('.reader.bookpage')).toBeVisible()
   })
+
+  test('重置阅读进度：回到第一章', async ({ page }) => {
+    await page.goto('/')
+    await page.getByRole('button', { name: '＋ 导入书籍' }).click()
+    await page.locator('input[type="file"]').setInputFiles('e2e/fixtures/江湖夜雨.txt')
+    await page.waitForURL(/#\/reader\//)
+    // 翻到第二章，返回书架
+    await page.getByRole('button', { name: '下一章', exact: true }).click()
+    await expect(page.locator('.title-chapter')).toHaveText('第一章 初入江湖')
+    await page.getByRole('button', { name: '←' }).click()
+    await expect(page.locator('.progress-text')).toContainText('第 2/5 章')
+    // 卡片 ⋯ 菜单 → 重置阅读进度
+    await page.locator('.book-card').hover()
+    await page.locator('button[title="移动到分组"]').click()
+    await page.getByRole('button', { name: '重置阅读进度' }).click()
+    await page.getByRole('button', { name: '重置', exact: true }).click() // 确认对话框
+    // 重新打开：回到序章
+    await page.locator('.book-card').click()
+    await page.waitForURL(/#\/reader\//)
+    await expect(page.locator('.title-chapter')).toHaveText('序章')
+    await expect(page.locator('.pos-chapter')).toHaveText('1 / 5 章')
+  })
 })

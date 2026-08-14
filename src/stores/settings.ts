@@ -53,5 +53,11 @@ export const useSettingsStore = defineStore('settings', () => {
     },
     { deep: true }
   )
-  return { settings }
+
+  /** 恢复默认设置 */
+  function resetSettings(): void {
+    settings.value = { ...DEFAULT_SETTINGS }
+  }
+
+  return { settings, resetSettings }
 })

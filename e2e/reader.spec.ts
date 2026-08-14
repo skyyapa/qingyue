@@ -84,4 +84,18 @@ test.describe('阅读器本体', () => {
     await expect(page.locator('.reader-search')).toHaveCount(0)
     await expect(page.locator('mark.search-hit')).toHaveCount(0)
   })
+
+  test('字号快捷调节：A+/A− 改变正文字号', async ({ page }) => {
+    await importBook(page)
+    const before = (await page.locator('.scroll-inner').getAttribute('style')) ?? ''
+    expect(before).toContain('font-size: 18px') // 默认 18px
+    await page.getByRole('button', { name: 'A+' }).click()
+    await expect
+      .poll(async () => (await page.locator('.scroll-inner').getAttribute('style')) ?? '')
+      .toContain('font-size: 19px')
+    await page.getByRole('button', { name: 'A−' }).click()
+    await expect
+      .poll(async () => (await page.locator('.scroll-inner').getAttribute('style')) ?? '')
+      .toContain('font-size: 18px')
+  })
 })

@@ -10,6 +10,7 @@ const emit = defineEmits<{
   remove: [book: BookMeta]
   move: [group: string]
   analyze: []
+  resetProgress: []
   dragstart: [book: BookMeta]
   dragover: [book: BookMeta]
   dragend: []
@@ -73,6 +74,10 @@ function onMove(group: string): void {
             @click="onMove(g)"
           >
             {{ g }}
+          </button>
+          <hr class="menu-divider" />
+          <button class="move-item danger" title="回到第一章重新阅读" @click="menuOpen = false; emit('resetProgress')">
+            重置阅读进度
           </button>
         </div>
       </div>
@@ -195,6 +200,18 @@ function onMove(group: string): void {
 .move-item.active {
   color: var(--accent);
   font-weight: 600;
+}
+.menu-divider {
+  border: none;
+  border-top: 1px solid var(--panel-border);
+  margin: 5px 2px;
+}
+.move-item.danger {
+  color: var(--danger);
+}
+.move-item.danger:hover {
+  background: var(--danger);
+  color: #fff;
 }
 .book-info {
   padding: 10px 4px 0;

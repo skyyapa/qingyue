@@ -285,6 +285,12 @@ function flushSave(): void {
 /** 会话内各章阅读位置记忆：切走时记录，切回时恢复（不落库，刷新后随进度走） */
 const positionMemory = new Map<number, number>()
 
+/** 字号快捷调节（±1px，钳制 14-28；重排与位置保持由设置 watch 处理） */
+function adjustFontSize(delta: number): void {
+  const next = Math.min(28, Math.max(14, settings.settings.fontSize + delta))
+  settings.settings.fontSize = next
+}
+
 /** 跳到指定章节；带 anchor 时在章内定位到含该文本的段落（找不到则按记忆/章节开头处理） */
 async function goChapter(index: number, anchor?: string): Promise<void> {
   if (index === reader.chapterIndex && !anchor) return
@@ -609,10 +615,12 @@ onBeforeUnmount(() => {
     <footer class="reader-bottom">
       <button class="btn-nav" :disabled="reader.chapterIndex <= 0" @click="goChapter(reader.chapterIndex - 1)">上一章</button>
       <span class="reader-pos">
+        <button class="font-btn" title="减小字号" @click="adjustFontSize(-1)">A−</button>
         <span v-if="pageMode === 'scroll'" class="pos-main">{{ posPercent }}</span>
         <span v-else class="pos-main">{{ pagePos.current }} / {{ pagePos.total }} 页</span>
         <span class="pos-chapter">{{ reader.chapterIndex + 1 }} / {{ reader.chapterCount }} 章</span>
         <span class="pos-book" title="全书阅读占比">全书 {{ bookPercent }}</span>
+        <button class="font-btn" title="增大字号" @click="adjustFontSize(1)">A+</button>
       </span>
       <button class="btn-nav" :disabled="!hasNext" @click="goChapter(reader.chapterIndex + 1)">下一章</button>
     </footer>
@@ -901,6 +909,22 @@ onBeforeUnmount(() => {
   padding: 1px 8px;
   border-radius: 10px;
   background: var(--accent-weak);
+}
+/* 字号快捷调节 */
+.font-btn {
+  padding: 3px 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--fg-weak);
+  font-size: 13px;
+  line-height: 1.2;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.font-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 @media (max-width: 560px) {
   .scroll-inner {

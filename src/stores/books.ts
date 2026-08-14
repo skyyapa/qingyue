@@ -122,6 +122,14 @@ export const useBooksStore = defineStore('books', () => {
     }
   }
 
+  /** 重置阅读进度（回到第一章开头） */
+  async function resetProgress(id: string): Promise<void> {
+    const progress = { chapterIndex: 0, scrollRatio: 0, updatedAt: Date.now() }
+    await db.updateBookProgress(id, progress)
+    const b = books.value.find((x) => x.id === id)
+    if (b) b.progress = progress
+  }
+
   /** 从书源搜索结果创建在线书：抓目录 → 建书（正文按需抓取缓存） */
   async function createWebBook(source: BookSource, bookUrl: string, title: string, author: string): Promise<BookMeta | null> {
     importing.value = true
@@ -240,6 +248,7 @@ export const useBooksStore = defineStore('books', () => {
     createWebBook,
     removeBook,
     saveProgress,
+    resetProgress,
     createGroup,
     removeGroup,
     moveBook,

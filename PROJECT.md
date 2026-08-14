@@ -292,6 +292,18 @@ src/
 - E2E +1（19）：搜索高亮计数 / 逐处跳转 / 无匹配 / Esc 清除
 - 回归全绿：type-check/lint/test(116)/e2e(19)/build
 
+**迭代 18 —— 阅读高频操作增强（待提交）**
+- 字号快捷调节：阅读器底栏 A−/A+ 按钮（±1px，钳制 14-28），免开设置面板；
+  重排与位置保持复用现有设置 watch
+- 设置面板底部「恢复默认设置」按钮（settings store 新增 resetSettings action）
+- 书架「重置阅读进度」：BookCard ⋯ 菜单新增（分组列表下分隔线 + 红色操作项）→
+  应用内确认对话框 → books.resetProgress（IndexedDB 与内存同步，回到第一章开头）
+- 单测 +2（118）：settings.resetSettings 恢复默认并持久化、books.resetProgress
+  落库与内存同步
+- E2E +2（21）：字号快捷调节（A+/A− 改变正文字号）、重置阅读进度全流程
+  （翻章 → 书架菜单 → 确认 → 重开回到第一章）
+- 回归全绿：type-check/lint/test(118)/e2e(21)/build
+
 ## 未完成任务
 
 - [ ] **AI 语义能力接入**：远程 API（CORS 方案待定）或本地模型，消费知识库数据

@@ -156,6 +156,17 @@ function confirmRemoveBook(book: BookMeta): void {
   }
 }
 
+/** 重置阅读进度（回到第一章）确认 */
+function confirmResetProgress(book: BookMeta): void {
+  dialog.value = {
+    title: '重置阅读进度',
+    message: `确定重置《${book.title}》的阅读进度吗？将从第一章开始重新阅读。`,
+    danger: true,
+    confirmText: '重置',
+    onConfirm: () => books.resetProgress(book.id),
+  }
+}
+
 // ---------- 过滤与排序 ----------
 
 const visibleBooks = computed<BookMeta[]>(() => {
@@ -299,6 +310,7 @@ const emptyText = computed(() => {
           @remove="confirmRemoveBook"
           @move="(g) => books.moveBook(b.id, g)"
           @analyze="analysis.analyze(b.id)"
+          @reset-progress="confirmResetProgress(b)"
           @dragstart="onDragStart"
           @dragover="onDragOver"
           @dragend="onDragEnd"
