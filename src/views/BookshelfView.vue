@@ -12,6 +12,7 @@ import StatsPanel from '@/components/StatsPanel.vue'
 import AppDialog from '@/components/AppDialog.vue'
 import BackupDialog from '@/components/BackupDialog.vue'
 import BookSourceDialog from '@/components/BookSourceDialog.vue'
+import AIProviderDialog from '@/components/AIProviderDialog.vue'
 import InstallPrompt from '@/components/InstallPrompt.vue'
 import { useAnalysisStore } from '@/stores/analysis'
 import { searchSource } from '@/book-source/engine'
@@ -28,6 +29,7 @@ const showImport = ref(false)
 const showBackup = ref(false)
 const showSources = ref(false)
 const showStats = ref(false)
+const showAI = ref(false)
 const dragging = ref(false)
 
 /** 应用内对话框（替代原生 confirm/prompt） */
@@ -284,6 +286,7 @@ const emptyText = computed(() => {
       </div>
       <button class="btn btn-ghost-icon" title="书源管理" @click="showSources = true">源</button>
       <button class="btn btn-ghost-icon" title="数据备份（导出/导入）" @click="showBackup = true">⇅</button>
+      <button class="btn btn-ghost-icon" title="AI Provider（Base URL / Key / Model）" @click="showAI = true">AI</button>
       <button class="btn btn-primary" @click="showImport = true">＋ 导入书籍</button>
     </header>
 
@@ -336,6 +339,7 @@ const emptyText = computed(() => {
     <BackupDialog v-if="showBackup" @close="showBackup = false" @imported="books.refresh" />
     <BookSourceDialog v-if="showSources" @close="showSources = false" />
     <StatsPanel v-if="showStats" @close="showStats = false" />
+    <AIProviderDialog v-if="showAI" @close="showAI = false" />
     <InstallPrompt />
     <AppDialog
       v-if="dialog"

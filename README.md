@@ -44,6 +44,7 @@
   - 书架搜索框直接在线搜书，一键加入书架；正文按需抓取并缓存，离线可续读；**在线书同样支持知识库分析**（基于已缓存章节）
   - 跨域三通道：项目自带代理（Cloudflare Worker / Node 双版本）/ 自备代理 / 公共代理兜底
   - 书源管理：编辑 JSON、启停、搜索测试、导入导出；内置「轻阅演示」书源开箱即用（含分页目录与分页正文示例）
+- **AI 阅读助手（可选接入）** — 书架顶栏「AI」统一配置 Provider：OpenAI 兼容（DeepSeek / Gemini / 本地 Ollama / LM Studio / 自定义 API），Base URL + API Key + Model + 一键测试连接；API Key 仅保存在本机。配置后即可在阅读中调用 AI（剧情解释、角色问答等）
 - **PWA 可安装** — 一键「安装到桌面」像普通软件一样使用（含 iOS 添加到主屏幕指引），离线可读已缓存内容与本地书籍
 - **智能章节切分** — 自动识别「第X章 / 第X回 / 序章 / 楔子 / 番外 / 终章」等章节标题，书名作者自动提取；无章节标记的整本单章兜底
 - **书架管理** —
@@ -84,8 +85,8 @@ npm run preview    # 预览构建产物
 ```bash
 npm run lint       # ESLint 代码检查
 npm run type-check # TypeScript 类型检查
-npm run test       # 单元测试（Vitest，128 用例：编码检测/EPUB 与 CSS 解析/知识库算法/书源引擎/数据库/Store/组件/备份/导出/全书搜索）
-npm run e2e        # 端到端测试（Playwright 24 用例，首次需 npx playwright install chromium）
+npm run test       # 单元测试（Vitest，137 用例：编码检测/EPUB 与 CSS 解析/知识库算法/书源引擎/AI 客户端/数据库/Store/组件/备份/导出/搜索）
+npm run e2e        # 端到端测试（Playwright 25 用例，首次需 npx playwright install chromium）
 ```
 
 GitHub Actions 自动运行：推送到 `main` 或发起 PR 时执行 CI（lint + type-check + 单测 + 构建 + E2E），部署前自动验证。

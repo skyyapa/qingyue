@@ -339,6 +339,27 @@ src/
 - E2E +1（24）：本书搜索 5 章结果、点击第一章结果跳转并高亮 3 处
 - 回归全绿：type-check/lint/test(128)/e2e(24)/build
 
+**迭代 22 —— AI Provider 统一架构（阶段二）（待提交）**
+- `src/ai/presets.ts`：五类预设（OpenAI 兼容自定义 / DeepSeek / Gemini / 本地
+  Ollama / 本地 LM Studio），统一 Base URL + API Key + Model + 启用配置；
+  Gemini 走官方 OpenAI 兼容端点；本地服务无需 Key（isProviderReady 区分）；
+  Base URL 去尾斜杠规范化
+- `src/ai/client.ts`：OpenAI 兼容 chat/completions 客户端（零依赖 fetch，
+  Bearer 认证、60s 超时、HTTP/空返回/网络失败友好错误、错误带 cause）；
+  `testProvider` 最小请求连通性测试
+- `src/stores/ai.ts`：配置 localStorage 持久化（损坏回退默认、预设齐全保证），
+  activeProvider 单启用语义
+- `src/components/AIProviderDialog.vue`：书架顶栏「AI」入口——预设列表（启用状态）、
+  配置表单（Base URL/Key/Model）、测试连接（成功显示回复摘要/失败显示原因）、
+  启用按钮；注明 API Key 仅保存在本机
+- 单测 +9（137）：预设默认值与 Key 要求、isProviderReady、normalizeBaseUrl、
+  store 持久化往返/损坏回退、client 成功解析/HTTP 错误/空返回/网络失败/
+  未配置报错/testProvider
+- E2E +1（25）：预设切换预填、测试连接错误提示、启用与 Key 持久化
+- 阶段三接入点：现有 `src/ai/index.ts` 契约（explain/summarize/describeEntity）
+  将基于 activeProvider 实现
+- 回归全绿：type-check/lint/test(137)/e2e(25)/build
+
 ## 未完成任务
 
 - [ ] **AI 语义能力接入**：远程 API（CORS 方案待定）或本地模型，消费知识库数据
