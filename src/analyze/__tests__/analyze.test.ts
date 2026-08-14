@@ -155,4 +155,32 @@ describe('analyzeBook 分析管线', () => {
     const total = indexes.reduce((acc, idx) => acc + (idx.entityCounts[linAfter.id] ?? 0), 0)
     expect(total).toBe(linAfter.count)
   })
+
+  it('在线书（web）可分析已缓存的章节，未缓存章节跳过', async () => {
+    const meta = makeBook('bw')
+    meta.source = 'web'
+    meta.webInfo = {
+      sourceId: 'demo',
+      sourceName: '演示',
+      bookUrl: 'http://demo.example/book',
+      chapterUrls: CHAPTERS.map((_, i) => `http://demo.example/${i}`),
+    }
+    await db.addBook(meta)
+    // 只缓存前 5 章（第 6 章未抓取）
+    await db.saveChapters(
+      CHAPTERS.slice(0, 5).map((text, i) => ({ id: `bw:${i}`, bookId: 'bw', index: i, title: `第${i + 1}章`, text }))
+    )
+    await analyzeBook('bw', { onProgress: () => {} })
+
+    const entities = await db.listEntities('bw')
+    const names = entities.map((e) => e.name)
+    expect(names).toContain('林夜')
+    expect(names).toContain('苏晚')
+    const after = await db.getBookMeta('bw')
+    expect(after?.analysis?.status).toBe('done')
+    // 章节索引只覆盖已缓存章节
+    const indexes = await db.listChapterIndexes('bw')
+    expect(indexes).toHaveLength(5)
+    expect(indexes.map((i) => i.index)).toEqual([0, 1, 2, 3, 4])
+  })
 })

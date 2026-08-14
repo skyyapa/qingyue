@@ -57,8 +57,7 @@ function onMove(group: string): void {
       <div class="cover-actions" @click.stop>
         <button
           class="cover-btn"
-          :title="book.source === 'web' ? '在线书暂不支持知识库分析' : '分析知识库（人物/设定/关系图）'"
-          :disabled="book.source === 'web'"
+          :title="book.source === 'web' ? '分析知识库（基于已缓存的章节）' : '分析知识库（人物/设定/关系图）'"
           @click="emit('analyze')"
         >析</button>
         <button class="cover-btn" title="移动到分组" @click="menuOpen = !menuOpen">⋯</button>

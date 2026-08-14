@@ -162,7 +162,7 @@ defineExpose({ openEntity })
           {{ analysisState?.status === 'running' ? `正在分析「${book?.title}」…` : '还没有知识库' }}
         </p>
         <p class="empty-sub">
-          分析全书可以自动识别人物、地点、技能与物品，建立章节索引和人物关系图。
+          {{ book?.source === 'web' ? '分析已缓存的章节（已读过的部分），可以自动识别人物、地点、技能与物品，建立章节索引和人物关系图。' : '分析全书可以自动识别人物、地点、技能与物品，建立章节索引和人物关系图。' }}
           <template v-if="analysisState?.status === 'running'">分析无需网络，数据只保存在本机。</template>
           <template v-else>首次分析无需网络，数据只保存在本机。</template>
         </p>
