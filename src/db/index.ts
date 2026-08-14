@@ -215,6 +215,11 @@ export function getChapter(bookId: string, index: number): Promise<Chapter | und
   return req(CHAPTERS_STORE, 'readonly', (s) => s.get(`${bookId}:${index}`))
 }
 
+/** 按书列出全部章节（单书导出用） */
+export function listChapters(bookId: string): Promise<Chapter[]> {
+  return listByBook<Chapter>(CHAPTERS_STORE, bookId)
+}
+
 /** 读取全部章节（数据备份用） */
 export function listAllChapters(): Promise<Chapter[]> {
   return req(CHAPTERS_STORE, 'readonly', (s) => s.getAll())

@@ -4,6 +4,8 @@ import { useRouter } from 'vue-router'
 import { useBooksStore, type SortMode } from '@/stores/books'
 import { useStatsStore } from '@/stores/stats'
 import { formatDuration } from '@/utils/progress'
+import { downloadBlob } from '@/utils/file'
+import { exportBookFile } from '@/utils/export'
 import BookCard from '@/components/BookCard.vue'
 import ImportDialog from '@/components/ImportDialog.vue'
 import StatsPanel from '@/components/StatsPanel.vue'
@@ -169,6 +171,12 @@ function confirmResetProgress(book: BookMeta): void {
   }
 }
 
+/** 导出本书为单书文件（含进度与知识库，可迁移/分享） */
+async function exportBook(book: BookMeta): Promise<void> {
+  const file = await exportBookFile(book.id)
+  if (file) downloadBlob(file.blob, file.filename)
+}
+
 // ---------- 过滤与排序 ----------
 
 const visibleBooks = computed<BookMeta[]>(() => {
@@ -314,6 +322,7 @@ const emptyText = computed(() => {
           @move="(g) => books.moveBook(b.id, g)"
           @analyze="analysis.analyze(b.id)"
           @reset-progress="confirmResetProgress(b)"
+          @export-book="exportBook(b)"
           @dragstart="onDragStart"
           @dragover="onDragOver"
           @dragend="onDragEnd"

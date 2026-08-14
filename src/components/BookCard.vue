@@ -11,6 +11,7 @@ const emit = defineEmits<{
   move: [group: string]
   analyze: []
   resetProgress: []
+  exportBook: []
   dragstart: [book: BookMeta]
   dragover: [book: BookMeta]
   dragend: []
@@ -76,6 +77,9 @@ function onMove(group: string): void {
             {{ g }}
           </button>
           <hr class="menu-divider" />
+          <button class="move-item" title="导出为单书文件（可迁移/分享）" @click="menuOpen = false; emit('exportBook')">
+            导出本书
+          </button>
           <button class="move-item danger" title="回到第一章重新阅读" @click="menuOpen = false; emit('resetProgress')">
             重置阅读进度
           </button>

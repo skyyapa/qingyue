@@ -41,12 +41,12 @@ function onDrop(e: DragEvent): void {
 
       <div class="drop-zone" @dragover.prevent @drop="onDrop" @click="pickFiles">
         <p class="drop-icon">📂</p>
-        <p class="drop-text">点击选择文件，或将 TXT / EPUB 拖到这里</p>
-        <p class="drop-sub">支持多选；中文文本编码自动检测</p>
+        <p class="drop-text">点击选择文件，或将 TXT / EPUB / 单书文件拖到这里</p>
+        <p class="drop-sub">支持多选；中文文本编码自动检测；.qingyue 为导出的单书文件</p>
         <input
           ref="fileInput"
           type="file"
-          accept=".txt,.epub,text/plain,application/epub+zip"
+          accept=".txt,.epub,.qingyue,.json,text/plain,application/epub+zip,application/json"
           multiple
           hidden
           @change="(e) => handleFiles((e.target as HTMLInputElement).files)"

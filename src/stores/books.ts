@@ -2,6 +2,8 @@ import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import * as db from '@/db'
 import { importBook } from '@/parsers'
+import { importBookBuffer } from '@/utils/export'
+import { readFileWithProgress } from '@/utils/file'
 import { fetchChapters } from '@/book-source/engine'
 import type { BookSource } from '@/book-source/types'
 import type { BookMeta, ReadProgress, TextEncoding } from '@/types'
@@ -71,6 +73,29 @@ export const useBooksStore = defineStore('books', () => {
       for (const file of Array.from(files)) {
         importFileName.value = file.name
         importProgress.value = 0
+        const ext = (file.name.toLowerCase().split('.').pop() ?? '').toLowerCase()
+        // 单书导出文件（.qingyue / .json）：直接恢复，不走 TXT/EPUB 解析
+        if (ext === 'qingyue' || ext === 'json') {
+          const buffer = await readFileWithProgress(file, (r) => {
+            importProgress.value = r
+          })
+          const result = await importBookBuffer(buffer)
+          if (result.imported === 1 && result.meta) last = result.meta
+          continue
+        }
+        // 未知扩展名：嗅探文件头是否为单书 JSON（下载改名/传输丢扩展名兜底）
+        if (ext !== 'txt' && ext !== 'epub') {
+          const head = await file.slice(0, 4096).arrayBuffer()
+          const headText = new TextDecoder('utf-8').decode(head)
+          if (headText.includes('"app":"qingyue-book"')) {
+            const buffer = await readFileWithProgress(file, (r) => {
+              importProgress.value = r
+            })
+            const result = await importBookBuffer(buffer)
+            if (result.imported === 1 && result.meta) last = result.meta
+            continue
+          }
+        }
         const parsed = await importBook(file, encoding, (r) => {
           importProgress.value = r
         })

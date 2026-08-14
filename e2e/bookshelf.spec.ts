@@ -97,4 +97,36 @@ test.describe('书架与阅读', () => {
     await page.getByRole('button', { name: '✕' }).click()
     await expect(page.locator('.stats-modal')).toHaveCount(0)
   })
+
+  test('单书导出 → 删除 → 导入恢复（含进度）', async ({ page }) => {
+    await page.goto('/')
+    await page.getByRole('button', { name: '＋ 导入书籍' }).click()
+    await page.locator('input[type="file"]').setInputFiles('e2e/fixtures/江湖夜雨.txt')
+    await page.waitForURL(/#\/reader\//)
+    // 翻到第二章产生进度，返回书架
+    await page.getByRole('button', { name: '下一章', exact: true }).click()
+    await expect(page.locator('.title-chapter')).toHaveText('第一章 初入江湖')
+    await page.getByRole('button', { name: '←' }).click()
+    // 导出本书（等待下载）
+    const downloadPromise = page.waitForEvent('download')
+    await page.locator('.book-card').hover()
+    await page.locator('button[title="移动到分组"]').click()
+    await page.getByRole('button', { name: '导出本书' }).click()
+    const download = await downloadPromise
+    expect(download.suggestedFilename()).toBe('江湖夜雨.qingyue.json')
+    const exportPath = await download.path()
+    // 删除书籍
+    await page.locator('.book-card').hover()
+    await page.locator('button[title="删除书籍"]').click()
+    await page.getByRole('button', { name: '删除', exact: true }).click()
+    await expect(page.getByText('书架还是空的')).toBeVisible()
+    // 从单书文件导入恢复
+    await page.getByRole('button', { name: '＋ 导入书籍' }).click()
+    await page.locator('input[type="file"]').setInputFiles(exportPath!)
+    await page.waitForURL(/#\/reader\//)
+    await expect(page.locator('.title-book')).toHaveText('江湖夜雨')
+    // 进度恢复：第一章（第 2 章）
+    await expect(page.locator('.title-chapter')).toHaveText('第一章 初入江湖')
+    await expect(page.locator('.pos-chapter')).toHaveText('2 / 5 章')
+  })
 })

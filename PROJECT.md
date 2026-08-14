@@ -317,6 +317,19 @@ src/
 - E2E +1（22）：日历面板打开、42 格 + 7 表头、月份切换往返、汇总区、关闭
 - 回归全绿：type-check/lint/test(122)/e2e(22)/build
 
+**迭代 20 —— 单书导出/分享（待提交）**
+- 新增 `utils/export.ts`：单书格式 `{ app: 'qingyue-book', meta, chapters, entities,
+  chapterIndexes, relations }`（正文 + 进度 + 知识库；不含内嵌字体，与备份策略一致）
+- 导出：书架卡片 ⋯ 菜单「导出本书」→ 下载 `书名.qingyue.json`（db 新增 listChapters
+  按书列出章节）
+- 导入：ImportDialog 支持 .qingyue/.json（accept 扩展）；books.importFiles 按扩展名
+  分发单书格式，**未知扩展名嗅探文件头**（`"app":"qingyue-book"`）兜底——下载改名/
+  传输丢扩展名的文件也能正确恢复；合并语义：同 ID 跳过，导入成功返回 meta 自动跳转
+- 单测 +3（125）：导出完整性（正文/进度/知识库 + 文件名）、导入往返（新书恢复 +
+  同 ID 跳过）、非法格式报错（坏 JSON/全量备份误判）
+- E2E +1（23）：单书导出 → 删除 → 导入恢复（进度 2/5 章保留，真实浏览器下载事件）
+- 回归全绿：type-check/lint/test(125)/e2e(23)/build
+
 ## 未完成任务
 
 - [ ] **AI 语义能力接入**：远程 API（CORS 方案待定）或本地模型，消费知识库数据
