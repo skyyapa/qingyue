@@ -6,6 +6,7 @@ import { useReaderStore } from '@/stores/reader'
 import { useSettingsStore } from '@/stores/settings'
 import { useStatsStore } from '@/stores/stats'
 import { bookReadPercent, formatPercent } from '@/utils/progress'
+import { searchBookChapters, type BookSearchResult } from '@/utils/book-search'
 import TocPanel from '@/components/TocPanel.vue'
 import SettingsPanel from '@/components/SettingsPanel.vue'
 import AssistantPanel from '@/components/AssistantPanel.vue'
@@ -41,10 +42,14 @@ const assistantRef = ref<InstanceType<typeof AssistantPanel>>()
 
 // ---------- 章节内搜索 ----------
 const searchVisible = ref(false)
+const searchMode = ref<'chapter' | 'book'>('chapter')
 const searchTerm = ref('')
 const searchIndex = ref(-1)
 const searchTotal = ref(0)
+const bookResults = ref<BookSearchResult[]>([])
+const searchedChapterCount = ref(0)
 const searchInput = ref<HTMLInputElement>()
+let bookSearchTimer: number | undefined
 
 /** 当前正文滚动/翻页容器 */
 const contentEl = computed(() =>
@@ -115,12 +120,68 @@ function openSearch(): void {
 }
 
 function closeSearch(): void {
+  window.clearTimeout(bookSearchTimer)
   searchVisible.value = false
   searchTerm.value = ''
   searchIndex.value = -1
   searchTotal.value = 0
+  bookResults.value = []
+  searchedChapterCount.value = 0
   clearHighlights()
 }
+
+/** 切换搜索范围（章节 / 本书已缓存章节） */
+function setSearchMode(mode: 'chapter' | 'book'): void {
+  if (searchMode.value === mode) return
+  searchMode.value = mode
+  searchIndex.value = -1
+  searchTotal.value = 0
+  bookResults.value = []
+  clearHighlights()
+  runSearch(searchTerm.value)
+}
+
+/** 扫描全书（在线书仅扫描已缓存章节）；防抖让输入保持流畅 */
+function runBookSearch(term: string): void {
+  window.clearTimeout(bookSearchTimer)
+  const q = term.trim()
+  if (!q) {
+    bookResults.value = []
+    searchedChapterCount.value = 0
+    return
+  }
+  bookSearchTimer = window.setTimeout(async () => {
+    const chapters = await db.listChapters(bookId.value)
+    // 输入已变化或切换回章节模式时，丢弃旧结果
+    if (searchMode.value !== 'book' || searchTerm.value.trim() !== q) return
+    searchedChapterCount.value = chapters.length
+    bookResults.value = searchBookChapters(chapters, q)
+  }, 180)
+}
+
+function runSearch(term: string): void {
+  if (searchMode.value === 'chapter') {
+    afterApply(applyHighlights(term.trim()))
+  } else {
+    clearHighlights()
+    runBookSearch(term)
+  }
+}
+
+/** 选择全书结果：切章并复用锚点定位/章节高亮 */
+async function openBookResult(result: BookSearchResult): Promise<void> {
+  const term = searchTerm.value.trim()
+  if (!term) return
+  await goChapter(result.chapterIndex, term)
+  searchMode.value = 'chapter'
+  await nextTick()
+  afterApply(applyHighlights(term))
+}
+
+const bookSearchStatus = computed(() => {
+  if (reader.book?.source === 'web') return `已搜索 ${searchedChapterCount.value}/${reader.chapterCount} 章缓存内容`
+  return `已搜索 ${searchedChapterCount.value}/${reader.chapterCount} 章`
+})
 
 /** 高亮应用后的回调：更新计数并定位第一个命中 */
 function afterApply(total: number): void {
@@ -142,7 +203,7 @@ function nextHit(back: boolean): void {
   scrollToElement(marks[searchIndex.value])
 }
 
-watch(searchTerm, (term) => afterApply(applyHighlights(term.trim())))
+watch(searchTerm, (term) => runSearch(term))
 
 /** 章节/重排后 DOM 重建，重新应用高亮（保持阅读位置，不跳转） */
 function reapplySearch(): void {
@@ -528,20 +589,38 @@ onBeforeUnmount(() => {
       <button class="icon-btn" title="阅读设置" @click="showSettings = true">⚙</button>
     </header>
 
-    <!-- 章节内搜索条 -->
+    <!-- 正文搜索条（当前章节 / 全书已缓存章节） -->
     <div v-if="searchVisible" class="reader-search">
-      <input
-        ref="searchInput"
-        v-model="searchTerm"
-        type="search"
-        placeholder="在当前章节中搜索…"
-        @keydown.enter.prevent="nextHit(false)"
-        @keydown.shift.exact.enter.prevent="nextHit(true)"
-      />
-      <span class="search-count">{{ searchTotal ? `${searchIndex + 1}/${searchTotal}` : '0/0' }}</span>
-      <button class="search-btn" title="上一处" @click="nextHit(true)">↑</button>
-      <button class="search-btn" title="下一处" @click="nextHit(false)">↓</button>
-      <button class="search-btn" title="关闭搜索" @click="closeSearch">✕</button>
+      <div class="search-modes">
+        <button class="search-mode" :class="{ active: searchMode === 'chapter' }" @click="setSearchMode('chapter')">本章</button>
+        <button class="search-mode" :class="{ active: searchMode === 'book' }" @click="setSearchMode('book')">本书</button>
+      </div>
+      <div class="search-line">
+        <input
+          ref="searchInput"
+          v-model="searchTerm"
+          type="search"
+          :placeholder="searchMode === 'chapter' ? '在当前章节中搜索…' : '在全书已缓存章节中搜索…'"
+          @keydown.enter.prevent="searchMode === 'chapter' ? nextHit(false) : undefined"
+          @keydown.shift.exact.enter.prevent="searchMode === 'chapter' ? nextHit(true) : undefined"
+        />
+        <template v-if="searchMode === 'chapter'">
+          <span class="search-count">{{ searchTotal ? `${searchIndex + 1}/${searchTotal}` : '0/0' }}</span>
+          <button class="search-btn" title="上一处" @click="nextHit(true)">↑</button>
+          <button class="search-btn" title="下一处" @click="nextHit(false)">↓</button>
+        </template>
+        <button class="search-btn" title="关闭搜索" @click="closeSearch">✕</button>
+      </div>
+      <template v-if="searchMode === 'book' && searchTerm.trim()">
+        <p class="book-search-status">{{ bookSearchStatus }}</p>
+        <div class="book-search-results">
+          <button v-for="r in bookResults" :key="r.chapterIndex" class="book-search-result" @click="openBookResult(r)">
+            <span class="book-result-title">第 {{ r.chapterIndex + 1 }} 章 · {{ r.chapterTitle }} <i>{{ r.count }} 处</i></span>
+            <span class="book-result-excerpt">{{ r.excerpt }}</span>
+          </button>
+          <p v-if="searchedChapterCount > 0 && bookResults.length === 0" class="book-search-empty">未找到匹配内容</p>
+        </div>
+      </template>
     </div>
 
     <main v-if="reader.loading" class="reader-body reader-tip">加载中…</main>
@@ -662,25 +741,46 @@ onBeforeUnmount(() => {
   border-bottom: 1px solid var(--panel-border);
   z-index: 10;
 }
-/* 章节内搜索条 */
+/* 正文搜索条（本章 / 本书） */
 .reader-search {
   position: fixed;
   top: 56px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 30;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 10px;
+  padding: 8px 10px;
   background: var(--panel);
   border: 1px solid var(--panel-border);
   border-radius: 12px;
   box-shadow: var(--shadow);
-  max-width: min(92vw, 480px);
+  width: min(92vw, 480px);
+}
+.search-modes,
+.search-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.search-modes {
+  margin-bottom: 7px;
+}
+.search-mode {
+  padding: 3px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--fg-weak);
+  font-size: 12px;
+  cursor: pointer;
+}
+.search-mode.active {
+  background: var(--accent-weak);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 .reader-search input {
-  width: 220px;
+  flex: 1;
+  min-width: 0;
   padding: 6px 10px;
   border: 1px solid var(--panel-border);
   border-radius: 8px;
@@ -691,6 +791,54 @@ onBeforeUnmount(() => {
 }
 .reader-search input:focus {
   border-color: var(--accent);
+}
+.book-search-status {
+  margin: 8px 2px 5px;
+  font-size: 11px;
+  color: var(--fg-weak);
+}
+.book-search-results {
+  max-height: min(42vh, 300px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.book-search-result {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 9px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--fg);
+  text-align: left;
+  cursor: pointer;
+}
+.book-search-result:hover {
+  border-color: var(--accent);
+  background: var(--accent-weak);
+}
+.book-result-title {
+  font-size: 12px;
+  color: var(--accent);
+}
+.book-result-title i {
+  font-style: normal;
+  color: var(--fg-weak);
+  margin-left: 4px;
+}
+.book-result-excerpt {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--fg-weak);
+}
+.book-search-empty {
+  margin: 12px 0 4px;
+  font-size: 12px;
+  color: var(--fg-weak);
+  text-align: center;
 }
 .search-count {
   font-size: 12px;

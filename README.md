@@ -57,7 +57,7 @@
   - 拟真书页效果：正文渲染成带纸张质感与书页阴影的「纸页」（可一键关闭）
   - 两种翻页方式：连续滚动 / 翻页（分栏排版）；翻页模式支持**方向键翻页（到页尾自动翻章）**、**触屏左右滑动翻页**、章末「下一章」入口与「全书完」标记
   - **阅读位置记忆**：上一章 / 下一章 / 目录往返自动回到之前的位置，不再总从头开始
-  - **章节内搜索**：`Ctrl+F`（或顶栏 🔍）在当前章节搜索正文，逐处高亮跳转（↑/↓ 或 Enter 切换）
+  - **正文搜索**：`Ctrl+F`（或顶栏 🔍）支持「本章」逐处高亮跳转（↑/↓ 或 Enter 切换）和「本书」跨章节搜索；在线书搜索已缓存章节并明确显示扫描范围，点击结果直达原文高亮处
   - 目录抽屉，点击任意章节跳转（打开即定位到当前章）
 - **进度自动保存** — 阅读位置防抖写入 IndexedDB，刷新 / 重开浏览器无缝续读；页面被强杀前也会兜底保存
 - **快捷键** — `←` / `→` 翻页或翻章，`Ctrl+F` 章节内搜索，`Esc` 关闭所有面板（目录 / 设置 / 助手 / 搜索）
@@ -82,8 +82,8 @@ npm run preview    # 预览构建产物
 ```bash
 npm run lint       # ESLint 代码检查
 npm run type-check # TypeScript 类型检查
-npm run test       # 单元测试（Vitest，125 用例：编码检测/EPUB 与 CSS 解析/知识库算法/书源引擎/数据库/Store/组件/备份/单书导出）
-npm run e2e        # 端到端测试（Playwright 23 用例，首次需 npx playwright install chromium）
+npm run test       # 单元测试（Vitest，128 用例：编码检测/EPUB 与 CSS 解析/知识库算法/书源引擎/数据库/Store/组件/备份/导出/全书搜索）
+npm run e2e        # 端到端测试（Playwright 24 用例，首次需 npx playwright install chromium）
 ```
 
 GitHub Actions 自动运行：推送到 `main` 或发起 PR 时执行 CI（lint + type-check + 单测 + 构建 + E2E），部署前自动验证。

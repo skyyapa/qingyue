@@ -98,4 +98,20 @@ test.describe('阅读器本体', () => {
       .poll(async () => (await page.locator('.scroll-inner').getAttribute('style')) ?? '')
       .toContain('font-size: 18px')
   })
+
+  test('全书搜索：按章节显示结果，点击跳转并高亮', async ({ page }) => {
+    await importBook(page)
+    await page.keyboard.press('Control+f')
+    await page.getByRole('button', { name: '本书' }).click()
+    await page.locator('.reader-search input').fill('林风')
+    // 夹具内多个章节命中，按章节聚合显示
+    await expect(page.locator('.book-search-result')).toHaveCount(5)
+    await expect(page.locator('.book-search-status')).toHaveText('已搜索 5/5 章')
+    // 选择第二章（索引 1 / 第一章初入江湖）结果，切章并应用当前章高亮
+    await page.locator('.book-search-result').nth(1).click()
+    await expect(page.locator('.title-chapter')).toHaveText('第一章 初入江湖')
+    await expect(page.getByRole('button', { name: '本章' })).toHaveClass(/active/)
+    await expect(page.locator('mark.search-hit')).toHaveCount(3)
+    await expect(page.locator('mark.search-hit.current')).toHaveCount(1)
+  })
 })
