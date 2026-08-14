@@ -59,4 +59,29 @@ test.describe('阅读器本体', () => {
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth)
     expect(overflow).toBe(false)
   })
+
+  test('章节内搜索：高亮命中、逐处跳转、Esc 关闭清除', async ({ page }) => {
+    await importBook(page)
+    // Ctrl+F 唤起搜索条
+    await page.keyboard.press('Control+f')
+    await expect(page.locator('.reader-search')).toBeVisible()
+    // 输入搜索词：序章含「雨声」「雨幕」两处
+    await page.locator('.reader-search input').fill('雨')
+    await expect(page.locator('mark.search-hit')).toHaveCount(2)
+    await expect(page.locator('.search-count')).toHaveText('1/2')
+    // 下一处 → 当前高亮切换
+    await page.getByRole('button', { name: '↓' }).click()
+    await expect(page.locator('.search-count')).toHaveText('2/2')
+    await expect(page.locator('mark.search-hit.current')).toHaveCount(1)
+    // 上一处
+    await page.getByRole('button', { name: '↑' }).click()
+    await expect(page.locator('.search-count')).toHaveText('1/2')
+    // 无匹配
+    await page.locator('.reader-search input').fill('不存在的词')
+    await expect(page.locator('.search-count')).toHaveText('0/0')
+    // Esc 关闭并清除高亮
+    await page.keyboard.press('Escape')
+    await expect(page.locator('.reader-search')).toHaveCount(0)
+    await expect(page.locator('mark.search-hit')).toHaveCount(0)
+  })
 })

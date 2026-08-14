@@ -278,6 +278,20 @@ src/
   已缓存章节）、备份往返 3（导出完整性/合并恢复同 ID 跳过与新书恢复/非法备份报错）
 - 路线图「在线书知识库（缓存章节分析）」完成；回归全绿：type-check/lint/test(116)/e2e(18)/build
 
+**迭代 17 —— 章节内正文搜索（待提交）**
+- Ctrl/Cmd+F 唤起搜索条（顶栏 🔍 按钮，移动端可用）；Esc 关闭并清除高亮；
+  搜索框聚焦时方向键不翻页（光标留给输入）
+- 高亮实现：渲染后的 DOM 文本节点用 TreeWalker 收集 → `<mark class="search-hit">`
+  包裹（v-html 渲染后操作，天然跳过 [b]/[i] 标记干扰）；当前命中 `.current` 高亮
+- 计数与跳转：N/M 实时计数，↑/↓（或 Enter/Shift+Enter）逐处跳转；
+  滚动模式 scrollIntoView 居中、翻页模式视口差值换算列位置（抽公共
+  scrollToElement，锚点定位同逻辑复用）
+- 章节切换 / 字号行距等重排后 DOM 重建 → 自动重新应用高亮（保持阅读位置不跳转）
+- 修复真实 bug：onMounted 里事件监听注册在 `await applyBookFonts` 之后 →
+  打开阅读器后立即按键（Ctrl+F/方向键）事件丢失——监听注册提前到同步段
+- E2E +1（19）：搜索高亮计数 / 逐处跳转 / 无匹配 / Esc 清除
+- 回归全绿：type-check/lint/test(116)/e2e(19)/build
+
 ## 未完成任务
 
 - [ ] **AI 语义能力接入**：远程 API（CORS 方案待定）或本地模型，消费知识库数据
@@ -444,6 +458,14 @@ src/
 45. **DB 升级注意 onupgradeneeded 幂等**：v2→v3 新增 bookFonts store 用
     `if (!objectStoreNames.contains())` 保护——首次打开旧库触发升级建表，
     已升级库再打开不重建；deleteBook 事务 store 列表必须包含新 store 否则级联遗漏
+
+### 章节内搜索（迭代 17 新增）
+46. **onMounted 中事件监听注册不能放在 await 之后**：`await applyBookFonts` 挂起期间
+    keydown 监听未注册，页面刚打开时的按键（Ctrl+F/方向键）全部丢失——
+    监听注册放同步段，数据加载放后面（e2e 暴露：waitForURL 后立即按键）
+47. **v-html 段落的高亮用渲染后 DOM 操作**：TreeWalker 收集文本节点再包裹
+    `<mark>`（先收集后处理，避免遍历中修改）；`mark.search-hit` 需 `:deep` 才能命中
+    scoped 样式；搜索词在 textContent 上匹配天然跳过 [b]/[i] 标记
 
 ## 测试方法备忘
 

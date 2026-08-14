@@ -39,6 +39,120 @@ const showSettings = ref(false)
 const showAssistant = ref(false)
 const assistantRef = ref<InstanceType<typeof AssistantPanel>>()
 
+// ---------- 章节内搜索 ----------
+const searchVisible = ref(false)
+const searchTerm = ref('')
+const searchIndex = ref(-1)
+const searchTotal = ref(0)
+const searchInput = ref<HTMLInputElement>()
+
+/** 当前正文滚动/翻页容器 */
+const contentEl = computed(() =>
+  pageMode.value === 'scroll' ? scrollArea.value : pagedArea.value
+)
+
+function getMarks(): HTMLElement[] {
+  return [...(contentEl.value?.querySelectorAll('mark.search-hit') ?? [])] as HTMLElement[]
+}
+
+/** 清除全部搜索高亮（把 mark 还原为文本节点） */
+function clearHighlights(): void {
+  for (const mark of contentEl.value?.querySelectorAll('mark.search-hit') ?? []) {
+    mark.replaceWith(document.createTextNode(mark.textContent ?? ''))
+  }
+}
+
+/** 在渲染后的文本节点上包裹搜索词（v-html 渲染后 DOM 操作，天然跳过 [b]/[i] 等标记） */
+function applyHighlights(term: string): number {
+  clearHighlights()
+  const container = contentEl.value
+  if (!term || !container) return 0
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, {
+    acceptNode: (n) => (n.textContent?.includes(term) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT),
+  })
+  const targets: Text[] = []
+  while (walker.nextNode()) targets.push(walker.currentNode as Text)
+  let count = 0
+  for (const node of targets) {
+    const parent = node.parentNode
+    if (!parent) continue
+    const text = node.textContent ?? ''
+    const frag = document.createDocumentFragment()
+    let pos = 0
+    let idx = text.indexOf(term)
+    while (idx >= 0) {
+      if (idx > pos) frag.appendChild(document.createTextNode(text.slice(pos, idx)))
+      const mark = document.createElement('mark')
+      mark.className = 'search-hit'
+      mark.textContent = term
+      frag.appendChild(mark)
+      count++
+      pos = idx + term.length
+      idx = text.indexOf(term, pos)
+    }
+    if (pos < text.length) frag.appendChild(document.createTextNode(text.slice(pos)))
+    parent.replaceChild(frag, node)
+  }
+  return count
+}
+
+/** 滚动到目标元素（滚动模式居中；翻页模式按视口差值换算列位置） */
+function scrollToElement(el: HTMLElement): void {
+  if (pageMode.value === 'scroll') {
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  } else {
+    const container = pagedArea.value
+    if (!container) return
+    const rect = el.getBoundingClientRect()
+    const cRect = container.getBoundingClientRect()
+    container.scrollTo({ left: container.scrollLeft + (rect.left - cRect.left), behavior: 'smooth' })
+  }
+}
+
+function openSearch(): void {
+  searchVisible.value = true
+  nextTick(() => searchInput.value?.focus())
+}
+
+function closeSearch(): void {
+  searchVisible.value = false
+  searchTerm.value = ''
+  searchIndex.value = -1
+  searchTotal.value = 0
+  clearHighlights()
+}
+
+/** 高亮应用后的回调：更新计数并定位第一个命中 */
+function afterApply(total: number): void {
+  searchTotal.value = total
+  searchIndex.value = total > 0 ? 0 : -1
+  const marks = getMarks()
+  marks.forEach((m, i) => m.classList.toggle('current', i === searchIndex.value))
+  if (marks[0]) scrollToElement(marks[0])
+}
+
+/** 上一处 / 下一处 */
+function nextHit(back: boolean): void {
+  const marks = getMarks()
+  if (marks.length === 0) return
+  searchIndex.value = back
+    ? (searchIndex.value - 1 + marks.length) % marks.length
+    : (searchIndex.value + 1) % marks.length
+  marks.forEach((m, i) => m.classList.toggle('current', i === searchIndex.value))
+  scrollToElement(marks[searchIndex.value])
+}
+
+watch(searchTerm, (term) => afterApply(applyHighlights(term.trim())))
+
+/** 章节/重排后 DOM 重建，重新应用高亮（保持阅读位置，不跳转） */
+function reapplySearch(): void {
+  if (searchVisible.value && searchTerm.value.trim()) {
+    searchTotal.value = applyHighlights(searchTerm.value.trim())
+    searchIndex.value = searchTotal.value > 0 ? 0 : -1
+    getMarks().forEach((m, i) => m.classList.toggle('current', i === searchIndex.value))
+  }
+}
+
 /** 选中文字命中实体 → 打开助手并定位详情 */
 async function onOpenEntity(entity: Entity): Promise<void> {
   showAssistant.value = true
@@ -193,19 +307,13 @@ async function goChapter(index: number, anchor?: string): Promise<void> {
 
 /** 在正文段落中定位锚点文本（滚动模式按段落滚动；翻页模式按视口差值换算列位置） */
 function scrollToAnchor(anchor: string): boolean {
-  const container = pageMode.value === 'scroll' ? scrollArea.value : pagedArea.value
+  const container = contentEl.value
   if (!container) return false
   const norm = anchor.replace(/\s+/g, '')
   const paras = container.querySelectorAll('p.para')
   for (const p of paras) {
     if ((p.textContent ?? '').replace(/\s+/g, '').includes(norm)) {
-      if (pageMode.value === 'scroll') {
-        p.scrollIntoView({ block: 'center', behavior: 'smooth' })
-      } else {
-        const rect = p.getBoundingClientRect()
-        const cRect = container.getBoundingClientRect()
-        container.scrollTo({ left: container.scrollLeft + (rect.left - cRect.left), behavior: 'smooth' })
-      }
+      scrollToElement(p as HTMLElement)
       flashAnchor(p as HTMLElement)
       return true
     }
@@ -280,14 +388,23 @@ function onTouchEnd(e: TouchEvent): void {
 // ---------- 事件 ----------
 
 function onKeydown(e: KeyboardEvent): void {
+  // 搜索框内输入不触发翻页/翻章（方向键留给光标移动）
+  const inInput = (e.target as HTMLElement).closest('input, textarea, select')
   if (e.key === 'Escape') {
     showToc.value = false
     showSettings.value = false
     showAssistant.value = false
+    closeSearch()
     return
   }
-  // 面板打开时方向键不翻章，避免误触
-  if (showToc.value || showSettings.value || showAssistant.value) return
+  // Ctrl/Cmd + F 唤起章节内搜索
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+    e.preventDefault()
+    if (!inInput) openSearch()
+    return
+  }
+  // 面板或输入框聚焦时方向键不翻章，避免误触
+  if (showToc.value || showSettings.value || showAssistant.value || inInput) return
   if (e.key === 'ArrowRight') {
     e.preventDefault()
     // 翻页模式：页内翻页，已到末页则翻下一章（与滚动模式一致）
@@ -345,13 +462,14 @@ function removeBookFonts(): void {
   }
 }
 
-// 章节变化后更新位置显示
+// 章节变化后更新位置显示；搜索高亮随 DOM 重建重新应用
 watch(
   () => reader.chapter,
   async () => {
     posPercent.value = '0%'
     await nextTick()
     if (pageMode.value === 'paged') updatePagePos()
+    reapplySearch()
   }
 )
 
@@ -362,19 +480,21 @@ watch(
     await nextTick()
     await restoreRatio(readRatio())
     if (pageMode.value === 'paged') updatePagePos()
+    reapplySearch()
   }
 )
 
 onMounted(async () => {
   positionMemory.clear() // 新会话，位置记忆从零开始
-  await applyBookFonts(bookId.value) // EPUB 内嵌字体（书级 @font-face）
-  await reader.openBook(bookId.value)
-  await restoreRatio(reader.book?.progress.scrollRatio ?? 0)
-  stats.startTracking() // 阅读计时
+  // 事件监听先注册（同步），避免异步加载期间按键丢失
   window.addEventListener('resize', onResize)
   window.addEventListener('keydown', onKeydown)
   window.addEventListener('pagehide', onPageHide)
   document.addEventListener('visibilitychange', onVisibilityChange)
+  await applyBookFonts(bookId.value) // EPUB 内嵌字体（书级 @font-face）
+  await reader.openBook(bookId.value)
+  await restoreRatio(reader.book?.progress.scrollRatio ?? 0)
+  stats.startTracking() // 阅读计时
 })
 
 onBeforeUnmount(() => {
@@ -396,10 +516,27 @@ onBeforeUnmount(() => {
         <span class="title-book">{{ reader.book?.title }}</span>
         <span class="title-chapter">{{ reader.chapter?.title }}</span>
       </div>
+      <button class="icon-btn" title="搜索（Ctrl+F）" @click="openSearch">🔍</button>
       <button class="icon-btn" title="目录" @click="showToc = true">☰</button>
       <button class="icon-btn" title="阅读助手" @click="showAssistant = true">助</button>
       <button class="icon-btn" title="阅读设置" @click="showSettings = true">⚙</button>
     </header>
+
+    <!-- 章节内搜索条 -->
+    <div v-if="searchVisible" class="reader-search">
+      <input
+        ref="searchInput"
+        v-model="searchTerm"
+        type="search"
+        placeholder="在当前章节中搜索…"
+        @keydown.enter.prevent="nextHit(false)"
+        @keydown.shift.exact.enter.prevent="nextHit(true)"
+      />
+      <span class="search-count">{{ searchTotal ? `${searchIndex + 1}/${searchTotal}` : '0/0' }}</span>
+      <button class="search-btn" title="上一处" @click="nextHit(true)">↑</button>
+      <button class="search-btn" title="下一处" @click="nextHit(false)">↓</button>
+      <button class="search-btn" title="关闭搜索" @click="closeSearch">✕</button>
+    </div>
 
     <main v-if="reader.loading" class="reader-body reader-tip">加载中…</main>
     <main v-else-if="reader.error" class="reader-body reader-tip">
@@ -516,6 +653,67 @@ onBeforeUnmount(() => {
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--panel-border);
   z-index: 10;
+}
+/* 章节内搜索条 */
+.reader-search {
+  position: fixed;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  max-width: min(92vw, 480px);
+}
+.reader-search input {
+  width: 220px;
+  padding: 6px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 13px;
+  outline: none;
+}
+.reader-search input:focus {
+  border-color: var(--accent);
+}
+.search-count {
+  font-size: 12px;
+  color: var(--fg-weak);
+  min-width: 34px;
+  text-align: center;
+  white-space: nowrap;
+}
+.search-btn {
+  padding: 4px 9px;
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--fg);
+  font-size: 12px;
+  cursor: pointer;
+}
+.search-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+/* 搜索高亮（DOM 动态包裹，需 :deep 命中） */
+:deep(mark.search-hit) {
+  background: var(--accent-weak);
+  color: var(--accent);
+  border-radius: 2px;
+  padding: 0 1px;
+}
+:deep(mark.search-hit.current) {
+  background: var(--accent);
+  color: #fff;
 }
 .reader-title {
   flex: 1;
@@ -729,6 +927,9 @@ onBeforeUnmount(() => {
   }
   .reader-pos {
     gap: 6px;
+  }
+  .reader-search input {
+    width: 130px;
   }
 }
 </style>
