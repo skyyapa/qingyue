@@ -1,12 +1,18 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useStatsStore } from '@/stores/stats'
+import { useBooksStore } from '@/stores/books'
+import { useAIStore } from '@/stores/ai'
 import { buildMonthGrid, intensityLevel, toDateKey } from '@/utils/stats-calendar'
 import { formatDuration } from '@/utils/progress'
+import { getTodayChapters } from '@/utils/reading-days'
+import { runAITask } from '@/ai/assistant'
 
-/** 阅读统计面板：月度阅读日历热力图 + 汇总（数据仅来自本机） */
+/** 阅读统计面板：月度阅读日历热力图 + 汇总 + 今日回顾（AI 可选） */
 const emit = defineEmits<{ close: [] }>()
 const stats = useStatsStore()
+const books = useBooksStore()
+const ai = useAIStore()
 
 const now = new Date()
 const viewYear = ref(now.getFullYear())
@@ -46,6 +52,54 @@ function nextMonth(): void {
     viewMonth.value++
   }
 }
+
+// ---------- 今日回顾（记录今日读过章节，可选 AI 生成总结） ----------
+
+const todayChapters = ref<Record<string, number[]>>(getTodayChapters())
+const dailyBusy = ref(false)
+const dailyAnswer = ref('')
+const dailyError = ref('')
+
+const todayChapterCount = computed(() =>
+  Object.values(todayChapters.value).reduce((a, list) => a + list.length, 0)
+)
+
+/** 最近在读的书（今日读过章节数最多者） */
+const topBook = computed(() => {
+  let best: { id: string; count: number } | null = null
+  for (const [id, list] of Object.entries(todayChapters.value)) {
+    if (!best || list.length > best.count) best = { id, count: list.length }
+  }
+  return best
+})
+
+/** AI 生成今日阅读回顾 */
+async function generateDailyRecap(): Promise<void> {
+  const provider = ai.activeProvider
+  if (!provider || !topBook.value) return
+  dailyBusy.value = true
+  dailyError.value = ''
+  dailyAnswer.value = ''
+  try {
+    const bookId = topBook.value.id
+    const chapters = todayChapters.value[bookId] ?? []
+    const last = chapters[chapters.length - 1] ?? 0
+    dailyAnswer.value = await runAITask(provider, bookId, 'daily', {
+      chapterIndex: last,
+      todayChapters: chapters,
+    })
+  } catch (err) {
+    dailyError.value = err instanceof Error ? err.message : String(err)
+  } finally {
+    dailyBusy.value = false
+  }
+}
+
+/** AI 回答受控渲染（**粗体**、换行） */
+function renderDaily(text: string): string {
+  const esc = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  return esc.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>')
+}
 </script>
 
 <template>
@@ -81,6 +135,28 @@ function nextMonth(): void {
         <span class="sum-item">今日 <b>{{ formatDuration(stats.todaySeconds) }}</b></span>
         <span class="sum-item">连续 <b>{{ stats.streak }} 天</b></span>
         <span class="sum-item">累计 <b>{{ formatDuration(stats.totalSeconds) }}</b></span>
+      </div>
+
+      <!-- 今日回顾 -->
+      <div class="daily-view">
+        <p class="daily-title">📖 今日读过 {{ todayChapterCount }} 章</p>
+        <div v-if="todayChapterCount > 0" class="daily-books">
+          <p v-for="[bookId, list] in Object.entries(todayChapters)" :key="bookId" class="daily-book">
+            <b>{{ books.books.find((b) => b.id === bookId)?.title ?? '未知书籍' }}</b>
+            <span>第 {{ list[0] + 1 }}–{{ list[list.length - 1] + 1 }} 章（{{ list.length }} 章）</span>
+          </p>
+        </div>
+        <template v-if="ai.activeProvider && topBook">
+          <button class="btn daily-btn" :disabled="dailyBusy" @click="generateDailyRecap">
+            {{ dailyBusy ? '✨ 回顾生成中…' : '✨ 生成今日阅读回顾（AI）' }}
+          </button>
+          <!-- eslint-disable-next-line vue/no-v-html -- renderDaily 先转义、内容受控 -->
+          <p v-if="dailyAnswer" class="daily-answer" v-html="renderDaily(dailyAnswer)"></p>
+          <p v-else-if="dailyError" class="daily-error">{{ dailyError }}</p>
+        </template>
+        <p v-else-if="todayChapterCount > 0 && !ai.activeProvider" class="daily-tip">
+          在书架顶栏「AI」配置 Provider 后可生成今日阅读回顾
+        </p>
       </div>
     </div>
   </div>
@@ -197,5 +273,60 @@ function nextMonth(): void {
 }
 .sum-item b {
   color: var(--accent);
+}
+/* 今日回顾 */
+.daily-view {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--panel-border);
+}
+.daily-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.daily-books {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.daily-book {
+  margin: 0;
+  font-size: 12px;
+  color: var(--fg-weak);
+}
+.daily-book b {
+  color: var(--fg);
+  margin-right: 6px;
+}
+.daily-btn {
+  align-self: flex-start;
+  font-size: 12px;
+}
+.daily-answer {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.9;
+  color: var(--fg);
+  background: var(--accent-weak);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.daily-answer b {
+  color: var(--accent);
+}
+.daily-error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--danger);
+}
+.daily-tip {
+  margin: 0;
+  font-size: 11px;
+  color: var(--fg-weak);
 }
 </style>

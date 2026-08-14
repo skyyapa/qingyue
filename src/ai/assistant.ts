@@ -8,7 +8,7 @@ import { chatCompletion, type ChatMessage } from './client'
 import type { AIProviderConfig } from './presets'
 import type { ChapterIndex, Entity, Relation } from '@/types'
 
-export type AITask = 'who' | 'recap' | 'explain' | 'relation' | 'world' | 'timeline' | 'ask' | 'foreshadow' | 'summarize'
+export type AITask = 'who' | 'recap' | 'explain' | 'relation' | 'world' | 'timeline' | 'ask' | 'foreshadow' | 'summarize' | 'daily'
 
 export interface AITaskParams {
   /** 选中的正文文字 */
@@ -17,6 +17,8 @@ export interface AITaskParams {
   entityId?: string
   /** 当前章节号（防剧透边界与任务上下文） */
   chapterIndex?: number
+  /** 今日读过的章节号（daily 任务） */
+  todayChapters?: number[]
 }
 
 export const AI_TASK_LABELS: Record<AITask, string> = {
@@ -28,6 +30,7 @@ export const AI_TASK_LABELS: Record<AITask, string> = {
   timeline: '事件时间线',
   foreshadow: '伏笔回顾',
   summarize: '章节摘要',
+  daily: '今日回顾',
   ask: '自由提问',
 }
 
@@ -218,15 +221,20 @@ function entityBlock(
   return lines.join('\n')
 }
 
-/** 防剧透系统提示（所有任务共用；存在旧版数据时提示重新分析） */
+/** 防剧透系统提示（所有任务共用）：私人小说管家人格 + 规则
+ *  1. 不剧透（只基于已读章节） 2. 根据阅读进度回答 3. 优先引用已发生剧情
+ *  4. 不确定时直接说不知道；存在旧版数据时提示重新分析 */
 function systemPrompt(k: KnowledgeSnapshot): string {
   const stale = k.staleData
     ? '\n注意：部分关系/例句来自旧版分析（缺少按章数据），已被严格排除；建议用户重新分析知识库以获得更准确回答。'
     : ''
   return (
-    `你是小说《${k.bookTitle}》的资深读者和文学分析助手。根据提供的知识库信息回答问题，用简体中文，简洁准确，不要编造书中没有的信息；回答不超过 200 字。` +
-    `\n**防剧透规则**：你只能基于已读章节（第 1 至第 ${k.readUpTo + 1} 章）的信息回答；` +
-    `如果答案涉及未读章节的内容，请直接说明「该信息涉及未读章节」，绝不透露任何未读情节。${stale}`
+    `你是小说《${k.bookTitle}》的私人小说管家，正在陪用户读到第 ${k.readUpTo + 1} 章。规则：\n` +
+    `1. 不剧透：只基于已读章节（第 1 至第 ${k.readUpTo + 1} 章）回答；涉及未读内容时直接说明「该信息涉及未读章节」，绝不透露任何未读情节。\n` +
+    `2. 根据我的阅读进度回答（已读章节优先）。\n` +
+    `3. 优先引用已发生的剧情细节，让回答有依据。\n` +
+    `4. 不确定时直接告诉我不知道，不要编造。\n` +
+    `回答用简体中文，简洁准确（不超过 200 字）。${stale}`
   )
 }
 
@@ -347,6 +355,25 @@ export function buildTaskMessages(
         {
           role: 'user',
           content: `${progress}请用 120 字以内概括本章情节（不含剧透总结未读章节）。\n第 ${idx + 1} 章${k.chapterTitles[idx] ? `（${k.chapterTitles[idx]}）` : ''}正文：\n${chapter.slice(0, 1500)}${ev ? `\n本章事件：${ev}` : ''}`,
+        },
+      ]
+    }
+    case 'daily': {
+      // 每日阅读回顾：今日读过章节的摘要与事件聚合
+      const items = (params.todayChapters ?? [])
+        .map((ci) => {
+          const idx = k.indexes.find((x) => x.index === ci)
+          return idx
+            ? `第${ci + 1}章${k.chapterTitles[ci] ? `（${k.chapterTitles[ci]}）` : ''}：${idx.summary}${(idx.events ?? []).length ? `｜${(idx.events ?? []).join('；')}` : ''}`
+            : null
+        })
+        .filter((x): x is string => !!x)
+        .slice(-20)
+      return [
+        { role: 'system', content: system },
+        {
+          role: 'user',
+          content: `${progress}请回顾今天的阅读：主要发生了什么、人物动向、值得注意的伏笔或悬念。\n${book}\n今日读过章节：\n${items.join('\n') || '今日暂无已读章节记录'}`,
         },
       ]
     }

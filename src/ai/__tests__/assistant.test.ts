@@ -85,7 +85,7 @@ describe('buildTaskMessages 上下文组装', () => {
   it('防剧透：system 提示只能使用已读章节，各任务携带当前进度', () => {
     for (const task of ['who', 'recap', 'explain', 'relation', 'world', 'timeline', 'foreshadow', 'summarize', 'ask'] as const) {
       const msgs = buildTaskMessages({ ...snapshot, readUpTo: 1 }, task, { chapterIndex: 1 }, texts)
-      expect(msgs[0].content).toContain('防剧透')
+      expect(msgs[0].content).toContain('不剧透')
       expect(msgs[0].content).toContain('第 1 至第 2 章')
       expect(msgs[0].content).toContain('未读章节')
       if (task !== 'who' && task !== 'relation' && task !== 'summarize') {
@@ -104,7 +104,7 @@ describe('buildTaskMessages 上下文组装', () => {
     const msgs = buildTaskMessages(snapshot, 'foreshadow', { chapterIndex: 2 }, texts)
     expect(msgs[1].content).toContain('伏笔')
     expect(msgs[1].content).toContain('未解之谜')
-    expect(msgs[0].content).toContain('防剧透')
+    expect(msgs[0].content).toContain('不剧透')
   })
 
   it('summarize：章节摘要携带当前章正文', () => {

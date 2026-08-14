@@ -5,8 +5,11 @@ import * as db from '@/db'
 import { useReaderStore } from '@/stores/reader'
 import { useSettingsStore } from '@/stores/settings'
 import { useStatsStore } from '@/stores/stats'
+import { useAIStore } from '@/stores/ai'
+import { runAITask } from '@/ai/assistant'
 import { bookReadPercent, formatPercent } from '@/utils/progress'
 import { searchBookChapters, type BookSearchResult } from '@/utils/book-search'
+import { recordTodayChapter } from '@/utils/reading-days'
 import TocPanel from '@/components/TocPanel.vue'
 import SettingsPanel from '@/components/SettingsPanel.vue'
 import AssistantPanel from '@/components/AssistantPanel.vue'
@@ -18,6 +21,7 @@ const router = useRouter()
 const reader = useReaderStore()
 const settings = useSettingsStore()
 const stats = useStatsStore()
+const ai = useAIStore()
 
 const bookId = computed(() => String(route.params.id))
 
@@ -229,6 +233,37 @@ async function onAskAI(text: string): Promise<void> {
   assistantRef.value?.openAI(text)
 }
 
+/** 顶栏 AI 按钮：直接打开助手 AI tab */
+async function openAssistantAI(): Promise<void> {
+  showAssistant.value = true
+  await nextTick()
+  assistantRef.value?.openAI('')
+}
+
+// ---------- 自动章节摘要（AI 配置后翻章自动生成，会话内缓存） ----------
+
+const chapterSummary = ref('')
+const chapterSummaryLoading = ref(false)
+const chapterSummaryShown = ref(false)
+const summaryCache = new Map<number, string>()
+
+async function generateChapterSummary(index: number): Promise<void> {
+  const provider = ai.activeProvider
+  if (!provider) return
+  chapterSummaryLoading.value = true
+  chapterSummary.value = ''
+  try {
+    const cached = summaryCache.get(index)
+    chapterSummary.value = cached ?? (await runAITask(provider, bookId.value, 'summarize', { chapterIndex: index }))
+    if (!cached) summaryCache.set(index, chapterSummary.value)
+    chapterSummaryShown.value = true
+  } catch {
+    chapterSummaryShown.value = false // 失败静默（不打扰阅读）
+  } finally {
+    chapterSummaryLoading.value = false
+  }
+}
+
 // 位置显示（滚动模式百分比 / 翻页模式页数）
 const posPercent = ref('0%')
 const pagePos = ref({ current: 1, total: 1 })
@@ -257,6 +292,15 @@ function toHtml(text: string): string {
     .replace(/\[\/i\]/g, '</em>')
     .replace(/\[u\]/g, '<u>')
     .replace(/\[\/u\]/g, '</u>')
+}
+
+/** AI 回答受控渲染：先转义再替换轻量标记（**粗体**、标题、换行） */
+function renderAI(text: string): string {
+  const esc = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  return esc
+    .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+    .replace(/^#{1,3}\s+(.+)$/gm, '<b>$1</b>')
+    .replace(/\n/g, '<br>')
 }
 
 const paragraphs = computed<Paragraph[]>(() => {
@@ -536,14 +580,21 @@ function removeBookFonts(): void {
   }
 }
 
-// 章节变化后更新位置显示；搜索高亮随 DOM 重建重新应用
+// 章节变化后更新位置显示；搜索高亮随 DOM 重建重新应用；记录今日阅读；自动生成章节摘要
 watch(
   () => reader.chapter,
   async () => {
     posPercent.value = '0%'
+    chapterSummary.value = ''
+    chapterSummaryLoading.value = false
+    chapterSummaryShown.value = false
+    recordTodayChapter(bookId.value, reader.chapterIndex) // 每日阅读回顾数据
     await nextTick()
     if (pageMode.value === 'paged') updatePagePos()
     reapplySearch()
+    if (settings.settings.aiChapterSummary && ai.activeProvider) {
+      generateChapterSummary(reader.chapterIndex)
+    }
   }
 )
 
@@ -591,6 +642,7 @@ onBeforeUnmount(() => {
         <span class="title-chapter">{{ reader.chapter?.title }}</span>
       </div>
       <button class="icon-btn" title="搜索（Ctrl+F）" @click="openSearch">🔍</button>
+      <button class="icon-btn" title="AI 助手" @click="openAssistantAI">✨</button>
       <button class="icon-btn" title="目录" @click="showToc = true">☰</button>
       <button class="icon-btn" title="阅读助手" @click="showAssistant = true">助</button>
       <button class="icon-btn" title="阅读设置" @click="showSettings = true">⚙</button>
@@ -650,6 +702,14 @@ onBeforeUnmount(() => {
         :style="{ fontSize: settings.settings.fontSize + 'px', lineHeight: settings.settings.lineHeight, fontFamily: FONT_FAMILIES[settings.settings.font] }"
       >
         <h1 class="chapter-heading">{{ reader.chapter?.title }}</h1>
+        <!-- 自动章节摘要（AI 配置后翻章生成，可关闭） -->
+        <div v-if="chapterSummaryShown" class="ai-summary">
+          <p class="ai-summary-title">📝 本章摘要</p>
+          <!-- eslint-disable-next-line vue/no-v-html -- renderAI 先转义、内容受控 -->
+          <p class="ai-summary-body" v-html="renderAI(chapterSummary)"></p>
+          <button class="ai-summary-close" title="关闭摘要" @click="chapterSummaryShown = false">✕</button>
+        </div>
+        <p v-else-if="chapterSummaryLoading" class="ai-summary-loading">✨ 正在生成章节摘要…</p>
         <template v-for="(p, i) in paragraphs" :key="i">
           <img v-if="p.kind === 'image'" class="para-img" :src="p.src" alt="" loading="lazy" />
           <!-- eslint-disable-next-line vue/no-v-html -- toHtml 先转义、内容受控（EPUB 已剥离原始标签） -->
@@ -684,6 +744,14 @@ onBeforeUnmount(() => {
         }"
       >
         <h1 class="chapter-heading">{{ reader.chapter?.title }}</h1>
+        <!-- 自动章节摘要（AI 配置后翻章生成，可关闭） -->
+        <div v-if="chapterSummaryShown" class="ai-summary">
+          <p class="ai-summary-title">📝 本章摘要</p>
+          <!-- eslint-disable-next-line vue/no-v-html -- renderAI 先转义、内容受控 -->
+          <p class="ai-summary-body" v-html="renderAI(chapterSummary)"></p>
+          <button class="ai-summary-close" title="关闭摘要" @click="chapterSummaryShown = false">✕</button>
+        </div>
+        <p v-else-if="chapterSummaryLoading" class="ai-summary-loading">✨ 正在生成章节摘要…</p>
         <template v-for="(p, i) in paragraphs" :key="i">
           <img v-if="p.kind === 'image'" class="para-img" :src="p.src" alt="" loading="lazy" />
           <!-- eslint-disable-next-line vue/no-v-html -- toHtml 先转义、内容受控（EPUB 已剥离原始标签） -->
@@ -960,6 +1028,47 @@ onBeforeUnmount(() => {
   font-size: 1.15em;
   font-weight: 600;
   margin: 0 0 1.8em;
+}
+/* 自动章节摘要卡 */
+.ai-summary {
+  position: relative;
+  margin: 0 0 1.8em;
+  padding: 12px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  background: var(--accent-weak);
+  opacity: 0.9;
+}
+.ai-summary-title {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.ai-summary-body {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.9;
+  color: var(--fg);
+}
+.ai-summary-body b {
+  color: var(--accent);
+}
+.ai-summary-close {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  border: none;
+  background: transparent;
+  color: var(--fg-weak);
+  font-size: 12px;
+  cursor: pointer;
+}
+.ai-summary-loading {
+  margin: 0 0 1.8em;
+  text-align: center;
+  font-size: 12px;
+  color: var(--fg-weak);
 }
 .para-heading {
   text-align: center;

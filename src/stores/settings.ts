@@ -12,6 +12,7 @@ export const DEFAULT_SETTINGS: ReaderSettings = {
   font: 'system',
   showNextHint: true,
   bookPage: true,
+  aiChapterSummary: true,
 }
 
 const THEMES: ThemeName[] = ['default', 'pure', 'paper', 'celadon', 'eye', 'pink', 'night', 'ocean', 'pine', 'graphite']
@@ -30,6 +31,7 @@ function sanitize(raw: unknown): ReaderSettings {
   if (FONTS.includes(r.font as FontName)) s.font = r.font as FontName
   if (typeof r.showNextHint === 'boolean') s.showNextHint = r.showNextHint
   if (typeof r.bookPage === 'boolean') s.bookPage = r.bookPage
+  if (typeof r.aiChapterSummary === 'boolean') s.aiChapterSummary = r.aiChapterSummary
   return s
 }
 

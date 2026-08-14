@@ -127,6 +127,10 @@ const fonts: { name: FontName; label: string }[] = [
             <span>章末「下一章」入口</span>
             <input v-model="settings.settings.showNextHint" type="checkbox" />
           </label>
+          <label class="setting-row">
+            <span>自动章节摘要（AI）</span>
+            <input v-model="settings.settings.aiChapterSummary" type="checkbox" />
+          </label>
         </section>
 
         <button class="btn reset-btn" @click="settings.resetSettings()">恢复默认设置</button>

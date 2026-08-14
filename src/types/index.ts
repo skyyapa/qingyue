@@ -112,6 +112,8 @@ export interface ReaderSettings {
   showNextHint: boolean
   /** 拟真书页效果：正文渲染为带纸张质感与阴影的书页 */
   bookPage: boolean
+  /** 配置 AI 后，翻章自动生成当前章 AI 摘要 */
+  aiChapterSummary: boolean
 }
 
 /** TXT 解码编码选项 */

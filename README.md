@@ -45,7 +45,7 @@
   - 书架搜索框直接在线搜书，一键加入书架；正文按需抓取并缓存，离线可续读；**在线书同样支持知识库分析**（基于已缓存章节）
   - 跨域三通道：项目自带代理（Cloudflare Worker / Node 双版本）/ 自备代理 / 公共代理兜底
   - 书源管理：编辑 JSON、启停、搜索测试、导入导出；内置「轻阅演示」书源开箱即用（含分页目录与分页正文示例）
-- **AI 阅读助手（可选接入，零成本方案）** — 书架顶栏「AI」统一配置 Provider：**OpenAI 兼容协议**下直接可用 **OpenAI 官方 / DeepSeek / Gemini（Gateway）/ 本地 Ollama / LM Studio / vLLM / 任意中转站**（Base URL + API Key + Model + 一键测试连接），项目本身不承担任何 AI 成本。配置后阅读助手中可用：**这是谁 / 前情回顾 / 剧情解释 / 人物关系 / 世界观解释 / 事件时间线 / 伏笔回顾 / 章节摘要 / 自由提问**，选中正文文字一键「✨ AI」带入提问。<br>⚠️ 说明：API Key 为**明文**保存在浏览器本机 localStorage（未加密，请勿在公用设备配置）；中转站需允许浏览器跨域（CORS）请求
+- **AI 阅读助手（可选接入，零成本方案）** — 书架顶栏「AI」统一配置 Provider：**OpenAI 兼容协议**下直接可用 **OpenAI 官方 / DeepSeek / Gemini（Gateway）/ 本地 Ollama / LM Studio / vLLM / 任意中转站**（Base URL + API Key + Model + 一键测试连接），项目本身不承担任何 AI 成本。配置后：**私人小说管家**（不剧透 / 跟随阅读进度 / 优先引用已发生剧情 / 不确定就说不知道），支持**这是谁 / 前情回顾 / 剧情解释 / 人物关系 / 世界观解释 / 事件时间线 / 伏笔回顾 / 章节摘要 / 今日回顾 / 自由提问**；阅读页顶栏 ✨ 一键唤起，选中正文一键「✨ AI」带入提问，翻章自动生成章节摘要（可关闭）。<br>⚠️ 说明：API Key 为**明文**保存在浏览器本机 localStorage（未加密，请勿在公用设备配置）；中转站需允许浏览器跨域（CORS）请求
 - **🔒 防剧透机制** — AI 默认只能使用**已读章节**（第 1～当前章）的数据：读到第 327 章时问「林凡是什么身份」，AI 不会透露第 900 章的答案，只会基于已读内容回答或说明「涉及未读章节」
 - **PWA 可安装** — 一键「安装到桌面」像普通软件一样使用（含 iOS 添加到主屏幕指引），离线可读已缓存内容与本地书籍
 - **智能章节切分** — 自动识别「第X章 / 第X回 / 序章 / 楔子 / 番外 / 终章」等章节标题，书名作者自动提取；无章节标记的整本单章兜底
@@ -87,8 +87,8 @@ npm run preview    # 预览构建产物
 ```bash
 npm run lint       # ESLint 代码检查
 npm run type-check # TypeScript 类型检查
-npm run test       # 单元测试（Vitest，159 用例：编码检测/EPUB 与 CSS 解析/知识库算法/书源引擎/AI 客户端与任务/数据库/Store/组件/备份/导出/搜索）
-npm run e2e        # 端到端测试（Playwright 30 用例，首次需 npx playwright install chromium）
+npm run test       # 单元测试（Vitest，161 用例：编码检测/EPUB 与 CSS 解析/知识库算法/书源引擎/AI 客户端与任务/数据库/Store/组件/备份/导出/搜索）
+npm run e2e        # 端到端测试（Playwright 32 用例，首次需 npx playwright install chromium）
 ```
 
 GitHub Actions 自动运行：推送到 `main` 或发起 PR 时执行 CI（lint + type-check + 单测 + 构建 + E2E），部署前自动验证。
