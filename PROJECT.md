@@ -531,6 +531,33 @@ src/
   翻页模式无横向溢出
 - 回归全绿：type-check/lint/test(165)/e2e(38)/build
 
+**迭代 31 —— 移动阅读交互收尾（M1：点按交互 / 浮层 safe-area / 去 hover-only / 真 WebKit 验证）（已提交）**
+- **中央点击切换工具栏**：触屏设备（`@media (pointer: coarse)`）阅读器顶栏/底栏/
+  AI 浮层可整体隐藏——中央点按切换 `bars-hidden`（transform+opacity 过渡、hidden 时
+  pointer-events none）；桌面指针设备工具栏常驻不受影响；打开面板/搜索时强制呼出
+- **左/中/右点按翻页**：左 30% / 右 30% / 中央 40% 三区（`utils/tap-zones.ts`
+  `classifyTapZone`，可单测）——左右区翻页模式页内翻页（页边界翻章）、滚动模式按
+  0.85 屏滚动；中央区切换工具栏。防误触：位移 >12px 或时长 >400ms（长按选词松开）
+  不算点按、交互元素（button/a/input/mark/next-hint）跳过、有选中文本跳过、
+  面板打开时跳过；**双击抑制**（350ms 内第二击取消中央区动作，防双点选词把工具栏
+  翻来翻去）；左右区连点 = 连续翻页（不做抑制）；滚动模式阅读区 `touch-action:
+  manipulation` 禁双击缩放
+- **固定浮层补 safe-area**：`.ai-fab` bottom 68→`calc(68px + var(--safe-bottom))`、
+  `.ai-fab-panel` bottom 20、`.reader-search` top 56（+safe-top）、
+  InstallPrompt `install-bar` bottom 18——刘海屏 standalone 下不再贴 Home 条
+- **去 hover-only 操作**：书架分组删除按钮 `.group-tab-del` 从
+  `display:none` + `:hover` 显示改为**常驻可见**（opacity 0.55 弱化，hover/
+  focus-visible 加强）——触屏无 hover，删除功能不再藏起来
+- **真实 WebKit 验证**：playwright.config 新增 `webkit-ios` 项目（`devices['iPhone 13']`
+  完整描述符含 defaultBrowserType: webkit），`testMatch` 只跑 `mobile.spec.ts`——
+  移动端 7 用例在**真实 WebKit（Playwright Safari 内核）+ iPhone 视口**下全绿；
+  CI 增加 `npx playwright install --with-deps webkit`
+- 单测 +4（169）：classifyTapZone 三区分界与异常宽度兜底
+- E2E +3（48 = chromium 41 + webkit-ios 7）：中央点击切换工具栏显隐（含双击抑制窗口）、
+  翻页模式左右点按翻页（页内/跨章状态轮询断言）、分组删除按钮常驻可见与删除闭环
+- 回归全绿：type-check/lint/test(169)/e2e(48)/build
+- 路线图进度：移动端体验（M0+M1）完成 ✅ → 下一步 **v1.3：Android（TWA/Capacitor 打包）**
+
 ## 未完成任务
 
 - [ ] Android App（TWA / Capacitor 打包）——移动端体验 M0 之后
@@ -715,6 +742,10 @@ src/
     13px 时聚焦会缩放整个页面——移动端媒体查询内统一提到 16px
 50. **dvh 高度链**：`html/body/#app` 用 `100vh` + `100dvh` 双写，iOS 地址栏
     收起/展开时底栏跟随可见区域（单写 vh 在地址栏展开时底栏被挤出屏幕）
+51. **Playwright 设备描述符的 defaultBrowserType**：`devices['iPhone 13']` 带
+    `defaultBrowserType: 'webkit'`——在 `test.describe` 内 `test.use()` 会报
+    "forces a new worker" 报错（需剔除）；放在项目级 `use` 里则合法（webkit-ios
+    项目即用它指定真实 WebKit 引擎）
 
 ## 测试方法备忘
 

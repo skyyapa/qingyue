@@ -14,6 +14,12 @@ export default defineConfig({
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
+    {
+      // 真实 WebKit 引擎（Playwright 版 Safari 内核）+ iPhone 视口：验证 iOS Safari / iOS PWA 行为
+      name: 'webkit-ios',
+      testMatch: /mobile\.spec\.ts/,
+      use: { ...devices['iPhone 13'] },
+    },
   ],
   webServer: {
     command: 'npm run dev',

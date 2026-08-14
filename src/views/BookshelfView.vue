@@ -589,13 +589,17 @@ const emptyText = computed(() => {
   color: #fff;
   font-size: 9px;
   cursor: pointer;
-  display: none;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   line-height: 1;
+  /* 触屏无 hover：常驻显示（半透明弱化），hover/键盘聚焦时加强 */
+  opacity: 0.55;
+  transition: opacity 0.15s;
 }
-.group-tab-wrap:hover .group-tab-del {
-  display: inline-flex;
+.group-tab-del:hover,
+.group-tab-del:focus-visible {
+  opacity: 1;
 }
 .sort-select {
   padding: 6px 10px;

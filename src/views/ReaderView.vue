@@ -10,6 +10,7 @@ import { runAITask } from '@/ai/assistant'
 import { bookReadPercent, formatPercent } from '@/utils/progress'
 import { searchBookChapters, type BookSearchResult } from '@/utils/book-search'
 import { recordTodayChapter } from '@/utils/reading-days'
+import { classifyTapZone } from '@/utils/tap-zones'
 import type { AITask, AITaskParams } from '@/ai/assistant'
 import TocPanel from '@/components/TocPanel.vue'
 import SettingsPanel from '@/components/SettingsPanel.vue'
@@ -44,6 +45,12 @@ const showToc = ref(false)
 const showSettings = ref(false)
 const showAssistant = ref(false)
 const assistantRef = ref<InstanceType<typeof AssistantPanel>>()
+
+// 工具栏显隐（触屏中央点按切换；打开面板/搜索时强制呼出）
+const toolbarVisible = ref(true)
+watch([showToc, showSettings, showAssistant], () => {
+  if (showToc.value || showSettings.value || showAssistant.value) toolbarVisible.value = true
+})
 
 // ---------- 章节内搜索 ----------
 const searchVisible = ref(false)
@@ -121,6 +128,7 @@ function scrollToElement(el: HTMLElement): void {
 
 function openSearch(): void {
   searchVisible.value = true
+  toolbarVisible.value = true // 搜索条挂在顶栏下方，工具栏隐藏时先呼出
   nextTick(() => searchInput.value?.focus())
 }
 
@@ -524,17 +532,20 @@ function pagedAtBoundary(direction: 1 | -1): boolean {
   return direction === 1 ? el.scrollLeft + pageWidth - 4 >= max : el.scrollLeft <= 4
 }
 
-// ---------- 触屏滑动翻页（翻页模式） ----------
+// ---------- 触屏点按（中央切换工具栏 / 左右翻页）与滑动翻页 ----------
 
 let touchStartX = 0
 let touchStartY = 0
+let touchStartTime = 0
 let touchActive = false
+let lastTapTime = 0
+let tapTimer: number | undefined
 
 function onTouchStart(e: TouchEvent): void {
-  if (pageMode.value !== 'paged') return
   const t = e.touches[0]
   touchStartX = t.clientX
   touchStartY = t.clientY
+  touchStartTime = e.timeStamp
   touchActive = true
 }
 
@@ -544,9 +555,62 @@ function onTouchEnd(e: TouchEvent): void {
   const t = e.changedTouches[0]
   const dx = t.clientX - touchStartX
   const dy = t.clientY - touchStartY
-  // 水平位移足够大且明显大于垂直位移才视为翻页手势
+  const dt = e.timeStamp - touchStartTime
+  // 滑动翻页（翻页模式）：水平位移足够大且明显大于垂直位移才视为翻页手势
   if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy) * 1.5) {
-    scrollPaged(dx < 0 ? 1 : -1)
+    if (pageMode.value === 'paged') scrollPaged(dx < 0 ? 1 : -1)
+    return
+  }
+  // 轻点：位移小、时长短（长按选词后的松开不触发）、非交互元素、无选中文本、面板未打开
+  if (dt > 400 || Math.abs(dx) > 12 || Math.abs(dy) > 12) return
+  if (searchVisible.value || showToc.value || showSettings.value || showAssistant.value) return
+  const target = e.target as HTMLElement
+  if (target.closest('button, a, input, textarea, select, mark, .next-hint, .ai-summary')) return
+  if (!window.getSelection()?.isCollapsed) return
+  scheduleTap(t.clientX, t.clientY)
+}
+
+/** 中央区延迟执行 + 双击抑制（防双点选词把工具栏翻来翻去）；左右区立即翻页（连点 = 连续翻页） */
+function scheduleTap(x: number, _y: number): void {
+  if (classifyTapZone(x, window.innerWidth) !== 'center') {
+    applyTapZone(x)
+    return
+  }
+  const now = performance.now()
+  if (now - lastTapTime < 350) {
+    if (tapTimer !== undefined) {
+      clearTimeout(tapTimer)
+      tapTimer = undefined
+    }
+    lastTapTime = 0
+    return
+  }
+  lastTapTime = now
+  if (tapTimer !== undefined) clearTimeout(tapTimer)
+  tapTimer = window.setTimeout(() => {
+    tapTimer = undefined
+    applyTapZone(x)
+  }, 260)
+}
+
+function applyTapZone(x: number): void {
+  const zone = classifyTapZone(x, window.innerWidth)
+  if (zone === 'center') {
+    toolbarVisible.value = !toolbarVisible.value
+    return
+  }
+  // 左/右：翻页模式页内翻页（页边界翻章），滚动模式按一屏滚动
+  if (pageMode.value === 'paged') {
+    const next = zone === 'right'
+    if (!pagedAtBoundary(next ? 1 : -1)) scrollPaged(next ? 1 : -1)
+    else goChapter(reader.chapterIndex + (next ? 1 : -1))
+  } else {
+    const el = scrollArea.value
+    if (!el) return
+    el.scrollBy({
+      top: (zone === 'right' ? 1 : -1) * Math.round(el.clientHeight * 0.85),
+      behavior: 'smooth',
+    })
   }
 }
 
@@ -681,7 +745,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="reader" :class="[`reader-${pageMode}`, { bookpage: settings.settings.bookPage }]">
+  <div class="reader" :class="[`reader-${pageMode}`, { bookpage: settings.settings.bookPage, 'bars-hidden': !toolbarVisible }]">
     <header class="reader-top">
       <button class="icon-btn" title="返回书架" @click="router.push('/')">←</button>
       <div class="reader-title">
@@ -743,7 +807,14 @@ onBeforeUnmount(() => {
     </main>
 
     <!-- 连续滚动模式 -->
-    <main v-else-if="pageMode === 'scroll'" ref="scrollArea" class="reader-body scroll-area" @scroll="scheduleSave">
+    <main
+      v-else-if="pageMode === 'scroll'"
+      ref="scrollArea"
+      class="reader-body scroll-area"
+      @scroll="scheduleSave"
+      @touchstart="onTouchStart"
+      @touchend="onTouchEnd"
+    >
       <div
         class="scroll-inner"
         :style="{ fontSize: settings.settings.fontSize + 'px', lineHeight: settings.settings.lineHeight, fontFamily: FONT_FAMILIES[settings.settings.font] }"
@@ -899,7 +970,7 @@ onBeforeUnmount(() => {
 /* 正文搜索条（本章 / 本书） */
 .reader-search {
   position: fixed;
-  top: 56px;
+  top: calc(56px + var(--safe-top));
   left: 50%;
   transform: translateX(-50%);
   z-index: 30;
@@ -1054,6 +1125,10 @@ onBeforeUnmount(() => {
   overflow-y: auto;
   overflow-x: hidden;
 }
+/* 阅读区禁用双击缩放（双击留给选词，点按翻页由触屏逻辑处理） */
+.reader-body.scroll-area {
+  touch-action: manipulation;
+}
 .reader-tip {
   display: flex;
   flex-direction: column;
@@ -1154,7 +1229,7 @@ onBeforeUnmount(() => {
 .ai-fab {
   position: fixed;
   right: 18px;
-  bottom: 68px;
+  bottom: calc(68px + var(--safe-bottom));
   z-index: 40;
   display: flex;
   flex-direction: column;
@@ -1230,7 +1305,7 @@ onBeforeUnmount(() => {
 .ai-fab-panel {
   position: fixed;
   left: 50%;
-  bottom: 20px;
+  bottom: calc(20px + var(--safe-bottom));
   transform: translateX(-50%);
   z-index: 45;
   width: min(92vw, 560px);
@@ -1402,6 +1477,28 @@ onBeforeUnmount(() => {
 .font-btn:hover {
   border-color: var(--accent);
   color: var(--accent);
+}
+/* 触屏设备：中央点按切换工具栏显隐（桌面指针设备无此交互，工具栏常驻） */
+@media (pointer: coarse) {
+  .reader-top,
+  .reader-bottom,
+  .ai-fab {
+    transition: transform 0.25s ease, opacity 0.25s ease;
+  }
+  .reader.bars-hidden .reader-top {
+    transform: translateY(-100%);
+    opacity: 0;
+    pointer-events: none;
+  }
+  .reader.bars-hidden .reader-bottom {
+    transform: translateY(100%);
+    opacity: 0;
+    pointer-events: none;
+  }
+  .reader.bars-hidden .ai-fab {
+    opacity: 0;
+    pointer-events: none;
+  }
 }
 @media (max-width: 560px) {
   .scroll-inner {

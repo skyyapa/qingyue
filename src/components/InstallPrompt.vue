@@ -85,7 +85,7 @@ function dismiss(): void {
 .install-bar {
   position: fixed;
   left: 50%;
-  bottom: 18px;
+  bottom: calc(18px + var(--safe-bottom));
   transform: translateX(-50%);
   z-index: 70;
   display: flex;

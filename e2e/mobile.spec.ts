@@ -27,6 +27,51 @@ test.describe('移动端体验', () => {
     expect(await input.evaluate((el) => getComputedStyle(el).fontSize)).toBe('16px')
   })
 
+  test('书架：分组删除按钮常驻可见（触屏无 hover）', async ({ page }) => {
+    await page.goto('/')
+    await page.getByRole('button', { name: '＋ 分组' }).click()
+    await page.locator('.dialog-input').fill('玄幻')
+    await page.getByRole('button', { name: '创建', exact: true }).click()
+    await expect(page.getByRole('button', { name: '玄幻' })).toBeVisible()
+    // 无需 hover，删除钮直接可见可点
+    const del = page.locator('.group-tab-del')
+    await expect(del).toBeVisible()
+    await del.click()
+    await page.getByRole('button', { name: '删除', exact: true }).click()
+    await expect(page.getByRole('button', { name: '玄幻' })).toHaveCount(0)
+  })
+
+  test('阅读器：中央点击切换工具栏显隐', async ({ page }) => {
+    await importBook(page)
+    await expect(page.locator('.reader-top')).toBeVisible()
+    await page.touchscreen.tap(195, 400)
+    await expect(page.locator('.reader')).toHaveClass(/bars-hidden/)
+    // 双击抑制窗口后再次点击，工具栏呼出
+    await page.waitForTimeout(450)
+    await page.touchscreen.tap(195, 400)
+    await expect(page.locator('.reader')).not.toHaveClass(/bars-hidden/)
+  })
+
+  test('翻页模式：左右区域点按翻页（页内/跨章）', async ({ page }) => {
+    await importBook(page)
+    await page.getByRole('button', { name: '⚙' }).click()
+    await page.getByRole('button', { name: '翻页', exact: true }).click()
+    await page.keyboard.press('Escape')
+    await expect(page.locator('.paged-area')).toBeVisible()
+    // 状态 = 页数 + 章标题 + 横向位置，点击后任一变化即翻页成功
+    const state = () =>
+      page.evaluate(() => {
+        const el = document.querySelector('.paged-area') as HTMLElement | null
+        return `${document.querySelector('.pos-main')?.textContent ?? ''}|${document.querySelector('h1.chapter-heading')?.textContent ?? ''}|${el?.scrollLeft ?? 0}`
+      })
+    const before = await state()
+    await page.touchscreen.tap(340, 400) // 右侧区域
+    await expect.poll(state).not.toBe(before)
+    const afterRight = await state()
+    await page.touchscreen.tap(50, 400) // 左侧区域
+    await expect.poll(state).not.toBe(afterRight)
+  })
+
   test('阅读器：顶底栏无横向溢出，标题截断不挤压按钮', async ({ page }) => {
     await importBook(page)
     await expect(page.locator('.title-book')).toHaveText('江湖夜雨')
