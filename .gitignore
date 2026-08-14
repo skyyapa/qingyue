@@ -7,5 +7,13 @@ dist
 playwright-report
 test-results
 
+# Capacitor Android 构建产物
+android/.gradle
+android/local.properties
+android/.idea
+android/build
+android/app/build
+android/capacitor-cordova-android-plugins/build
+
 # ZCode 内部文件
 .zcode

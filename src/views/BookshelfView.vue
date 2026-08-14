@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useBooksStore, type SortMode } from '@/stores/books'
 import { useStatsStore } from '@/stores/stats'
@@ -31,6 +31,22 @@ const showSources = ref(false)
 const showStats = ref(false)
 const showAI = ref(false)
 const dragging = ref(false)
+/** 原生「用轻阅打开」带来的文件：随导入对话框挂载自动导入 */
+const pendingImportFiles = ref<File[]>([])
+
+onMounted(() => {
+  window.addEventListener('qingyue:open-files', onNativeOpenFiles)
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('qingyue:open-files', onNativeOpenFiles)
+})
+
+function onNativeOpenFiles(e: Event): void {
+  const files = (e as CustomEvent<{ files: File[] }>).detail?.files
+  if (!files?.length) return
+  pendingImportFiles.value = files
+  showImport.value = true
+}
 
 /** 应用内对话框（替代原生 confirm/prompt） */
 interface DialogState {
@@ -335,7 +351,12 @@ const emptyText = computed(() => {
 
     <div v-if="dragging" class="drop-overlay">松开鼠标导入书籍</div>
 
-    <ImportDialog v-if="showImport" @close="showImport = false" @imported="onImported" />
+    <ImportDialog
+      v-if="showImport"
+      :initial-files="pendingImportFiles"
+      @close="showImport = false; pendingImportFiles = []"
+      @imported="onImported"
+    />
     <BackupDialog v-if="showBackup" @close="showBackup = false" @imported="books.refresh" />
     <BookSourceDialog v-if="showSources" @close="showSources = false" />
     <StatsPanel v-if="showStats" @close="showStats = false" />

@@ -558,6 +558,33 @@ src/
 - 回归全绿：type-check/lint/test(169)/e2e(48)/build
 - 路线图进度：移动端体验（M0+M1）完成 ✅ → 下一步 **v1.3：Android（TWA/Capacitor 打包）**
 
+**迭代 32 —— v1.3 Android M0：Capacitor 工程集成（用户定 Capacitor 而非 TWA：文件打开/分享/返回键/状态栏等原生能力更有发挥空间）（已提交）**
+- **Capacitor 8 集成**：`@capacitor/core/android/cli` + `app/status-bar/filesystem/share` 插件；
+  `capacitor.config.ts`（appId `io.github.skyyapa.qingyue`，webDir dist）；`cap add android`
+  生成全套 gradle 工程并提交（标准做法，可复现构建）；appId 用 GitHub Pages 反向域名避免冲突
+- **文件管理器「用轻阅打开」**：
+  - AndroidManifest 加 VIEW intent-filter：`content://` + text/plain/epub+zip、
+    `file://` + `.txt/.epub/.json` pathPattern（模板已带 singleTask + exported）
+  - `src/capacitor.ts` 桥接：`App.addListener('appUrlOpen')` → `Filesystem.readFile`
+    （Capacitor 8 原生端返回 base64 字符串）→ `utils/intent-uri.ts` 提取文件名
+    （content id 纯数字返回 null、**ExternalStorage document id 的 `primary:` 卷前缀
+    与内部路径剥离**）→ base64 → File
+  - 事件流：`emitOpenFiles`（CustomEvent `qingyue:open-files`）→ BookshelfView 监听 →
+    打开导入对话框并 `ImportDialog initialFiles` prop 挂载后自动导入 → 导入成功自动进阅读器
+- **系统返回键**：`backButton` 监听按优先级逐级处理——`.mask` 遮罩面板/对话框点击关闭 →
+  抽屉（阅读助手）/章节搜索条/AI 回答面板派发 Escape → AI 浮层菜单收起 → 书架根页
+  `App.exitApp()` / 其他路由 `router.back()`（App.vue 注册，Web 端 setupNativeBridge 空操作）
+- **状态栏跟随主题**：`syncStatusBarTheme`——深色主题（night/ocean/pine/graphite）浅色图标，
+  背景色取 `getComputedStyle(body).backgroundColor`（主题切换 watchEffect 自动同步）
+- **工程化**：`android:sync`（build + cap sync）/ `android:open` / `android:doctor` 脚本；
+  ESLint 与 .gitignore 排除 android 生成代码与构建产物
+- 单测 +6（175）：fileNameFromUri（content/file URI、primary 卷前缀、纯数字 id、
+  非法编码容错）、base64ToFile UTF-8 字节还原
+- 回归全绿：type-check/lint/test(175)/e2e(48)/build；`cap sync` 资产已同步
+- 注：本机无 Android SDK，gradle APK 构建未跑（需 Android Studio）；v1.3 后续：
+  APK 构建与签名、ACTION_SEND 接收分享文件（appUrlOpen 不覆盖 SEND，需原生扩展）、
+  Android 通知（本地章节摘要提醒等）
+
 ## 未完成任务
 
 - [ ] Android App（TWA / Capacitor 打包）——移动端体验 M0 之后
@@ -746,6 +773,15 @@ src/
     `defaultBrowserType: 'webkit'`——在 `test.describe` 内 `test.use()` 会报
     "forces a new worker" 报错（需剔除）；放在项目级 `use` 里则合法（webkit-ios
     项目即用它指定真实 WebKit 引擎）
+
+### Capacitor / Android（迭代 32 新增）
+52. **ESLint 会扫 Capacitor 生成的 android/**：cap add 后 `eslint .` 报上千错误
+    （压缩产物一行上万字符）——eslint.config.js ignores 加 `android/**`；
+    .gitignore 同步加 android 构建目录（.gradle/local.properties/build）
+53. **Capacitor 8 Filesystem.readFile 返回类型**：原生端 `data` 恒为 base64 字符串
+    （`string | Blob` 的 Blob 仅 Web 端有），且 v8 无 `type` 字段——文件名兜底
+    只能自己拼；content URI 的 document id 形如 `primary:Download/xx.txt`
+    （`primary:` 卷前缀 + 编码路径），取文件名需剥离前缀再取尾段
 
 ## 测试方法备忘
 

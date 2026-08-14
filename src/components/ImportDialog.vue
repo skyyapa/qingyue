@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useBooksStore } from '@/stores/books'
 import type { TextEncoding } from '@/types'
 
 const emit = defineEmits<{ close: []; imported: [id: string | null] }>()
+const props = defineProps<{ initialFiles?: File[] }>()
 const books = useBooksStore()
 
 const encoding = ref<TextEncoding>('auto')
@@ -22,7 +23,7 @@ function pickFiles(): void {
   fileInput.value?.click()
 }
 
-async function handleFiles(files: FileList | null): Promise<void> {
+async function handleFiles(files: FileList | File[] | null): Promise<void> {
   if (!files || files.length === 0) return
   const meta = await books.importFiles(files, encoding.value)
   emit('imported', meta?.id ?? null)
@@ -32,6 +33,11 @@ function onDrop(e: DragEvent): void {
   e.preventDefault()
   handleFiles(e.dataTransfer?.files ?? null)
 }
+
+// 原生「用轻阅打开」的文件：对话框挂载后自动导入
+onMounted(() => {
+  if (props.initialFiles?.length) void handleFiles(props.initialFiles)
+})
 </script>
 
 <template>

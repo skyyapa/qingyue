@@ -3,14 +3,15 @@
 > 本文档给被压缩/新开的会话快速续接用。完整迭代史、踩坑与测试方法见 `PROJECT.md`、`README.md`。
 > **注意：每次迭代完成后需同步更新本文件「当前状态」与 PROJECT.md/README。**
 
-## 当前状态（截至迭代 31，移动端体验 M0+M1 完成，下一步 v1.3 Android）
+## 当前状态（截至迭代 32，v1.3 Android（Capacitor）M0 完成）
 
 - **版本**：`1.2.0`（package.json 与 v1.2.0 Release 已发布，离线包 workflow success）
-- **测试基线**：单测 **169**（22 套件）/ e2e **48**（chromium 41 + webkit-ios 7）/ type-check / lint / build 全绿
+- **测试基线**：单测 **175**（23 套件）/ e2e **48**（chromium 41 + webkit-ios 7）/ type-check / lint / build 全绿
 - **工作区**：干净，main 与 origin/main 同步
 - **最近迭代**：
-  - 30：移动端体验 M0（viewport-fit + manifest id、dvh 高度链、safe-area 变量适配阅读器/书架、输入框 16px 防 iOS 放大、tap-highlight/overscroll 触屏打磨、实体卡片压缩遮挡修复）；新 e2e/mobile.spec.ts（iPhone 13 视口 4 用例）
-  - 31：移动阅读交互收尾 M1（中央点按切换工具栏、左/右/中三区点按翻页（tap-zones 工具 + 双击抑制）、AI/搜索/安装条浮层补 safe-area、分组删除按钮去 hover-only 常驻可见、真实 WebKit 验证：webkit-ios 项目跑 mobile.spec 7 用例全绿 + CI 装 webkit）
+  - 30：移动端体验 M0（PWA 元信息、dvh、safe-area、输入框 16px、实体卡片压缩遮挡修复）
+  - 31：移动阅读交互收尾 M1（中央点按工具栏、三区点按翻页、浮层 safe-area、分组删除去 hover、webkit-ios 真 WebKit 验证）
+  - 32：v1.3 Android M0（Capacitor 8 工程集成 + android 平台提交、文件管理器「用轻阅打开」TXT/EPUB 桥接（content URI → base64 → File → 自动导入）、系统返回键逐级处理、状态栏跟随主题、intent-uri 工具与单测）
 
 ## 核心架构速查
 
@@ -27,11 +28,12 @@
 4. 测试全绿才提交：`npm run type-check && npm run lint && npm test && npm run e2e && npm run build`
 5. 防剧透是产品核心卖点，任何 AI 上下文改动不得破坏
 
-## 下一步候选（用户路线图：移动端体验 ✅ → Android → 多设备同步）
+## 下一步候选（用户路线图：移动端体验 ✅ → Android（Capacitor）→ 多设备同步）
 
-- **v1.3 Android App**：TWA（Trusted Web Activity，bubblewrap）或 Capacitor 打包——移动端体验（M0+M1）已收尾，这是下一个目标
+- **v1.3 Android 收尾**：APK 构建与签名（需 Android Studio/SDK，本机无）、
+  ACTION_SEND 接收系统分享文件（appUrlOpen 不覆盖 SEND，需原生扩展）、Android 通知、
+  真机验证
 - **多设备同步**：阅读进度与书库跨设备（需自建后端或第三方服务，超出纯前端约束）
-- 真机 iPhone 实测：WebKit 视口已过 Playwright，真机 Safari/standalone PWA 验证可后续补
 - 远期（AI 不再堆新功能，用户明确）：语义级事件提取、书源规则分享社区、README 演示 GIF
 
 ## 踩坑速查（详见 PROJECT.md 47 条）
@@ -44,4 +46,6 @@
   **overflow 项 min-height 归零仍会被压没**（例句区 h=0 被时间线盖住）→ 卡内区块 `flex-shrink: 0`
 - Playwright `devices['iPhone 13']` 带 defaultBrowserType: webkit——describe 内
   `test.use()` 报 "forces a new worker"（需剔除）；项目级 `use` 里合法（webkit-ios 项目用它跑真 WebKit）
+- Capacitor：`eslint .` 会扫 android/ 生成代码（需 ignore）；readFile 原生端返回
+  base64 字符串（Blob 仅 Web）；content URI 文件名要剥 `primary:` 卷前缀（详见 PROJECT.md 52-53）
 - 面板打开时 ⚡ 浮层要隐藏（避免遮挡抽屉）

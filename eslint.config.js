@@ -5,7 +5,16 @@ import globals from 'globals'
 
 export default tseslint.config(
   {
-    ignores: ['dist/**', 'node_modules/**', 'coverage/**', 'playwright-report/**', 'test-results/**', '.tmp/**'],
+    ignores: [
+      'dist/**',
+      'node_modules/**',
+      'coverage/**',
+      'playwright-report/**',
+      'test-results/**',
+      '.tmp/**',
+      // Capacitor Android 工程：生成代码与打包产物不进 lint
+      'android/**',
+    ],
   },
   {
     languageOptions: {

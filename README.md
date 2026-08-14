@@ -48,6 +48,7 @@
 - **AI 阅读助手（可选接入，零成本方案）** — 书架顶栏「AI」统一配置 Provider：**OpenAI 兼容协议**下直接可用 **OpenAI 官方 / DeepSeek / Gemini（Gateway）/ 本地 Ollama / LM Studio / vLLM / 任意中转站**（Base URL + API Key + Model + 一键测试连接），项目本身不承担任何 AI 成本。**多模型策略**：可分别为「简单问答 / 摘要」配置更便宜的模型降本，复杂剧情分析走主模型。配置后：**私人小说管家**（不剧透 / 跟随阅读进度 / 优先引用已发生剧情 / 不确定就说不知道），支持**这是谁 / 前情回顾 / 剧情解释 / 人物关系 / 世界观解释 / 事件时间线 / 伏笔回顾 / 章节摘要 / 今日回顾 / 自由提问**；**阅读页 ⚡ 浮层一键解释/总结/问人物/看伏笔**，选中正文一键「✨ AI」带入提问，翻章自动生成章节摘要（可关闭），实体卡片含**经历时间线**与「AI 梳理经历」。<br>⚠️ 说明：API Key 为**明文**保存在浏览器本机 localStorage（未加密，请勿在公用设备配置）；中转站需允许浏览器跨域（CORS）请求
 - **🔒 防剧透机制** — AI 默认只能使用**已读章节**（第 1～当前章）的数据：读到第 327 章时问「林凡是什么身份」，AI 不会透露第 900 章的答案，只会基于已读内容回答或说明「涉及未读章节」
 - **PWA 可安装** — 一键「安装到桌面」像普通软件一样使用（含 iOS 添加到主屏幕指引），离线可读已缓存内容与本地书籍；移动端专项打磨：刘海屏安全区适配（standalone 全屏不贴边）、iOS 地址栏收起/展开时布局自适应、输入框 16px 起（聚焦不放大页面）、去点击灰闪与双击缩放延迟
+- **Android App（Capacitor）** — 同一套代码打包原生 Android 应用：**文件管理器「用轻阅打开」TXT / EPUB 直接导入**（content:// intent 桥接）、**系统返回键**按「关面板 → 后退 → 退出」逐级处理、**状态栏跟随主题**（深浅色图标 + 背景色）；工程由 Capacitor 8 管理（`npm run android:sync` 同步 Web 产物，Android Studio 或 `./gradlew assembleDebug` 构建 APK）
 - **智能章节切分** — 自动识别「第X章 / 第X回 / 序章 / 楔子 / 番外 / 终章」等章节标题，书名作者自动提取；无章节标记的整本单章兜底
 - **书架管理** —
   - 自定义分组（新建 / 删除分组，书籍一键归类）；卡片菜单可一键「重置阅读进度」重读；分组删除按钮常驻可见（触屏无需 hover）
@@ -81,14 +82,18 @@ npm install        # 安装依赖
 npm run dev        # 启动开发服务器（http://localhost:5173）
 npm run build      # 类型检查 + 生产构建（输出 dist/）
 npm run preview    # 预览构建产物
+npm run android:sync  # 构建 Web 并同步进 Android 工程（Capacitor）
+npm run android:open  # 用 Android Studio 打开 Android 工程
 ```
+
+**Android App 构建**：需安装 [Android Studio](https://developer.android.com/studio)（含 SDK 与 JDK）——`npm run android:sync` 后，用 `npm run android:open` 打开工程点 Run，或命令行 `cd android && ./gradlew assembleDebug` 产出 `android/app/build/outputs/apk/debug/` 下的 APK。安装后即可在文件管理器里对 TXT / EPUB 选「用轻阅打开」。
 
 ## ✅ 质量保障
 
 ```bash
 npm run lint       # ESLint 代码检查
 npm run type-check # TypeScript 类型检查
-npm run test       # 单元测试（Vitest，169 用例：编码检测/EPUB 与 CSS 解析/知识库算法/书源引擎/AI 客户端与任务/数据库/Store/组件/备份/导出/搜索/点按分区）
+npm run test       # 单元测试（Vitest，175 用例：编码检测/EPUB 与 CSS 解析/知识库算法/书源引擎/AI 客户端与任务/数据库/Store/组件/备份/导出/搜索/点按分区/intent URI）
 npm run e2e        # 端到端测试（Playwright 48 用例 = Chromium 41 + WebKit/iOS 视口 7，首次需 npx playwright install chromium webkit）
 ```
 
@@ -152,7 +157,7 @@ node proxy/server.mjs   # 默认 8787 端口
 
 - [x] ~~AI 核心~~（阅读助手九任务 + 防剧透 + 阅读浮层 + 人物时间线 + 自动摘要 + 每日回顾 + 多模型策略，已完成）
 - [x] ~~移动端体验~~（PWA 打磨 / 触屏手势 / 窄屏适配 / safe-area，已完成）
-- [ ] Android App（TWA / Capacitor 打包）
+- [ ] Android App（Capacitor 工程已集成：文件打开 / 返回键 / 状态栏桥接，APK 构建与上架进行中）
 - [ ] 多设备同步（阅读进度与书库跨设备同步）
 - [ ] 语义级事件提取（「三年之约」类剧情事件）——需 LLM，远期
 - [ ] 书源规则分享社区 / 规则包市场（当前已支持链接分享与批量导入）——远期
