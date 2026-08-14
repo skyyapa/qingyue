@@ -9,13 +9,13 @@ const emit = defineEmits<{ close: []; select: [index: number] }>()
 
 const listEl = ref<HTMLElement>()
 
-// 当前章变化时，将高亮项滚动到可见区域
+// 当前章变化时，将高亮项滚动到可见区域（immediate：面板刚打开也定位到当前章）
 watch(
   () => props.currentIndex,
   () => {
     listEl.value?.querySelector('.toc-item.current')?.scrollIntoView({ block: 'center' })
   },
-  { flush: 'post' }
+  { flush: 'post', immediate: true }
 )
 </script>
 

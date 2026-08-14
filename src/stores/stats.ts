@@ -47,12 +47,25 @@ export const useStatsStore = defineStore('stats', () => {
     localStorage.setItem(STATS_KEY, JSON.stringify(stats.value))
   }
 
+  // 活跃检测：超过 ACTIVE_WINDOW 无任何交互（挂机）不计时
+  const ACTIVE_WINDOW_MS = 60_000
+  let lastActiveAt = 0
   let timer: number | undefined
+
+  function onActivity(): void {
+    lastActiveAt = Date.now()
+  }
+
   /** 开始阅读计时（阅读器挂载时调用） */
   function startTracking(): void {
     if (timer !== undefined) return
+    lastActiveAt = Date.now()
+    window.addEventListener('keydown', onActivity)
+    window.addEventListener('mousedown', onActivity)
+    window.addEventListener('touchstart', onActivity)
+    window.addEventListener('wheel', onActivity)
     timer = window.setInterval(() => {
-      if (document.hidden) return
+      if (document.hidden || Date.now() - lastActiveAt >= ACTIVE_WINDOW_MS) return
       const key = todayKey()
       stats.value.byDate[key] = (stats.value.byDate[key] ?? 0) + TICK_SECONDS
       persist()
@@ -64,6 +77,10 @@ export const useStatsStore = defineStore('stats', () => {
       window.clearInterval(timer)
       timer = undefined
     }
+    window.removeEventListener('keydown', onActivity)
+    window.removeEventListener('mousedown', onActivity)
+    window.removeEventListener('touchstart', onActivity)
+    window.removeEventListener('wheel', onActivity)
   }
 
   return { todaySeconds, totalSeconds, streak, startTracking, stopTracking }

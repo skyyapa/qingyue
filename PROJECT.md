@@ -205,6 +205,29 @@ src/
   - E2E +2（13 用例）：人物列表搜索过滤、例句「定位」跨章跳转正文高亮
 - 单测 79→91；E2E 11→13；type-check/lint/build 全绿
 
+**迭代 13 —— 阅读器本体打磨（待提交）**
+- 翻页模式补全：
+  - 修复 `pagedColWidth` 非响应式 bug（依赖 window.innerWidth 首次求值永久缓存）：
+    resize/旋转后列宽与分页位置错乱 → 新增 `viewportWidth` ref，onResize 同步
+  - 页边界方向键翻章：翻页模式在首/末页（容差 4px）按 ←/→ 切章，与滚动模式一致
+  - 章末「下一章」入口 + 「全书完」标记补到翻页模式（break-inside: avoid，
+    showNextHint 开关在翻页模式生效）
+  - 触屏滑动翻页：水平位移 >48px 且明显大于垂直位移时翻页（移动端可用）
+  - scrollPaged 毛刺修复：ceil/floor 改 round 页数定位，smooth 动画中断可回正
+- 阅读位置记忆（会话级）：切章前记录当前章位置（内存 Map），上一章/下一章/目录
+  往返恢复原位置（替代「下一章回顶/上一章回底」）；不落库，刷新后仍随进度走
+- 稳健性：
+  - TocPanel 首次打开即滚动定位当前章（watch 加 immediate）
+  - settings 载入逐字段校验（类型/范围/枚举白名单），损坏 localStorage 回退默认
+  - pagehide 兜底保存进度（强杀标签页不丢最后几百毫秒）
+  - 阅读计时活跃检测：window keydown/mousedown/touchstart/wheel 刷新活跃时间，
+    满 60s 无交互（挂机）或页面隐藏不计时，不再虚增时长
+- 移动端适配：560px 断点隐藏章节名与「全书 %」徽章、压缩顶栏/底栏 padding
+- 单测 +6（97）：settings 校验（损坏回退/合法保留）、stats 计时（fake timers：
+  正常累计/隐藏跳过/挂机跳过/交互恢复）
+- E2E +3（16）：位置记忆往返恢复、翻页模式键盘翻章（含末页翻章）、窄屏无横向溢出
+- 回归全绿：type-check/lint/test(97)/e2e(16)/build
+
 ## 未完成任务
 
 - [ ] **AI 语义能力接入**：远程 API（CORS 方案待定）或本地模型，消费知识库数据
@@ -347,6 +370,15 @@ src/
 38. **事件句模式是「A 介词 B 动词」**：动词跟在第二个实体**之后**（「林夜对苏晚**说**」），
     两实体之间只有介词；正则先验证实体对之间 1-2 字纯介词 + 后随 SPEECH_VERBS 单字，
     「林夜看着苏晚」这类（中间是「看着」）不会误判为事件
+
+### 阅读器本体（迭代 13 新增）
+39. **computed 依赖 window.innerWidth 非响应式**：computed 首次求值后永久缓存，
+    尺寸变化不会重算 → 用 ref 承载视口宽度并在 resize 时更新（pagedColWidth）
+40. **fake timers 下 Date 是否被 mock 影响挂机判断**：vitest 4 fake timers 默认含 Date
+    （advanceTimersByTime 会推进 Date.now()）；挂机阈值判断用 `>=`（满 60s 即停），
+    测试按 tick 序列推算累计值，避免「恰好 60s 整多计一次」的边界困惑
+41. **e2e 断言避免写死翻页次数**：序章正文很短，连续方向键会连翻数章（页内翻页 +
+    每章末页翻章）——断言「已离开第 1 章」而非「恰在第 2 章」
 
 ## 测试方法备忘
 

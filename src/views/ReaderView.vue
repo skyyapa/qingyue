@@ -50,9 +50,10 @@ async function onOpenEntity(entity: Entity): Promise<void> {
 const posPercent = ref('0%')
 const pagePos = ref({ current: 1, total: 1 })
 
-// 翻页模式列参数
+// 翻页模式列参数（视口宽度需为响应式：resize/旋转后列宽与分页位置同步更新）
 const COL_GAP = 48
-const pagedColWidth = computed(() => Math.min(600, Math.max(320, window.innerWidth - 96)))
+const viewportWidth = ref(window.innerWidth)
+const pagedColWidth = computed(() => Math.min(600, Math.max(320, viewportWidth.value - 96)))
 
 /** 正文段落：文本 / 内嵌图片 / 小标题 */
 interface Paragraph {
@@ -147,18 +148,25 @@ function flushSave(): void {
 
 // ---------- 章节切换 ----------
 
-/** 跳到指定章节；带 anchor 时在章内定位到含该文本的段落（找不到则按章节开头处理） */
+/** 会话内各章阅读位置记忆：切走时记录，切回时恢复（不落库，刷新后随进度走） */
+const positionMemory = new Map<number, number>()
+
+/** 跳到指定章节；带 anchor 时在章内定位到含该文本的段落（找不到则按记忆/章节开头处理） */
 async function goChapter(index: number, anchor?: string): Promise<void> {
   if (index === reader.chapterIndex && !anchor) return
+  // 切走前记住当前章位置
+  positionMemory.set(reader.chapterIndex, readRatio())
   const goingNext = index > reader.chapterIndex
   if (index !== reader.chapterIndex) {
     await reader.loadChapter(index)
     await nextTick()
   }
-  if (anchor && scrollToAnchor(anchor)) {
-    // 已定位到正文锚点
-  } else {
-    await restoreRatio(goingNext ? 0 : 1) // 下一章从顶部开始，上一章回到底部
+  let restored = false
+  if (anchor) restored = scrollToAnchor(anchor)
+  if (!restored) {
+    // 优先恢复该章会话内记忆的位置；无记忆时下一章从顶部、上一章回底部
+    const remembered = positionMemory.get(index)
+    await restoreRatio(remembered !== undefined ? remembered : goingNext ? 0 : 1)
   }
   flushSave()
 }
@@ -207,11 +215,46 @@ function scrollPaged(direction: 1 | -1): void {
   if (!el) return
   const pageWidth = pagedColWidth.value + COL_GAP
   const max = el.scrollWidth - el.clientWidth
-  const target =
-    direction === 1
-      ? Math.min(max, Math.ceil((el.scrollLeft + 1) / pageWidth) * pageWidth)
-      : Math.max(0, Math.floor((el.scrollLeft - 1) / pageWidth) * pageWidth)
+  // 按当前页 round 定位目标页，smooth 动画中断后可回正（避免 ceil/floor 越界跨两页）
+  const currentPage = Math.round(el.scrollLeft / pageWidth)
+  const targetPage = direction === 1 ? currentPage + 1 : currentPage - 1
+  const target = Math.min(max, Math.max(0, targetPage * pageWidth))
   el.scrollTo({ left: target, behavior: 'smooth' })
+}
+
+/** 翻页模式是否已处于首/末页（键盘在页边界翻章） */
+function pagedAtBoundary(direction: 1 | -1): boolean {
+  const el = pagedArea.value
+  if (!el) return true
+  const pageWidth = pagedColWidth.value + COL_GAP
+  const max = el.scrollWidth - el.clientWidth
+  return direction === 1 ? el.scrollLeft + pageWidth - 4 >= max : el.scrollLeft <= 4
+}
+
+// ---------- 触屏滑动翻页（翻页模式） ----------
+
+let touchStartX = 0
+let touchStartY = 0
+let touchActive = false
+
+function onTouchStart(e: TouchEvent): void {
+  if (pageMode.value !== 'paged') return
+  const t = e.touches[0]
+  touchStartX = t.clientX
+  touchStartY = t.clientY
+  touchActive = true
+}
+
+function onTouchEnd(e: TouchEvent): void {
+  if (!touchActive) return
+  touchActive = false
+  const t = e.changedTouches[0]
+  const dx = t.clientX - touchStartX
+  const dy = t.clientY - touchStartY
+  // 水平位移足够大且明显大于垂直位移才视为翻页手势
+  if (Math.abs(dx) > 48 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+    scrollPaged(dx < 0 ? 1 : -1)
+  }
 }
 
 // ---------- 事件 ----------
@@ -227,11 +270,12 @@ function onKeydown(e: KeyboardEvent): void {
   if (showToc.value || showSettings.value || showAssistant.value) return
   if (e.key === 'ArrowRight') {
     e.preventDefault()
-    if (pageMode.value === 'paged') scrollPaged(1)
+    // 翻页模式：页内翻页，已到末页则翻下一章（与滚动模式一致）
+    if (pageMode.value === 'paged' && !pagedAtBoundary(1)) scrollPaged(1)
     else goChapter(reader.chapterIndex + 1)
   } else if (e.key === 'ArrowLeft') {
     e.preventDefault()
-    if (pageMode.value === 'paged') scrollPaged(-1)
+    if (pageMode.value === 'paged' && !pagedAtBoundary(-1)) scrollPaged(-1)
     else goChapter(reader.chapterIndex - 1)
   }
 }
@@ -241,7 +285,13 @@ function onVisibilityChange(): void {
 }
 
 function onResize(): void {
+  viewportWidth.value = window.innerWidth // 翻页列宽响应式更新（旋转/分屏等）
   restoreRatio(readRatio())
+}
+
+/** 页面被强杀/跳转前兜底保存（visibilitychange 可能来不及触发） */
+function onPageHide(): void {
+  flushSave()
 }
 
 // 章节变化后更新位置显示
@@ -265,11 +315,13 @@ watch(
 )
 
 onMounted(async () => {
+  positionMemory.clear() // 新会话，位置记忆从零开始
   await reader.openBook(bookId.value)
   await restoreRatio(reader.book?.progress.scrollRatio ?? 0)
   stats.startTracking() // 阅读计时
   window.addEventListener('resize', onResize)
   window.addEventListener('keydown', onKeydown)
+  window.addEventListener('pagehide', onPageHide)
   document.addEventListener('visibilitychange', onVisibilityChange)
 })
 
@@ -278,6 +330,7 @@ onBeforeUnmount(() => {
   stats.stopTracking()
   window.removeEventListener('resize', onResize)
   window.removeEventListener('keydown', onKeydown)
+  window.removeEventListener('pagehide', onPageHide)
   document.removeEventListener('visibilitychange', onVisibilityChange)
 })
 </script>
@@ -328,7 +381,14 @@ onBeforeUnmount(() => {
     </main>
 
     <!-- 翻页模式（CSS 多列，横向滚动） -->
-    <main v-else ref="pagedArea" class="reader-body paged-area" @scroll="scheduleSave">
+    <main
+      v-else
+      ref="pagedArea"
+      class="reader-body paged-area"
+      @scroll="scheduleSave"
+      @touchstart="onTouchStart"
+      @touchend="onTouchEnd"
+    >
       <div
         class="paged-content"
         :style="{
@@ -345,6 +405,10 @@ onBeforeUnmount(() => {
           <h2 v-else-if="p.kind === 'heading'" class="para-heading">{{ p.text }}</h2>
           <p v-else class="para">{{ p.text }}</p>
         </template>
+        <button v-if="hasNext && settings.settings.showNextHint" class="next-hint" @click="goChapter(reader.chapterIndex + 1)">
+          下一章：{{ nextTitle }} →
+        </button>
+        <p v-if="!hasNext" class="end-mark">—— 全书完 ——</p>
       </div>
     </main>
 
@@ -454,7 +518,9 @@ onBeforeUnmount(() => {
 }
 .paged-content .para,
 .paged-content .chapter-heading,
-.paged-content .para-img {
+.paged-content .para-img,
+.paged-content .next-hint,
+.paged-content .end-mark {
   break-inside: avoid;
 }
 /* 拟真书页：正文渲染为带纸张质感与阴影的书页 */
@@ -588,6 +654,24 @@ onBeforeUnmount(() => {
   .reader.bookpage .scroll-inner {
     padding: 28px 20px 48px;
     margin: 16px 12px 32px;
+  }
+  /* 窄屏收缩：隐藏次要信息，防顶栏/底栏挤压溢出 */
+  .title-chapter {
+    display: none;
+  }
+  .reader-top {
+    padding: 8px 10px;
+    gap: 4px;
+  }
+  .reader-bottom {
+    padding: 6px 8px;
+    gap: 6px;
+  }
+  .pos-book {
+    display: none;
+  }
+  .reader-pos {
+    gap: 6px;
   }
 }
 </style>
