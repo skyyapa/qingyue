@@ -170,7 +170,7 @@ src/
   书页开关纳入设置重排监听，切换后尽量保持阅读位置
 - E2E +1（11 用例）：切换主题皮肤（10 套画廊 + data-theme 联动）与拟真书页开关
 
-**迭代 12 —— 阅读助手打磨（无 AI）（待提交）**
+**迭代 12 —— 阅读助手打磨（无 AI）（9eb6e2a）**
 - 知识库质量：
   - 事件句提取：句子级「A 对/向/跟 B 说/道」模式（复用 classify.SPEECH_VERBS），
     每章聚合 top 3 写入 `ChapterIndex.events`，摘要追加「事件：…」段
@@ -205,7 +205,7 @@ src/
   - E2E +2（13 用例）：人物列表搜索过滤、例句「定位」跨章跳转正文高亮
 - 单测 79→91；E2E 11→13；type-check/lint/build 全绿
 
-**迭代 13 —— 阅读器本体打磨（待提交）**
+**迭代 13 —— 阅读器本体打磨（f67de05）**
 - 翻页模式补全：
   - 修复 `pagedColWidth` 非响应式 bug（依赖 window.innerWidth 首次求值永久缓存）：
     resize/旋转后列宽与分页位置错乱 → 新增 `viewportWidth` ref，onResize 同步
@@ -228,7 +228,7 @@ src/
 - E2E +3（16）：位置记忆往返恢复、翻页模式键盘翻章（含末页翻章）、窄屏无横向溢出
 - 回归全绿：type-check/lint/test(97)/e2e(16)/build
 
-**迭代 14 —— EPUB 内嵌 CSS 子集排版还原（待提交）**
+**迭代 14 —— EPUB 内嵌 CSS 子集排版还原（c4cac50）**
 - 新增 `src/parsers/epub-css.ts` 零依赖 CSS 子集解析器：
   - 选择器：tag / .class / tag.class（含逗号分组）；忽略 @media/@import/@font-face、
     后代/伪类/#id 复杂选择器（容错不报错）
@@ -248,7 +248,7 @@ src/
 - E2E +1（17）：内嵌 CSS 排版还原（缩进/对齐/行距继承/粗斜体渲染，真实浏览器断言 inline style）
 - 回归全绿：type-check/lint/test(106)/e2e(17)/build
 
-**迭代 15 —— EPUB 内嵌字体（@font-face）（待提交）**
+**迭代 15 —— EPUB 内嵌字体（@font-face）（d7756dc）**
 - CSS 解析器扩展：`parseFontFaces` 提取 @font-face 的 font-family / src 首个 url /
   可选 font-style / font-weight（忽略 format 描述与损坏块）；段落样式白名单新增
   font-family 属性
@@ -269,7 +269,7 @@ src/
   font-family 段落样式）
 - 路线图「EPUB 内嵌 CSS 样式与字体」全部完成；回归全绿：type-check/lint/test(112)/e2e(18)/build
 
-**迭代 16 —— 在线书知识库分析 + 备份往返测试（待提交）**
+**迭代 16 —— 在线书知识库分析 + 备份往返测试（19f84a1）**
 - 开放在线书知识库分析：移除 BookCard「析」按钮对 `source === 'web'` 的禁用
   （title 提示改为「基于已缓存的章节」）；助手引导文案按书源区分
   （在线书：分析已缓存的章节）；分析管线本就按 `getChapter` 缺失跳过，
@@ -278,7 +278,7 @@ src/
   已缓存章节）、备份往返 3（导出完整性/合并恢复同 ID 跳过与新书恢复/非法备份报错）
 - 路线图「在线书知识库（缓存章节分析）」完成；回归全绿：type-check/lint/test(116)/e2e(18)/build
 
-**迭代 17 —— 章节内正文搜索（待提交）**
+**迭代 17 —— 章节内正文搜索（f58c041）**
 - Ctrl/Cmd+F 唤起搜索条（顶栏 🔍 按钮，移动端可用）；Esc 关闭并清除高亮；
   搜索框聚焦时方向键不翻页（光标留给输入）
 - 高亮实现：渲染后的 DOM 文本节点用 TreeWalker 收集 → `<mark class="search-hit">`
@@ -292,7 +292,7 @@ src/
 - E2E +1（19）：搜索高亮计数 / 逐处跳转 / 无匹配 / Esc 清除
 - 回归全绿：type-check/lint/test(116)/e2e(19)/build
 
-**迭代 18 —— 阅读高频操作增强（待提交）**
+**迭代 18 —— 阅读高频操作增强（d93f2d1）**
 - 字号快捷调节：阅读器底栏 A−/A+ 按钮（±1px，钳制 14-28），免开设置面板；
   重排与位置保持复用现有设置 watch
 - 设置面板底部「恢复默认设置」按钮（settings store 新增 resetSettings action）
@@ -304,7 +304,7 @@ src/
   （翻章 → 书架菜单 → 确认 → 重开回到第一章）
 - 回归全绿：type-check/lint/test(118)/e2e(21)/build
 
-**迭代 19 —— 阅读统计日历面板（待提交）**
+**迭代 19 —— 阅读统计日历面板（fbb1010）**
 - 新增 `utils/stats-calendar.ts` 纯函数：`buildMonthGrid`（周一为每周起点的 42 格
   月度网格，前后补齐置灰、今日标记）、`toDateKey`、`intensityLevel`（分钟 → 0-4
   档热力分档）
@@ -317,7 +317,7 @@ src/
 - E2E +1（22）：日历面板打开、42 格 + 7 表头、月份切换往返、汇总区、关闭
 - 回归全绿：type-check/lint/test(122)/e2e(22)/build
 
-**迭代 20 —— 单书导出/分享（待提交）**
+**迭代 20 —— 单书导出/分享（5c46d73）**
 - 新增 `utils/export.ts`：单书格式 `{ app: 'qingyue-book', meta, chapters, entities,
   chapterIndexes, relations }`（正文 + 进度 + 知识库；不含内嵌字体，与备份策略一致）
 - 导出：书架卡片 ⋯ 菜单「导出本书」→ 下载 `书名.qingyue.json`（db 新增 listChapters
@@ -330,7 +330,7 @@ src/
 - E2E +1（23）：单书导出 → 删除 → 导入恢复（进度 2/5 章保留，真实浏览器下载事件）
 - 回归全绿：type-check/lint/test(125)/e2e(23)/build
 
-**迭代 21 —— 全书正文搜索（待提交）**
+**迭代 21 —— 全书正文搜索（272ec40）**
 - 扩展 ReaderView 搜索条：`Ctrl/Cmd+F` 打开后可切换「本章 / 本书」；本章保留原有逐处高亮与 ↑/↓ 跳转
 - 全书搜索：扫描 `db.listChapters(bookId)`，按章节聚合结果（章节名 / 首个上下文摘录 / 命中数），点击结果切章并复用既有锚点定位与本章高亮
 - 在线书策略：仅搜索已缓存章节，状态明确显示「已搜索 X/Y 章缓存内容」，不会假装能检索未下载正文；输入 180ms 防抖、结果限制 80 章，避免大书输入阻塞
