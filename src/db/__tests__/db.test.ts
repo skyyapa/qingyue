@@ -85,6 +85,23 @@ describe('IndexedDB 封装（fake-indexeddb）', () => {
     expect(await db.listRelations('e')).toHaveLength(0)
   })
 
+  it('EPUB 内嵌字体存取与删除书连带清理', async () => {
+    await db.addBook(makeMeta('h'))
+    await db.saveBookFonts('h', [{ family: 'MyFont', dataUrl: 'data:font/ttf;base64,AAAA' }])
+    const fonts = await db.getBookFonts('h')
+    expect(fonts).toHaveLength(1)
+    expect(fonts?.[0].family).toBe('MyFont')
+
+    // 覆盖式保存（空数组 = 清除）
+    await db.saveBookFonts('h', [])
+    expect(await db.getBookFonts('h')).toEqual([])
+
+    // 删除书连带清理字体
+    await db.saveBookFonts('h', [{ family: 'X', dataUrl: 'data:font/ttf;base64,BBBB' }])
+    await db.deleteBook('h')
+    expect(await db.getBookFonts('h')).toBeUndefined()
+  })
+
   it('replaceRelations 整体替换：旧关系不残留（幽灵关系修复）', async () => {
     await db.addBook(makeMeta('f'))
     // 先写入 3 条旧关系

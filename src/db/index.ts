@@ -1,4 +1,4 @@
-import type { BookMeta, Chapter, ChapterIndex, Entity, ReadProgress, Relation } from '@/types'
+import type { BookFont, BookMeta, Chapter, ChapterIndex, Entity, ReadProgress, Relation } from '@/types'
 
 /** IndexedDB 封装。object store：
  *  - books：书籍元数据（书架、目录、进度、分析状态）
@@ -6,14 +6,16 @@ import type { BookMeta, Chapter, ChapterIndex, Entity, ReadProgress, Relation } 
  *  - entities：知识库实体（人物/地点/技能/物品）
  *  - chapterIndex：章节索引（每章实体词频/高频词/摘要）
  *  - relations：实体共现关系（关系图边）
+ *  - bookFonts：EPUB 内嵌字体（@font-face → data URL，key = bookId）
  */
 const DB_NAME = 'qingyue'
-const DB_VERSION = 2
+const DB_VERSION = 3
 const BOOKS_STORE = 'books'
 const CHAPTERS_STORE = 'chapters'
 const ENTITIES_STORE = 'entities'
 const CHAPTER_INDEX_STORE = 'chapterIndex'
 const RELATIONS_STORE = 'relations'
+const BOOK_FONTS_STORE = 'bookFonts'
 
 let dbPromise: Promise<IDBDatabase> | null = null
 
@@ -41,6 +43,9 @@ function openDB(): Promise<IDBDatabase> {
         if (!db.objectStoreNames.contains(RELATIONS_STORE)) {
           const store = db.createObjectStore(RELATIONS_STORE, { keyPath: 'id' })
           store.createIndex('bookId', 'bookId', { unique: false })
+        }
+        if (!db.objectStoreNames.contains(BOOK_FONTS_STORE)) {
+          db.createObjectStore(BOOK_FONTS_STORE, { keyPath: 'id' })
         }
       }
       request.onsuccess = () => resolve(request.result)
@@ -161,13 +166,13 @@ export function updateBookAnalysis(id: string, analysis: BookMeta['analysis']): 
   )
 }
 
-/** 删除书籍及其全部关联数据（章节/实体/索引/关系） */
+/** 删除书籍及其全部关联数据（章节/实体/索引/关系/字体） */
 export function deleteBook(id: string): Promise<void> {
   return openDB().then(
     (db) =>
       new Promise((resolve, reject) => {
         const tx = db.transaction(
-          [BOOKS_STORE, CHAPTERS_STORE, ENTITIES_STORE, CHAPTER_INDEX_STORE, RELATIONS_STORE],
+          [BOOKS_STORE, CHAPTERS_STORE, ENTITIES_STORE, CHAPTER_INDEX_STORE, RELATIONS_STORE, BOOK_FONTS_STORE],
           'readwrite'
         )
         tx.objectStore(BOOKS_STORE).delete(id)
@@ -182,6 +187,7 @@ export function deleteBook(id: string): Promise<void> {
             }
           }
         }
+        tx.objectStore(BOOK_FONTS_STORE).delete(id) // bookFonts 以 bookId 为 keyPath
         tx.oncomplete = () => resolve()
         tx.onerror = () => reject(tx.error)
         tx.onabort = () => reject(tx.error ?? new Error('事务被中止'))
@@ -312,4 +318,15 @@ export function replaceRelations(bookId: string, relations: Relation[]): Promise
         tx.onabort = () => reject(tx.error ?? new Error('事务被中止'))
       })
   )
+}
+
+// ---------- EPUB 内嵌字体 ----------
+
+/** 保存书的字体（整体覆盖；无字体时写入空数组即可清除） */
+export function saveBookFonts(bookId: string, fonts: BookFont[]): Promise<void> {
+  return req(BOOK_FONTS_STORE, 'readwrite', (s) => s.put({ id: bookId, fonts })).then(() => undefined)
+}
+
+export function getBookFonts(bookId: string): Promise<BookFont[] | undefined> {
+  return req(BOOK_FONTS_STORE, 'readonly', (s) => s.get(bookId)).then((v) => v?.fonts)
 }

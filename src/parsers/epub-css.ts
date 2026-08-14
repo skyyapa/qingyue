@@ -12,6 +12,7 @@ const STYLE_KEYS = new Set([
   'text-align',
   'line-height',
   'font-size',
+  'font-family',
   'color',
   'font-weight',
   'font-style',
@@ -59,6 +60,9 @@ function applyDeclaration(style: ParagraphStyle, key: string, rawValue: string):
       if (em) style.fontSize = em
       break
     }
+    case 'font-family':
+      if (value.length <= 60) style.fontFamily = value
+      break
     case 'color':
       if (/^(#[0-9a-f]{3,8}|rgba?\(|hsla?\(|[a-z]+)$/i.test(value)) style.color = value
       break
@@ -93,6 +97,38 @@ export interface CssRule {
   /** 特异性：class 匹配 +1、tag 匹配 +1（仅用于相对排序） */
   specificity: number
   declarations: Record<string, string>
+}
+
+/** @font-face 声明（内嵌字体） */
+export interface FontFaceDecl {
+  family: string
+  /** src 中的第一个 url()（相对路径，由调用方按 CSS 文件目录解析） */
+  srcUrl: string
+  style?: 'italic'
+  weight?: string
+}
+
+/** 解析 CSS 中的 @font-face 块（font-family + src 首个 url + 可选 style/weight） */
+export function parseFontFaces(css: string): FontFaceDecl[] {
+  const faces: FontFaceDecl[] = []
+  const cleaned = css.replace(/\/\*[\s\S]*?\*\//g, '')
+  const re = /@font-face\s*\{([^}]*)\}/gi
+  let m: RegExpExecArray | null
+  while ((m = re.exec(cleaned))) {
+    const body = m[1]
+    const family = body.match(/font-family\s*:\s*["']?([^"';\n]+)["']?/i)?.[1]?.trim()
+    const url = body.match(/url\(\s*["']?([^"')]+)["']?\s*\)/i)?.[1]?.trim()
+    if (!family || !url) continue
+    const style = body.match(/font-style\s*:\s*([^;\n]+)/i)?.[1]?.trim()
+    const weight = body.match(/font-weight\s*:\s*([^;\n]+)/i)?.[1]?.trim()
+    faces.push({
+      family,
+      srcUrl: url,
+      style: style === 'italic' ? 'italic' : undefined,
+      weight: weight && /^[1-9]00$/.test(weight) ? weight : undefined,
+    })
+  }
+  return faces
 }
 
 /** 解析 CSS 文本为规则列表（容错：注释/损坏块忽略） */

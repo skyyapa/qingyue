@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import * as db from '@/db'
 import { useReaderStore } from '@/stores/reader'
 import { useSettingsStore } from '@/stores/settings'
 import { useStatsStore } from '@/stores/stats'
@@ -313,6 +314,37 @@ function onPageHide(): void {
   flushSave()
 }
 
+// ---------- EPUB 内嵌字体注入（书级 @font-face，卸载时移除） ----------
+
+const fontStyleEl = ref<HTMLStyleElement | null>(null)
+
+async function applyBookFonts(bookId: string): Promise<void> {
+  removeBookFonts()
+  const fonts = await db.getBookFonts(bookId)
+  if (!fonts || fonts.length === 0) return
+  const css = fonts
+    .map(
+      (f) =>
+        `@font-face { font-family: "${f.family}"; src: url("${f.dataUrl}");` +
+        (f.style ? ` font-style: ${f.style};` : '') +
+        (f.weight ? ` font-weight: ${f.weight};` : '') +
+        ' }'
+    )
+    .join('\n')
+  const style = document.createElement('style')
+  style.dataset.bookFonts = 'qingyue'
+  style.textContent = css
+  document.head.appendChild(style)
+  fontStyleEl.value = style
+}
+
+function removeBookFonts(): void {
+  if (fontStyleEl.value) {
+    fontStyleEl.value.remove()
+    fontStyleEl.value = null
+  }
+}
+
 // 章节变化后更新位置显示
 watch(
   () => reader.chapter,
@@ -335,6 +367,7 @@ watch(
 
 onMounted(async () => {
   positionMemory.clear() // 新会话，位置记忆从零开始
+  await applyBookFonts(bookId.value) // EPUB 内嵌字体（书级 @font-face）
   await reader.openBook(bookId.value)
   await restoreRatio(reader.book?.progress.scrollRatio ?? 0)
   stats.startTracking() // 阅读计时
@@ -347,6 +380,7 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   flushSave()
   stats.stopTracking()
+  removeBookFonts()
   window.removeEventListener('resize', onResize)
   window.removeEventListener('keydown', onKeydown)
   window.removeEventListener('pagehide', onPageHide)

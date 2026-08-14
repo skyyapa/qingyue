@@ -55,11 +55,21 @@ export interface ParagraphStyle {
   lineHeight?: string
   /** 相对字号（em，基于 16px 基准） */
   fontSize?: string
+  fontFamily?: string
   color?: string
   fontWeight?: 'bold' | 'normal'
   fontStyle?: 'italic'
   marginTop?: string
   marginBottom?: string
+}
+
+/** EPUB 内嵌字体（@font-face 提取，data URL；超限字体被跳过） */
+export interface BookFont {
+  /** 字体家族名（CSS 中 font-family 引用） */
+  family: string
+  dataUrl: string
+  style?: 'italic' | 'normal'
+  weight?: string
 }
 
 /** 阅读进度：章序号 + 章内阅读位置（滚动模式 scrollTop / 翻页模式 scrollLeft，均按可滚范围归一化为 0-1） */

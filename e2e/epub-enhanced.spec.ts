@@ -40,4 +40,21 @@ test.describe('EPUB 增强', () => {
     await expect(page.locator('.para b').first()).toHaveText('重点')
     await expect(page.locator('.para em').first()).toHaveText('斜体')
   })
+
+  test('@font-face 内嵌字体注入为书级字体定义', async ({ page }) => {
+    await page.goto('/')
+    await page.getByRole('button', { name: '＋ 导入书籍' }).click()
+    await page.locator('input[type="file"]').setInputFiles('e2e/fixtures/带字体样书.epub')
+    await page.waitForURL(/#\/reader\//)
+    // 书级 @font-face 注入（style[data-book-fonts]）
+    const fontStyle = await page.evaluate(
+      () => document.querySelector('style[data-book-fonts]')?.textContent ?? ''
+    )
+    expect(fontStyle).toContain('@font-face')
+    expect(fontStyle).toContain('"DemoFont"')
+    expect(fontStyle).toContain('data:font/ttf;base64,')
+    // 正文段落继承 body 的 font-family
+    const paraStyle = (await page.locator('.para').first().getAttribute('style')) ?? ''
+    expect(paraStyle).toContain('font-family')
+  })
 })

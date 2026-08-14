@@ -102,6 +102,7 @@ export const useBooksStore = defineStore('books', () => {
             paragraphStyles: c.paragraphStyles,
           }))
         )
+        await db.saveBookFonts(id, parsed.bookFonts ?? [])
         last = meta
       }
       await refresh()

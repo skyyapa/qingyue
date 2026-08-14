@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { computeParagraphStyle, parseCssRules } from '../epub-css'
+import { computeParagraphStyle, parseCssRules, parseFontFaces } from '../epub-css'
 
 describe('parseCssRules CSS 子集解析', () => {
   it('解析标签/class/组合选择器与声明，忽略复杂选择器', () => {
@@ -70,5 +70,41 @@ describe('computeParagraphStyle 样式计算', () => {
     const h2 = computeParagraphStyle(rules, 'h2', null)
     expect(h2.textIndent).toBeUndefined()
     expect(h2.lineHeight).toBe('1.6') // body 继承仍有效
+  })
+})
+
+describe('parseFontFaces @font-face 提取', () => {
+  it('提取 font-family 与首个 url，忽略 format 描述', () => {
+    const faces = parseFontFaces(`
+      @font-face {
+        font-family: "MyBookFont";
+        src: url("fonts/mybook.woff2") format("woff2"), url("fonts/mybook.woff") format("woff");
+        font-weight: 700;
+        font-style: italic;
+      }
+    `)
+    expect(faces).toHaveLength(1)
+    expect(faces[0].family).toBe('MyBookFont')
+    expect(faces[0].srcUrl).toBe('fonts/mybook.woff2')
+    expect(faces[0].weight).toBe('700')
+    expect(faces[0].style).toBe('italic')
+  })
+
+  it('单引号/无引号 url 与多字体、损坏块容错', () => {
+    const faces = parseFontFaces(`
+      @font-face { font-family: 'A'; src: url(fonts/a.ttf); }
+      @font-face { font-family: "B"; src: url('fonts/b.otf') format("opentype"); }
+      @font-face { font-family: ; src: url(x.woff); }
+      /* 注释里的 @font-face 忽略 */
+    `)
+    expect(faces).toHaveLength(2)
+    expect(faces.map((f) => f.family)).toEqual(['A', 'B'])
+    expect(faces[1].srcUrl).toBe('fonts/b.otf')
+  })
+
+  it('font-family 声明进入段落样式', () => {
+    const rules = parseCssRules('body { font-family: "MyBookFont", serif; }')
+    const s = computeParagraphStyle(rules, 'p', null)
+    expect(s.fontFamily).toBe('"MyBookFont", serif')
   })
 })

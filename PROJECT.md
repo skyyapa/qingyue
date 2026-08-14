@@ -248,14 +248,33 @@ src/
 - E2E +1（17）：内嵌 CSS 排版还原（缩进/对齐/行距继承/粗斜体渲染，真实浏览器断言 inline style）
 - 回归全绿：type-check/lint/test(106)/e2e(17)/build
 
+**迭代 15 —— EPUB 内嵌字体（@font-face）（待提交）**
+- CSS 解析器扩展：`parseFontFaces` 提取 @font-face 的 font-family / src 首个 url /
+  可选 font-style / font-weight（忽略 format 描述与损坏块）；段落样式白名单新增
+  font-family 属性
+- epub.ts：@font-face 的 src url 相对 **CSS 文件目录**解析 → 字体文件提取为
+  data URL（mime 按扩展名：ttf/otf/woff/woff2）；**超过 2MB 的字体跳过**
+  （防 IndexedDB 膨胀）；返回 `bookFonts`（ParsedBook 附加字段）
+- 存储：IndexedDB **v3** 新增 bookFonts store（keyPath = bookId）：
+  `saveBookFonts`（整体覆盖，空数组清除）/ `getBookFonts`；deleteBook 级联清理
+- 导入落库：books.ts importFiles 写入 `saveBookFonts(id, parsed.bookFonts ?? [])`
+- 渲染：ReaderView 挂载时读取书字体注入 `<style data-book-fonts>`（@font-face 定义，
+  font-family 用原始名——同一时刻只有一本书的字体在页面，无命名冲突），卸载时移除；
+  段落样式 font-family 原样应用于正文（body 级继承到段落）
+- 备份策略：字体**不进备份**（BackupData 显式字段结构，天然排除；避免导出/恢复
+  体积爆炸，恢复后排版回退系统字体，书内容不受影响）
+- 单测 +6（112）：parseFontFaces 3（多格式/引号/损坏容错/font-family 声明）、
+  epub 字体提取与超限跳过 2、db bookFonts 存取与级联清理 1
+- E2E +1（18）：内嵌字体注入为书级 @font-face（真实浏览器断言 style 注入与
+  font-family 段落样式）
+- 路线图「EPUB 内嵌 CSS 样式与字体」全部完成；回归全绿：type-check/lint/test(112)/e2e(18)/build
+
 ## 未完成任务
 
 - [ ] **AI 语义能力接入**：远程 API（CORS 方案待定）或本地模型，消费知识库数据
       （Provider 接口已就绪，src/ai/index.ts）
 - [ ] 语义级事件提取（三年之约）——需 LLM，v1 用章节实体快照替代
 - [ ] 书源规则分享社区 / 规则包市场（分享链接与批量导入已支持，缺集中式分发渠道）
-- [ ] EPUB 内嵌字体支持（@font-face 提取为 data URL；CSS 段落样式子集已完成，
-      需评估 IndexedDB 存储与备份体积）
 - [ ] 测试覆盖扩展：备份往返、在线书知识库（缓存章节分析）——store 层（analysis）已补
 - [ ] README 演示 GIF
 
@@ -407,6 +426,14 @@ src/
 43. **htmlToText 重构后段落边界必须与阅读器切分一致**：epub 侧按块级元素分段
     （trim 后非空），ReaderView 按 `\n{2,}` 切 + trim 过滤——两者顺序一致才能让
     paragraphStyles 按索引对应；任何一侧改切分逻辑都必须同步验证
+
+### EPUB 内嵌字体（迭代 15 新增）
+44. **@font-face 的 src url 相对 CSS 文件目录解析**（不是 OPF 目录）：多 CSS 文件
+    时各自基准；字体 >2MB 跳过（防 IndexedDB 膨胀）；字体不进备份（BackupData
+    显式字段结构天然排除，恢复后排版回退系统字体，内容不受影响）
+45. **DB 升级注意 onupgradeneeded 幂等**：v2→v3 新增 bookFonts store 用
+    `if (!objectStoreNames.contains())` 保护——首次打开旧库触发升级建表，
+    已升级库再打开不重建；deleteBook 事务 store 列表必须包含新 store 否则级联遗漏
 
 ## 测试方法备忘
 

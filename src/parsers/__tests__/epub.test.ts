@@ -218,6 +218,44 @@ describe('parseEpub 正常解析', () => {
     const book = await parseEpub(epub, 'fallback')
     expect(book.chapters[0].text).toContain('[b]内联粗体[/b]')
   })
+
+  it('@font-face 内嵌字体提取为 data URL，段落样式应用 font-family', async () => {
+    const epub = await buildEpub({
+      'META-INF/container.xml': CONTAINER,
+      'OEBPS/content.opf': OPF(
+        ['c1', 'css1'],
+        '<item id="c1" href="c1.xhtml" media-type="application/xhtml+xml"/>' +
+          '<item id="css1" href="style.css" media-type="text/css"/>' +
+          '<item id="font1" href="fonts/myfont.ttf" media-type="font/ttf"/>'
+      ),
+      'OEBPS/style.css': '@font-face { font-family: "MyFont"; src: url("fonts/myfont.ttf"); } body { font-family: "MyFont", serif; }',
+      'OEBPS/fonts/myfont.ttf': Buffer.from('fake-ttf-bytes'),
+      'OEBPS/c1.xhtml': XHTML('第一章', '<p>正文。</p>'),
+    })
+    const book = await parseEpub(epub, 'fallback')
+    expect(book.bookFonts).toHaveLength(1)
+    expect(book.bookFonts?.[0].family).toBe('MyFont')
+    expect(book.bookFonts?.[0].dataUrl).toMatch(/^data:font\/ttf;base64,/)
+    expect(book.chapters[0].paragraphStyles?.[0]?.fontFamily).toBe('"MyFont", serif')
+  })
+
+  it('超过 2MB 的内嵌字体跳过（防存储膨胀）', async () => {
+    const big = Buffer.alloc(2 * 1024 * 1024 + 1, 0x41)
+    const epub = await buildEpub({
+      'META-INF/container.xml': CONTAINER,
+      'OEBPS/content.opf': OPF(
+        ['c1', 'css1'],
+        '<item id="c1" href="c1.xhtml" media-type="application/xhtml+xml"/>' +
+          '<item id="css1" href="style.css" media-type="text/css"/>' +
+          '<item id="font1" href="fonts/big.ttf" media-type="font/ttf"/>'
+      ),
+      'OEBPS/style.css': '@font-face { font-family: "Big"; src: url("fonts/big.ttf"); }',
+      'OEBPS/fonts/big.ttf': big,
+      'OEBPS/c1.xhtml': XHTML('第一章', '<p>正文。</p>'),
+    })
+    const book = await parseEpub(epub, 'fallback')
+    expect(book.bookFonts).toHaveLength(0)
+  })
 })
 
 describe('parseEpub 容错', () => {

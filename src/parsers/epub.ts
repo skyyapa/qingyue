@@ -1,6 +1,6 @@
 import JSZip from 'jszip'
-import type { ParagraphStyle } from '@/types'
-import { computeParagraphStyle, parseCssRules } from './epub-css'
+import type { BookFont, ParagraphStyle } from '@/types'
+import { computeParagraphStyle, parseCssRules, parseFontFaces } from './epub-css'
 import type { ParsedBook } from './txt'
 
 const BLOCK_TAGS = new Set([
@@ -276,17 +276,29 @@ export async function parseEpub(buffer: ArrayBuffer, fallbackTitle: string): Pro
     }
   }
 
-  // ---------- 收集内嵌 CSS（mediaType text/css 或 .css 后缀；损坏文件忽略） ----------
+  // ---------- 收集内嵌 CSS 与 @font-face（mediaType text/css 或 .css 后缀；损坏文件忽略） ----------
   const cssTexts: string[] = []
+  const fontRefs: { family: string; path: string; style?: 'italic'; weight?: string }[] = []
   for (const [, item] of manifest) {
     if (item.mediaType.includes('css') || /\.css$/i.test(item.href)) {
-      const cssFile = findZipFile(zip, resolvePath(item.href.split('#')[0], opfDir))
-      if (cssFile) {
-        try {
-          cssTexts.push(await cssFile.async('string'))
-        } catch {
-          /* 样式文件损坏则忽略 */
+      const cssPath = resolvePath(item.href.split('#')[0], opfDir)
+      const cssFile = findZipFile(zip, cssPath)
+      if (!cssFile) continue
+      try {
+        const cssText = await cssFile.async('string')
+        cssTexts.push(cssText)
+        // @font-face 的 src url 相对 CSS 文件所在目录解析
+        const cssDir = cssPath.includes('/') ? cssPath.slice(0, cssPath.lastIndexOf('/') + 1) : ''
+        for (const face of parseFontFaces(cssText)) {
+          fontRefs.push({
+            family: face.family,
+            path: resolvePath(face.srcUrl.split('#')[0], cssDir),
+            style: face.style,
+            weight: face.weight,
+          })
         }
+      } catch {
+        /* 样式文件损坏则忽略 */
       }
     }
   }
@@ -386,5 +398,39 @@ export async function parseEpub(buffer: ArrayBuffer, fallbackTitle: string): Pro
     }
     throw new Error('EPUB 中没有可读取的正文内容')
   }
-  return { title, author, chapters, chapterImages }
+
+  // ---------- 提取内嵌字体（@font-face → data URL；超过 2MB 跳过，防止存储膨胀） ----------
+  const MAX_FONT_SIZE = 2 * 1024 * 1024
+  const bookFonts: BookFont[] = []
+  for (const ref of fontRefs) {
+    const fontFile = findZipFile(zip, ref.path)
+    if (!fontFile) continue
+    try {
+      const bytes = await fontFile.async('uint8array')
+      if (bytes.length === 0 || bytes.length > MAX_FONT_SIZE) continue
+      const base64 = await fontFile.async('base64')
+      bookFonts.push({
+        family: ref.family,
+        dataUrl: `data:${fontMime(fontFile.name)};base64,${base64}`,
+        style: ref.style,
+        weight: ref.weight,
+      })
+    } catch {
+      /* 字体文件损坏则忽略 */
+    }
+  }
+  return { title, author, chapters, chapterImages, bookFonts }
+}
+
+/** 字体文件 mime 推断 */
+function fontMime(name: string): string {
+  const ext = name.split('.').pop()?.toLowerCase() ?? ''
+  const map: Record<string, string> = {
+    ttf: 'font/ttf',
+    otf: 'font/otf',
+    woff: 'font/woff',
+    woff2: 'font/woff2',
+    eot: 'application/vnd.ms-fontobject',
+  }
+  return map[ext] ?? 'font/ttf'
 }

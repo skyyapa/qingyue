@@ -1,4 +1,4 @@
-import type { ParagraphStyle, TextEncoding } from '@/types'
+import type { BookFont, ParagraphStyle, TextEncoding } from '@/types'
 
 /** 解析结果：标题 + 作者 + 章节列表 */
 export interface ParsedBook {
@@ -7,6 +7,8 @@ export interface ParsedBook {
   chapters: { title: string; text: string; paragraphStyles?: (ParagraphStyle | null)[] }[]
   /** 各章节的内嵌图片（data URL，EPUB 特有；TXT 为 undefined） */
   chapterImages?: string[][]
+  /** 内嵌字体（@font-face 提取，EPUB 特有；TXT 为 undefined） */
+  bookFonts?: BookFont[]
 }
 
 /** 章节标题识别：行首的「第X章/回/节/卷/集/部/篇」或常见卷首语 */
