@@ -506,6 +506,14 @@ async function runSearchTest(index: number): Promise<void> {
   font-size: 12px;
   outline: none;
 }
+/* 16px 起：iOS 聚焦输入框时不自动放大页面 */
+@media (max-width: 720px) {
+  .proxy-custom input,
+  .test-input input,
+  .share-input {
+    font-size: 16px;
+  }
+}
 .import-options {
   display: flex;
   align-items: center;

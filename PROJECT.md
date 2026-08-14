@@ -339,7 +339,7 @@ src/
 - E2E +1（24）：本书搜索 5 章结果、点击第一章结果跳转并高亮 3 处
 - 回归全绿：type-check/lint/test(128)/e2e(24)/build
 
-**迭代 22 —— AI Provider 统一架构（阶段二）（待提交）**
+**迭代 22 —— AI Provider 统一架构（阶段二）（deb294b）**
 - `src/ai/presets.ts`：五类预设（OpenAI 兼容自定义 / DeepSeek / Gemini / 本地
   Ollama / 本地 LM Studio），统一 Base URL + API Key + Model + 启用配置；
   Gemini 走官方 OpenAI 兼容端点；本地服务无需 Key（isProviderReady 区分）；
@@ -360,7 +360,7 @@ src/
   将基于 activeProvider 实现
 - 回归全绿：type-check/lint/test(137)/e2e(25)/build
 
-**迭代 23 —— AI 阅读助手（阶段三）（待提交）**
+**迭代 23 —— AI 阅读助手（阶段三）（776a59e）**
 - `src/ai/assistant.ts`：六个实用任务 + 自由提问——
   - 这是谁（who）：实体信息块（类型/别名/出现次数/例句/常共现/相关事件）喂给 AI
   - 前情回顾（recap）：当前章之前最近 12 章的摘要 + 事件句
@@ -383,7 +383,7 @@ src/
 - 阶段四接入点：knowledge 类型将随知识库升级扩展（势力/境界/事件等）
 - 回归全绿：type-check/lint/test(143)/e2e(27)/build
 
-**迭代 24 —— 知识库升级：境界 + 事件时间线（阶段四）（待提交）**
+**迭代 24 —— 知识库升级：境界 + 事件时间线（阶段四）（de8f88b）**
 - 实体类型新增「境界」（realm）：
   - classify.ts 识别规则——前缀动词（突破/踏入/晋入/迈入/达到/晋级/升入/晋升）+3、
     后缀（X境/X阶/X期/X层/X重/X段/X品/X级）+2、境界词表直接点名 +2
@@ -400,7 +400,7 @@ src/
 - **四阶段路线图全部完成**（稳定+Release / AI Provider / AI 阅读助手 / 知识库升级）
 - 回归全绿：type-check/lint/test(145)/e2e(29)/build
 
-**迭代 25 —— AI 进度感知与防剧透（新路线图二~四阶段核心）（待提交）**
+**迭代 25 —— AI 进度感知与防剧透（新路线图二~四阶段核心）（84ddbdb）**
 - 预设树扩展为 7 类：OpenAI（官方）/ OpenAI 兼容（自定义/中转站）/ DeepSeek /
   Gemini（Gateway）/ 本地 Ollama / LM Studio / vLLM——全部走统一 OpenAI 兼容协议，
   项目本身不承担任何 AI 成本；旧版 `openai`（自定义兼容）配置自动迁移到 `compatible`
@@ -420,7 +420,7 @@ src/
   捕获真实请求体断言只含已读数据（无第二章标题/第一章内容）
 - 回归全绿：type-check/lint/test(152)/e2e(30)/build
 
-**迭代 26 —— 防剧透数据完整性修复 + 按需正文检索（待提交）**
+**迭代 26 —— 防剧透数据完整性修复 + 按需正文检索（dfb7803）**
 - **防剧透泄漏口全部封堵（最高优先级修复）**：
   - 未来实体剔除：`loadKnowledge` 只保留已读章节有出现（或手动/锁定）的实体，
     第 800 章才出现的「天神殿」在读到第 100 章时彻底不进 entities
@@ -442,7 +442,7 @@ src/
 - 版本 v1.2.0（AI 阅读助手 + 防剧透主题）
 - 回归全绿：type-check/lint/test(156)/e2e(30)/build
 
-**迭代 27 —— 严格防剧透 + 真正按需检索（架构可靠）（待提交）**
+**迭代 27 —— 严格防剧透 + 真正按需检索（架构可靠）（65a6008）**
 - **在线书稀疏章节索引修复（最高优先级）**：`chapterWalks` 改为携带真实
   `chapterIndex`（`{ chapterIndex, walk }`），实体出现章节 / ChapterIndex.index /
   chapterWeights 下标全部使用真实章节号——在线书只缓存 0/2/4 章时不再被分析成
@@ -462,7 +462,7 @@ src/
 - 回归全绿：type-check/lint/test(159)/e2e(30)/build
 - 至此「AI 防剧透阅读助手」从功能可用进入架构可靠阶段
 
-**迭代 28 —— 产品化（P0 防剧透终测 + P1 高频入口 + P2 管家人格）（待提交）**
+**迭代 28 —— 产品化（P0 防剧透终测 + P1 高频入口 + P2 管家人格）（c3bed0e）**
 - **P0 防剧透最终测试**：程序化生成 150 章长书夹具（`e2e/fixtures/身世之谜.txt`，
   第 100 章才出现「林夜的真实身份是远古神子」——不引入版权书籍全文）；
   e2e 两个用例：读到第 80 章问「林夜的真实身份是什么」→ 捕获真实请求体断言
@@ -484,7 +484,7 @@ src/
 - E2E +2（32）：防剧透最终测试（80 章不泄漏 + 100 章对照可见）
 - 回归全绿：type-check/lint/test(161)/e2e(32)/build
 
-**迭代 29 —— 产品化进阶（AI 阅读浮层 / 人物时间线 / 结构化每日总结 / 多模型策略）（待提交）**
+**迭代 29 —— 产品化进阶（AI 阅读浮层 / 人物时间线 / 结构化每日总结 / 多模型策略）（3d824ff）**
 - **AI 阅读浮层（第一名）**：阅读页右下角 ⚡ 悬浮按钮——四操作（📖 解释本章 /
   📝 总结本章 / 🧑 询问人物 / 🔍 查看伏笔）+ 当前章人物 chips（按词频排序）；
   回答在底部面板就地显示（loading/内容/错误/关闭）；explain 支持无选中文字
@@ -507,10 +507,36 @@ src/
   AI 梳理经历
 - 回归全绿：type-check/lint/test(165)/e2e(33)/build
 
+**迭代 30 —— 移动端体验 M0（方向切换：AI 核心完成 → 移动端 → Android → 多设备同步）（已提交）**
+- **方向调整**：README 路线图正式切换——AI 核心已收尾，不再堆 AI 功能；
+  新路线：移动端体验 → Android App → 多设备同步；语义级事件提取/规则社区列为远期
+- **PWA 元信息补全**：`index.html` viewport 加 `viewport-fit=cover`（刘海屏全屏）、
+  `mobile-web-app-capable`（Android 安装）、`apple-mobile-web-app-title`（iOS 主屏名）；
+  manifest 加 `id`（安装身份稳定）、`categories`
+- **全局触屏体验**（main.css）：`-webkit-tap-highlight-color: transparent`（去掉点击灰闪）、
+  `button { touch-action: manipulation }`（消除双击缩放延迟）、
+  `overscroll-behavior-y: none`（App 化：禁用下拉刷新/橡皮筋）
+- **高度链 dvh**：`html/body/#app` 由 `100%` 改为 `100vh` + `100dvh` 双写——
+  iOS 地址栏收起/展开时应用高度跟随可见区域，阅读器底栏不再被挤出屏幕
+- **safe-area 适配**：CSS 变量 `--safe-top/right/bottom/left`（env() 无刘海设备为 0 不影响布局）；
+  阅读器顶栏/底栏、书架顶栏/底栏 padding 接入（standalone 全屏下内容不贴刘海/Home 条）
+- **iOS 聚焦不放大**：所有文本输入框窄屏下字号提到 16px（阅读器搜索条 / 书架搜索 /
+  AI Provider 对话框 / 书源对话框）——iOS Safari 聚焦 <16px 输入框会自动放大页面
+- **修复实体卡片压缩遮挡（既有 bug，短视口必现）**：`.entity-samples` 有 `overflow-y: auto`
+  → flex `min-height: auto` 归零，压缩时例句区高度变 0，被不可收缩的「经历时间线」区盖住，
+  例句「定位」按钮点击全部落到时间线按钮上；修复 `.entity-card > * { flex-shrink: 0 }`
+  各区块保持自然高度，滚动统一由整卡承担（900×300 短视口复现并回归）
+- E2E +4（38）：新 `e2e/mobile.spec.ts`（iPhone 13 触屏视口）——书架无横向溢出 +
+  搜索框 16px、阅读器顶底栏无溢出且按钮都在视口内（标题截断）、章节搜索条 16px、
+  翻页模式无横向溢出
+- 回归全绿：type-check/lint/test(165)/e2e(38)/build
+
 ## 未完成任务
 
-- [ ] 语义级事件提取（三年之约）——需 LLM，v1 用章节实体快照替代
-- [ ] 书源规则分享社区 / 规则包市场（分享链接与批量导入已支持，缺集中式分发渠道）
+- [ ] Android App（TWA / Capacitor 打包）——移动端体验 M0 之后
+- [ ] 多设备同步（阅读进度与书库跨设备同步）
+- [ ] 语义级事件提取（三年之约）——需 LLM，v1 用章节实体快照替代，远期
+- [ ] 书源规则分享社区 / 规则包市场（分享链接与批量导入已支持，缺集中式分发渠道）——远期
 - [ ] 测试覆盖扩展：备份往返、在线书知识库（缓存章节分析）——store 层（analysis）已补；
       备份往返与在线书缓存分析已补（迭代 16）
 - [ ] README 演示 GIF
@@ -679,6 +705,16 @@ src/
 47. **v-html 段落的高亮用渲染后 DOM 操作**：TreeWalker 收集文本节点再包裹
     `<mark>`（先收集后处理，避免遍历中修改）；`mark.search-hit` 需 `:deep` 才能命中
     scoped 样式；搜索词在 textContent 上匹配天然跳过 [b]/[i] 标记
+
+### 移动端 / 布局（迭代 30 新增）
+48. **overflow 项 flex 压缩会被压没**：flex 项 `overflow-y: auto`（非 visible）时
+    `min-height: auto` 归零，压缩时全部收缩量被它吸收 → 高度 0、内容溢出被裁剪，
+    后一区块盖在它上面（例句区被时间线盖住、「定位」点击落到时间线按钮）。
+    修复：滚动统一由整卡承担，内部区块 `flex-shrink: 0`（e2e 900×300 短视口复现）
+49. **iOS Safari 聚焦 <16px 输入框自动放大页面**：搜索条/设置类输入框字号
+    13px 时聚焦会缩放整个页面——移动端媒体查询内统一提到 16px
+50. **dvh 高度链**：`html/body/#app` 用 `100vh` + `100dvh` 双写，iOS 地址栏
+    收起/展开时底栏跟随可见区域（单写 vh 在地址栏展开时底栏被挤出屏幕）
 
 ## 测试方法备忘
 

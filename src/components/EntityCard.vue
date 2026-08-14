@@ -236,6 +236,10 @@ async function mergeInto(target: Entity): Promise<void> {
   min-height: 0;
   overflow-y: auto; /* 内容多（章节/例句/时间线）时卡片内滚动，避免 flex 压缩底部按钮 */
 }
+/* 各区块保持自然高度：overflow 项的 min-height 归零会被压缩压没（例句区被时间线盖住），滚动统一由整卡承担 */
+.entity-card > * {
+  flex-shrink: 0;
+}
 .entity-head {
   display: flex;
   align-items: center;

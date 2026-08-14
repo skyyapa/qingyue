@@ -888,6 +888,9 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 6px;
   padding: 8px 14px;
+  padding-top: calc(8px + var(--safe-top));
+  padding-left: calc(14px + var(--safe-left));
+  padding-right: calc(14px + var(--safe-right));
   background: var(--topbar);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--panel-border);
@@ -1337,6 +1340,9 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   gap: 10px;
   padding: 8px 16px;
+  padding-bottom: calc(8px + var(--safe-bottom));
+  padding-left: calc(16px + var(--safe-left));
+  padding-right: calc(16px + var(--safe-right));
   background: var(--topbar);
   backdrop-filter: blur(8px);
   border-top: 1px solid var(--panel-border);
@@ -1411,10 +1417,16 @@ onBeforeUnmount(() => {
   }
   .reader-top {
     padding: 8px 10px;
+    padding-top: calc(8px + var(--safe-top));
+    padding-left: calc(10px + var(--safe-left));
+    padding-right: calc(10px + var(--safe-right));
     gap: 4px;
   }
   .reader-bottom {
     padding: 6px 8px;
+    padding-bottom: calc(6px + var(--safe-bottom));
+    padding-left: calc(8px + var(--safe-left));
+    padding-right: calc(8px + var(--safe-right));
     gap: 6px;
   }
   .pos-book {
@@ -1425,6 +1437,8 @@ onBeforeUnmount(() => {
   }
   .reader-search input {
     width: 130px;
+    /* 16px 起：iOS 聚焦输入框时不自动放大页面 */
+    font-size: 16px;
   }
 }
 </style>

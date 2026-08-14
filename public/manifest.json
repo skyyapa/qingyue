@@ -3,12 +3,14 @@
   "short_name": "轻阅",
   "description": "开源小说阅读器：本地 TXT/EPUB 导入、在线书源、阅读助手",
   "lang": "zh-CN",
+  "id": "./",
   "start_url": "./#/",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#f7f5f0",
   "theme_color": "#4f7cff",
+  "categories": ["books", "utilities"],
   "icons": [
     {
       "src": "icons/icon-192.png",

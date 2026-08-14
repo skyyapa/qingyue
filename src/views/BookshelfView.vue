@@ -368,6 +368,9 @@ const emptyText = computed(() => {
   align-items: center;
   gap: 14px;
   padding: 14px 24px;
+  padding-top: calc(14px + var(--safe-top));
+  padding-left: calc(24px + var(--safe-left));
+  padding-right: calc(24px + var(--safe-right));
   background: var(--topbar);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--panel-border);
@@ -656,6 +659,9 @@ const emptyText = computed(() => {
     flex-wrap: wrap;
     gap: 8px;
     padding: 12px 16px;
+    padding-top: calc(12px + var(--safe-top));
+    padding-left: calc(16px + var(--safe-left));
+    padding-right: calc(16px + var(--safe-right));
   }
   .shelf-stats {
     margin-left: 0;
@@ -663,6 +669,8 @@ const emptyText = computed(() => {
   .search-input {
     flex: 1;
     min-width: 0;
+    /* 16px 起：iOS 聚焦输入框时不自动放大页面 */
+    font-size: 16px;
   }
   .group-bar {
     padding: 8px 16px;
@@ -672,7 +680,7 @@ const emptyText = computed(() => {
     gap: 16px;
   }
   .shelf-main {
-    padding: 20px 16px 40px;
+    padding: 20px 16px calc(40px + var(--safe-bottom));
   }
 }
 </style>

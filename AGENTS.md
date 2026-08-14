@@ -3,14 +3,15 @@
 > 本文档给被压缩/新开的会话快速续接用。完整迭代史、踩坑与测试方法见 `PROJECT.md`、`README.md`。
 > **注意：每次迭代完成后需同步更新本文件「当前状态」与 PROJECT.md/README。**
 
-## 当前状态（截至迭代 29，提交 3d824ff）
+## 当前状态（截至迭代 30，方向切换：AI 核心完成 → 移动端体验）
 
 - **版本**：`1.2.0`（package.json 与 v1.2.0 Release 已发布，离线包 workflow success）
-- **测试基线**：单测 **165**（21 套件）/ e2e **33** / type-check / lint / build 全绿
+- **测试基线**：单测 **165**（21 套件）/ e2e **38** / type-check / lint / build 全绿
 - **工作区**：干净，main 与 origin/main 同步
 - **最近迭代**：
   - 28：产品化（P0 防剧透终测 150 章夹具 + P1 顶栏 ✨/自动摘要/今日回顾 + P2 管家人格）
   - 29：AI 阅读浮层（⚡ 四操作+人物 chips+底部面板）、人物经历时间线（EntityCard+personTimeline）、daily 结构化（主要事件/新增人物/未解决伏笔）、多模型策略（easy/summary tier 模型）
+  - 30：移动端体验 M0（viewport-fit + manifest id、dvh 高度链、safe-area 变量适配阅读器/书架、输入框 16px 防 iOS 放大、tap-highlight/overscroll 触屏打磨、实体卡片压缩遮挡修复）；新 e2e/mobile.spec.ts（iPhone 13 视口 4 用例）
 
 ## 核心架构速查
 
@@ -27,12 +28,12 @@
 4. 测试全绿才提交：`npm run type-check && npm run lint && npm test && npm run e2e && npm run build`
 5. 防剧透是产品核心卖点，任何 AI 上下文改动不得破坏
 
-## 下一步候选（用户路线图）
+## 下一步候选（用户路线图：AI 核心完成 → 移动端体验 → Android App → 多设备同步）
 
-- AI 语义级事件提取（三年之约类剧情事件）——需 LLM，v1 已用事件句/时间线替代
-- 书源规则分享社区 / 规则包市场（需集中式分发渠道）
-- README 演示 GIF
-- 用户最新产品化优先级：AI 阅读浮层（✅29）/ 人物时间线（✅29）/ 自动章节总结（✅28-29）/ 多模型策略（✅29）——已完成，可继续打磨细节或探索新方向
+- **移动端体验**：M0（PWA 打磨/safe-area/dvh/输入框 16px）✅30；可继续：触屏手势细化（点按边缘翻页）、阅读器窄屏布局迭代、真机验证
+- **Android App**：TWA（Trusted Web Activity，bubblewrap 打包）或 Capacitor——移动端体验稳定后
+- **多设备同步**：阅读进度与书库跨设备（需自建后端或第三方服务，超出纯前端约束）
+- 远期（AI 不再堆新功能，用户明确）：语义级事件提取、书源规则分享社区、README 演示 GIF
 
 ## 踩坑速查（详见 PROJECT.md 47 条）
 
@@ -40,5 +41,6 @@
 - Git Bash 下 taskkill 需 `//PID`；PowerShell 脚本需 UTF-8 BOM
 - fake-indexeddb 用 setImmediate：组件测试需 settle（flushPromises + setTimeout）
 - e2e 断言避免写死翻页次数；Playwright 下载临时文件无扩展名（导入需文件头嗅探）
-- 实体卡片 flex 压缩会压没底部按钮 → `.entity-card` 加 overflow-y auto
+- 实体卡片 flex 压缩会压没底部按钮 → `.entity-card` 加 overflow-y auto；
+  **overflow 项 min-height 归零仍会被压没**（例句区 h=0 被时间线盖住）→ 卡内区块 `flex-shrink: 0`
 - 面板打开时 ⚡ 浮层要隐藏（避免遮挡抽屉）
