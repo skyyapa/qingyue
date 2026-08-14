@@ -8,7 +8,7 @@ import type { Entity } from '@/types'
 const props = defineProps<{
   bookId: string
 }>()
-const emit = defineEmits<{ open: [entity: Entity] }>()
+const emit = defineEmits<{ open: [entity: Entity]; ai: [text: string] }>()
 
 const analysis = useAnalysisStore()
 
@@ -94,6 +94,13 @@ function openMatch(): void {
   emit('open', match.value)
 }
 
+/** 选中文字交给 AI 助手（打开助手 AI tab 并预填） */
+function askAI(): void {
+  const text = selectedText.value.replace(/\s+/g, ' ').slice(0, 60)
+  visible.value = false
+  emit('ai', text)
+}
+
 onMounted(() => {
   document.addEventListener('mouseup', onMouseUp)
   document.addEventListener('mousedown', onMouseDown)
@@ -112,9 +119,10 @@ onBeforeUnmount(() => {
         查看「{{ match.name }}」
       </button>
       <template v-else>
-        <button class="bar-btn primary" @click="createEntity">加入知识库</button>
+        <button class="bar-btn" @click="createEntity">加入知识库</button>
         <span class="bar-tip">未匹配到现有实体</span>
       </template>
+      <button class="bar-btn ai" title="问 AI（剧情解释/角色问答）" @click="askAI">✨ AI</button>
     </div>
   </Teleport>
 </template>
@@ -144,6 +152,14 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 .bar-btn:hover {
+  background: var(--accent);
+  color: #fff;
+}
+.bar-btn.ai {
+  background: transparent;
+  border: 1px solid var(--accent);
+}
+.bar-btn.ai:hover {
   background: var(--accent);
   color: #fff;
 }

@@ -360,6 +360,29 @@ src/
   将基于 activeProvider 实现
 - 回归全绿：type-check/lint/test(137)/e2e(25)/build
 
+**迭代 23 —— AI 阅读助手（阶段三）（待提交）**
+- `src/ai/assistant.ts`：六个实用任务 + 自由提问——
+  - 这是谁（who）：实体信息块（类型/别名/出现次数/例句/常共现/相关事件）喂给 AI
+  - 前情回顾（recap）：当前章之前最近 12 章的摘要 + 事件句
+  - 剧情解释（explain）：选中文字 + 当前章摘要/事件/正文片段
+  - 人物关系（relation）：实体共现关系 + 事件 → AI 梳理师徒/盟友/对手等
+  - 世界观解释（world）：地点/势力清单 + 重点设定实体
+  - 事件时间线（timeline）：按章节聚合事件句与摘要，AI 整理时间线
+  - 自由提问（ask）：问题 + 当前章摘要/片段
+  - 上下文组装为纯函数 `buildTaskMessages`（可单测），知识库快照
+    `loadKnowledge` 截断章节正文控制 token；回答 ≤200 字约束
+- AssistantPanel 新增「AI」tab：七个任务 chips + 提问输入框 + 回答区
+  （loading/错误重试/回答）；**未配置 Provider 时显示引导**（书架顶栏「AI」配置）；
+  回答受控渲染（escape + **粗体**/标题/换行）
+- 选中文字悬浮条新增「✨ AI」按钮 → 打开助手 AI tab 并预填选中文字
+- 单测 +6（143）：五任务上下文组装（who 实体块/recap 只取前章/explain 上下文/
+  timeline 聚合/ask 摘要）、runAITask 端到端（fake-indexeddb + fetch mock 断言
+  请求体含书名与实体）
+- E2E +2（27）：AI tab 未配置引导；预置配置 + route mock chat 响应 →
+  七 chips 齐全、执行前情回顾、**粗体**受控渲染
+- 阶段四接入点：knowledge 类型将随知识库升级扩展（势力/境界/事件等）
+- 回归全绿：type-check/lint/test(143)/e2e(27)/build
+
 ## 未完成任务
 
 - [ ] **AI 语义能力接入**：远程 API（CORS 方案待定）或本地模型，消费知识库数据

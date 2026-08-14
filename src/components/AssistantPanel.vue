@@ -3,6 +3,8 @@ import { computed, onMounted, ref, watch } from 'vue'
 import * as db from '@/db'
 import { useBooksStore } from '@/stores/books'
 import { useAnalysisStore } from '@/stores/analysis'
+import { useAIStore } from '@/stores/ai'
+import { AI_TASK_LABELS, runAITask, type AITask, type AITaskParams } from '@/ai/assistant'
 import { TYPE_LABELS } from '@/analyze/classify'
 import RelationGraph from '@/components/RelationGraph.vue'
 import EntityCard from '@/components/EntityCard.vue'
@@ -17,17 +19,19 @@ const emit = defineEmits<{ close: []; jump: [index: number, anchor?: string] }>(
 
 const books = useBooksStore()
 const analysis = useAnalysisStore()
+const ai = useAIStore()
 
 const book = computed(() => books.books.find((b) => b.id === props.bookId))
 const analysisState = computed(() => book.value?.analysis)
 
-type TabKey = 'person' | 'world' | 'graph' | 'chapters' | 'recap'
+type TabKey = 'person' | 'world' | 'graph' | 'chapters' | 'recap' | 'ai'
 const tabs: { key: TabKey; label: string }[] = [
   { key: 'person', label: '人物' },
   { key: 'world', label: '设定' },
   { key: 'graph', label: '关系' },
   { key: 'chapters', label: '章节' },
   { key: 'recap', label: '回顾' },
+  { key: 'ai', label: 'AI' },
 ]
 const activeTab = ref<TabKey>('person')
 
@@ -133,9 +137,70 @@ async function openEntity(entityId: string): Promise<void> {
   activeTab.value = 'person'
 }
 
+// ---------- AI 助手（阶段三） ----------
+
+const aiQuestion = ref('')
+const aiBusy = ref(false)
+const aiError = ref('')
+const aiAnswer = ref('')
+let lastTask: AITask | null = null
+
+/** 打开 AI tab 并预填问题（选中文字入口） */
+function openAI(text: string): void {
+  activeTab.value = 'ai'
+  aiQuestion.value = text
+  aiError.value = ''
+  aiAnswer.value = ''
+}
+
+/** 执行 AI 任务；who/relation/world 优先按实体名定位实体 */
+async function runTask(task: AITask): Promise<void> {
+  const active = ai.activeProvider
+  if (!active) return
+  const q = aiQuestion.value.trim()
+  if (!q && (task === 'who' || task === 'explain' || task === 'ask')) {
+    aiError.value = '请先在输入框填写内容（可选中正文文字自动带入）'
+    return
+  }
+  aiBusy.value = true
+  aiError.value = ''
+  aiAnswer.value = ''
+  lastTask = task
+  try {
+    const params: AITaskParams = { chapterIndex: props.currentChapter, text: q }
+    if (task === 'who' || task === 'relation' || task === 'world') {
+      const list = await db.listEntities(props.bookId)
+      const match = list.find((e) => e.name === q || e.aliases.includes(q))
+      if (match) params.entityId = match.id
+    }
+    aiAnswer.value = await runAITask(active, props.bookId, task, params)
+  } catch (err) {
+    aiError.value = err instanceof Error ? err.message : String(err)
+  } finally {
+    aiBusy.value = false
+  }
+}
+
+function askFree(): void {
+  runTask('ask')
+}
+
+function retryAI(): void {
+  if (lastTask) runTask(lastTask)
+}
+
+/** AI 回答受控渲染：先转义再替换轻量标记（**粗体**、换行） */
+function renderAI(text: string): string {
+  const esc = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  return esc
+    .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+    .replace(/^#{1,3}\s+(.+)$/gm, '<b>$1</b>')
+    .replace(/\n/g, '<br>')
+}
+
 onMounted(load)
 
-defineExpose({ openEntity })
+defineExpose({ openEntity, openAI })
 </script>
 
 <template>
@@ -288,7 +353,7 @@ defineExpose({ openEntity })
             </div>
 
             <!-- 前情回顾 -->
-            <div v-else class="recap-view">
+            <div v-else-if="activeTab === 'recap'" class="recap-view">
               <div class="recap-top">
                 <p class="recap-title">已读至第 {{ props.currentChapter + 1 }} 章 · 主要人物</p>
                 <div class="recap-chips">
@@ -311,6 +376,51 @@ defineExpose({ openEntity })
                   </div>
                 </button>
               </div>
+            </div>
+
+            <!-- AI 助手 -->
+            <div v-else class="ai-view">
+              <template v-if="!ai.activeProvider">
+                <p class="ai-empty">🔌 未配置 AI Provider</p>
+                <p class="ai-empty-sub">
+                  在书架顶栏「AI」中配置 Base URL / API Key / Model 后即可使用
+                  （支持 DeepSeek、Gemini、本地 Ollama / LM Studio 等）。
+                </p>
+              </template>
+              <template v-else>
+                <div class="ai-chips">
+                  <button
+                    v-for="(label, key) in AI_TASK_LABELS"
+                    :key="key"
+                    class="chip"
+                    :disabled="aiBusy"
+                    @click="runTask(key as AITask)"
+                  >
+                    {{ label }}
+                  </button>
+                </div>
+                <div class="ai-input-row">
+                  <input
+                    v-model="aiQuestion"
+                    type="text"
+                    placeholder="问 AI，或选中正文后自动带入…"
+                    @keydown.enter.prevent="askFree"
+                  />
+                  <button class="btn btn-primary" :disabled="aiBusy || !aiQuestion.trim()" @click="askFree">提问</button>
+                </div>
+                <div class="ai-answer">
+                  <p v-if="aiBusy" class="ai-loading">✨ AI 思考中…</p>
+                  <p v-else-if="aiError" class="ai-error">
+                    {{ aiError }}
+                    <button class="btn" @click="retryAI">重试</button>
+                  </p>
+                  <!-- eslint-disable-next-line vue/no-v-html -- renderAI 先转义、内容受控 -->
+                  <div v-else-if="aiAnswer" class="ai-text" v-html="renderAI(aiAnswer)"></div>
+                  <p v-else class="ai-placeholder">
+                    选一个快捷问题（如「前情回顾」「事件时间线」），或直接提问，如「苏瑶的剑法是什么来历」。
+                  </p>
+                </div>
+              </template>
             </div>
           </div>
         </template>
@@ -623,5 +733,77 @@ defineExpose({ openEntity })
   font-size: 12px;
   color: var(--fg-weak);
   line-height: 1.7;
+}
+/* AI 助手 */
+.ai-view {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.ai-empty {
+  margin: 0;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--fg);
+}
+.ai-empty-sub {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.8;
+  color: var(--fg-weak);
+  text-align: center;
+}
+.ai-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ai-chips .chip:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.ai-input-row {
+  display: flex;
+  gap: 6px;
+}
+.ai-input-row input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 13px;
+  outline: none;
+}
+.ai-input-row input:focus {
+  border-color: var(--accent);
+}
+.ai-answer {
+  min-height: 120px;
+}
+.ai-loading,
+.ai-placeholder {
+  margin: 0;
+  font-size: 13px;
+  color: var(--fg-weak);
+  line-height: 1.8;
+}
+.ai-error {
+  margin: 0;
+  font-size: 13px;
+  color: var(--danger);
+  line-height: 1.8;
+}
+.ai-text {
+  font-size: 13px;
+  line-height: 1.9;
+  color: var(--fg);
+  overflow-wrap: break-word;
+}
+.ai-text b {
+  color: var(--accent);
 }
 </style>

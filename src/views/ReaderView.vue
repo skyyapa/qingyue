@@ -222,6 +222,13 @@ async function onOpenEntity(entity: Entity): Promise<void> {
   assistantRef.value?.openEntity(entity.id)
 }
 
+/** 选中文字 → 打开助手 AI tab 并预填（问 AI） */
+async function onAskAI(text: string): Promise<void> {
+  showAssistant.value = true
+  await nextTick()
+  assistantRef.value?.openAI(text)
+}
+
 // 位置显示（滚动模式百分比 / 翻页模式页数）
 const posPercent = ref('0%')
 const pagePos = ref({ current: 1, total: 1 })
@@ -720,7 +727,7 @@ onBeforeUnmount(() => {
       @close="showAssistant = false"
       @jump="(i, anchor) => goChapter(i, anchor)"
     />
-    <TextSelectionBar :book-id="bookId" @open="onOpenEntity" />
+    <TextSelectionBar :book-id="bookId" @open="onOpenEntity" @ai="onAskAI" />
   </div>
 </template>
 
