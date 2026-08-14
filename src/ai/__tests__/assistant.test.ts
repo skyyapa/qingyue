@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as db from '@/db'
-import { buildTaskMessages, runAITask, type KnowledgeSnapshot } from '@/ai/assistant'
+import { buildTaskMessages, loadKnowledge, runAITask, type KnowledgeSnapshot } from '@/ai/assistant'
 import { defaultProviderConfig } from '@/ai/presets'
 import type { BookMeta, ChapterIndex, Entity, Relation } from '@/types'
 
@@ -36,6 +36,7 @@ const snapshot: KnowledgeSnapshot = {
   chapterCount: 3,
   chapterTitles: ['第1章', '第2章', '第3章'],
   chapterTexts: ['第一章正文。林夜出现。', '第二章正文。', '第三章正文。'],
+  readUpTo: 2,
 }
 
 describe('buildTaskMessages 上下文组装', () => {
@@ -72,6 +73,86 @@ describe('buildTaskMessages 上下文组装', () => {
     const msgs = buildTaskMessages(snapshot, 'ask', { chapterIndex: 1, text: '苏晚的剑法？' })
     expect(msgs[1].content).toContain('苏晚的剑法？')
     expect(msgs[1].content).toContain('林夜与苏晚同行')
+  })
+
+  it('防剧透：system 提示只能使用已读章节，各任务携带当前进度', () => {
+    for (const task of ['who', 'recap', 'explain', 'relation', 'world', 'timeline', 'foreshadow', 'summarize', 'ask'] as const) {
+      const msgs = buildTaskMessages({ ...snapshot, readUpTo: 1 }, task, { chapterIndex: 1 })
+      expect(msgs[0].content).toContain('防剧透')
+      expect(msgs[0].content).toContain('第 1 至第 2 章')
+      expect(msgs[0].content).toContain('未读章节')
+      if (task !== 'who' && task !== 'relation' && task !== 'summarize') {
+        expect(msgs[1].content).toContain('当前读到第 2 章')
+      }
+    }
+  })
+
+  it('who：携带相关章节片段（snippet）', () => {
+    const msgs = buildTaskMessages(snapshot, 'who', { entityId: 'e1', chapterIndex: 0 })
+    expect(msgs[1].content).toContain('第1章片段')
+    expect(msgs[1].content).toContain('林夜出现')
+  })
+
+  it('foreshadow：伏笔回顾携带关键句与身份不明实体', () => {
+    const msgs = buildTaskMessages(snapshot, 'foreshadow', { chapterIndex: 2 })
+    expect(msgs[1].content).toContain('伏笔')
+    expect(msgs[1].content).toContain('未解之谜')
+    expect(msgs[0].content).toContain('防剧透')
+  })
+
+  it('summarize：章节摘要携带当前章正文', () => {
+    const msgs = buildTaskMessages(snapshot, 'summarize', { chapterIndex: 0 })
+    expect(msgs[1].content).toContain('概括本章情节')
+    expect(msgs[1].content).toContain('林夜出现')
+  })
+})
+
+describe('loadKnowledge 防剧透截断', () => {
+  beforeEach(async () => {
+    await db.deleteBook('sp') // 模块级 dbPromise 使库跨用例共享，先清理
+    await db.addBook(makeMeta('sp'))
+    await db.saveChapters([
+      { id: 'sp:0', bookId: 'sp', index: 0, title: '第1章', text: '林夜登场。' },
+      { id: 'sp:1', bookId: 'sp', index: 1, title: '第2章', text: '苏晚出现。' },
+      { id: 'sp:2', bookId: 'sp', index: 2, title: '第3章', text: '林夜身世揭晓！' },
+    ])
+    await db.putEntities([
+      makeEntity('pe1', '林夜', 'person'),
+      { ...makeEntity('pe2', '苏晚', 'person'), chapters: [1], samples: ['第二章例句'], sampleChapters: [1] },
+    ].map((e) => ({ ...e, bookId: 'sp' })))
+    await db.saveChapterIndexes(
+      [makeIndex(0, '登场：林夜', ['林夜登场']), makeIndex(1, '登场：苏晚', []), makeIndex(2, '登场：林夜', ['林夜身世揭晓'])].map((x) => ({
+        ...x,
+        bookId: 'sp',
+        id: `sp:${x.index}`,
+      }))
+    )
+    await db.saveRelations([{ id: 'sp:r1', bookId: 'sp', a: 'pe1', b: 'pe2', weight: 3 } as Relation])
+  })
+
+  it('读到第 1 章时：未读章节索引/正文/标题全部剔除，实体与关系只保留已读', async () => {
+    const k = await loadKnowledge('sp', { upTo: 0 })
+    expect(k.readUpTo).toBe(0)
+    expect(k.indexes.map((i) => i.index)).toEqual([0])
+    expect(k.chapterTexts[2]).toBe('') // 未读正文为空
+    expect(k.chapterTitles[2]).toBe('') // 未读标题为空（防剧透）
+    expect(k.chapterTexts[0]).toContain('林夜登场')
+    // 实体：第 2 章才出现的苏晚无已读出现 → 关系被过滤
+    const suwan = k.entities.find((e) => e.name === '苏晚')!
+    expect(suwan.chapters).toEqual([])
+    expect(k.relations).toHaveLength(0)
+    // 林夜的例句只保留已读部分
+    const lin = k.entities.find((e) => e.name === '林夜')!
+    expect(lin.samples).toEqual(['例句'])
+  })
+
+  it('读到第 2 章时：第 3 章数据仍不可见', async () => {
+    const k = await loadKnowledge('sp', { upTo: 1 })
+    expect(k.indexes.map((i) => i.index)).toEqual([0, 1])
+    expect(k.chapterTexts[2]).toBe('')
+    expect(k.chapterTitles[2]).toBe('')
+    const lin = k.entities.find((e) => e.name === '林夜')!
+    expect(lin.samples).toEqual(['例句']) // 「林夜身世揭晓」所在第 3 章未读
   })
 })
 

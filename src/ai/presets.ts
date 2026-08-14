@@ -1,10 +1,10 @@
 /** AI Provider 预设与配置模型
  *  统一为 OpenAI 兼容 chat/completions 协议：
- *  DeepSeek / Ollama / LM Studio / Gemini（OpenAI 兼容端点）均直接可用，
- *  自定义 Base URL 可接任意 OpenAI 兼容服务
+ *  OpenAI 官方 / DeepSeek / Gemini（兼容端点）/ 本地 Ollama / LM Studio / vLLM /
+ *  自定义兼容（各种中转站）均直接可用
  */
 
-export type AIProviderPreset = 'openai' | 'deepseek' | 'gemini' | 'ollama' | 'lmstudio'
+export type AIProviderPreset = 'openai' | 'compatible' | 'deepseek' | 'gemini' | 'ollama' | 'lmstudio' | 'vllm'
 
 export interface AIProviderConfig {
   /** 预设 id */
@@ -33,11 +33,18 @@ export interface AIProviderPresetInfo {
 
 export const AI_PRESETS: Record<AIProviderPreset, AIProviderPresetInfo> = {
   openai: {
-    label: 'OpenAI 兼容（自定义）',
+    label: 'OpenAI',
+    defaultBaseUrl: 'https://api.openai.com/v1',
+    defaultModel: 'gpt-4o-mini',
+    apiKeyRequired: true,
+    hint: 'OpenAI 官方 API，gpt-4o-mini 性价比高',
+  },
+  compatible: {
+    label: 'OpenAI 兼容（自定义/中转站）',
     defaultBaseUrl: '',
     defaultModel: 'gpt-4o-mini',
     apiKeyRequired: true,
-    hint: '任意兼容 OpenAI 协议的服务：填入 Base URL 与 Key 即可',
+    hint: '任意 OpenAI 兼容中转站或自建服务：填入 Base URL 与 Key 即可',
   },
   deepseek: {
     label: 'DeepSeek',
@@ -47,11 +54,11 @@ export const AI_PRESETS: Record<AIProviderPreset, AIProviderPresetInfo> = {
     hint: '国内直连，deepseek-chat 性价比高',
   },
   gemini: {
-    label: 'Google Gemini',
+    label: 'Gemini（Gateway）',
     defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
     defaultModel: 'gemini-2.0-flash',
     apiKeyRequired: true,
-    hint: 'Gemini 官方 OpenAI 兼容端点，免费额度可用',
+    hint: 'Gemini 官方 OpenAI 兼容端点；也可换成任意 Gemini 中转 Gateway 地址',
   },
   ollama: {
     label: '本地 Ollama',
@@ -66,6 +73,13 @@ export const AI_PRESETS: Record<AIProviderPreset, AIProviderPresetInfo> = {
     defaultModel: 'local-model',
     apiKeyRequired: false,
     hint: 'LM Studio 内置 OpenAI 兼容服务，加载模型后即可用',
+  },
+  vllm: {
+    label: '本地 vLLM',
+    defaultBaseUrl: 'http://localhost:8000/v1',
+    defaultModel: 'qwen2.5-7b-instruct',
+    apiKeyRequired: false,
+    hint: 'vLLM 服务默认 OpenAI 兼容端点，无需 Key',
   },
 }
 

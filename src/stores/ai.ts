@@ -10,14 +10,19 @@ import {
 
 const STORAGE_KEY = 'qingyue:aiProviders'
 
-/** 载入配置（损坏数据回退默认；缺项补默认，保证预设齐全） */
+/** 载入配置（损坏数据回退默认；缺项补默认，保证预设齐全）
+ *  兼容旧版本：旧 `openai` 预设曾是「自定义兼容」，迁移到新 `compatible` */
 function loadProviders(): AIProviderConfig[] {
-  let saved: Partial<Record<AIProviderPreset, Partial<AIProviderConfig>>> = {}
+  let saved: Partial<Record<string, Partial<AIProviderConfig>>> = {}
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) saved = JSON.parse(raw)
   } catch {
     /* 损坏则使用默认 */
+  }
+  // 旧版 openai（自定义兼容）→ compatible
+  if (!saved.compatible && saved.openai && typeof saved.openai === 'object') {
+    saved.compatible = saved.openai
   }
   return AI_PRESET_IDS.map((id) => {
     const cfg = defaultProviderConfig(id)

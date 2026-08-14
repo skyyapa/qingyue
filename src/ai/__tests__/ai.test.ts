@@ -7,12 +7,15 @@ import { useAIStore } from '@/stores/ai'
 const KEY = 'qingyue:aiProviders'
 
 describe('AI Provider 预设与配置', () => {
-  it('预设齐全：五类 Provider 默认值与 Key 要求正确', () => {
-    expect(Object.keys(AI_PRESETS)).toHaveLength(5)
+  it('预设齐全：七类 Provider（OpenAI 官方/兼容中转/DeepSeek/Gemini/Ollama/LM Studio/vLLM）', () => {
+    expect(Object.keys(AI_PRESETS)).toHaveLength(7)
+    expect(AI_PRESETS.openai.defaultBaseUrl).toContain('api.openai.com')
     expect(AI_PRESETS.deepseek.defaultBaseUrl).toContain('deepseek.com')
     expect(AI_PRESETS.deepseek.apiKeyRequired).toBe(true)
     expect(AI_PRESETS.ollama.apiKeyRequired).toBe(false)
+    expect(AI_PRESETS.vllm.apiKeyRequired).toBe(false)
     expect(AI_PRESETS.gemini.defaultBaseUrl).toContain('generativelanguage')
+    expect(AI_PRESETS.compatible.defaultBaseUrl).toBe('') // 中转站自填
   })
 
   it('isProviderReady：远程需 Key，本地无需 Key', () => {
@@ -39,7 +42,7 @@ describe('ai store 配置存储', () => {
 
   it('默认载入全部预设，启用/更新与持久化往返', async () => {
     const ai = useAIStore()
-    expect(ai.providers).toHaveLength(5)
+    expect(ai.providers).toHaveLength(7)
     expect(ai.activeProvider).toBeUndefined()
     // 配置 DeepSeek 并启用
     const ds = ai.providers.find((p) => p.id === 'deepseek')!
@@ -60,10 +63,22 @@ describe('ai store 配置存储', () => {
     expect(ai2.activeProvider?.id).toBe('deepseek')
   })
 
+  it('旧版 openai（自定义兼容）配置迁移到 compatible', () => {
+    localStorage.setItem(
+      KEY,
+      JSON.stringify({ openai: { baseUrl: 'https://my-gateway.example/v1', apiKey: 'sk-old', model: 'gpt-3.5', enabled: true } })
+    )
+    const ai = useAIStore()
+    const migrated = ai.providers.find((p) => p.id === 'compatible')!
+    expect(migrated.baseUrl).toBe('https://my-gateway.example/v1')
+    expect(migrated.apiKey).toBe('sk-old')
+    expect(migrated.enabled).toBe(true)
+  })
+
   it('损坏 localStorage 回退默认', () => {
     localStorage.setItem(KEY, '{bad json')
     const ai = useAIStore()
-    expect(ai.providers).toHaveLength(5)
+    expect(ai.providers).toHaveLength(7)
     expect(ai.activeProvider).toBeUndefined()
   })
 })
@@ -95,7 +110,7 @@ describe('OpenAI 兼容客户端', () => {
   })
 
   it('未配置 Base URL / Model 直接报错', async () => {
-    const cfg = defaultProviderConfig('openai')
+    const cfg = defaultProviderConfig('compatible') // 自定义/中转站预设，默认 Base URL 为空
     await expect(chatCompletion(cfg, [])).rejects.toThrow(/Base URL/)
   })
 
