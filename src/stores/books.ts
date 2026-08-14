@@ -99,6 +99,7 @@ export const useBooksStore = defineStore('books', () => {
             title: c.title,
             text: c.text,
             images: parsed.chapterImages?.[i],
+            paragraphStyles: c.paragraphStyles,
           }))
         )
         last = meta

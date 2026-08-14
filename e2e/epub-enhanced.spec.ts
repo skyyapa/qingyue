@@ -21,4 +21,23 @@ test.describe('EPUB 增强', () => {
     await page.getByRole('button', { name: '下一章', exact: true }).click()
     await expect(page.locator('.title-chapter')).toHaveText('第二章 目录名乙')
   })
+
+  test('内嵌 CSS 排版还原：缩进/对齐/行距与粗斜体', async ({ page }) => {
+    await page.goto('/')
+    await page.getByRole('button', { name: '＋ 导入书籍' }).click()
+    await page.locator('input[type="file"]').setInputFiles('e2e/fixtures/带样式样书.epub')
+    await page.waitForURL(/#\/reader\//)
+    const paras = page.locator('.para')
+    await expect(paras).toHaveCount(3)
+    // 普通段落：body 行距继承 + 首行缩进
+    const firstStyle = (await paras.first().getAttribute('style')) ?? ''
+    expect(firstStyle).toContain('line-height: 1.8')
+    expect(firstStyle).toContain('text-indent: 2em')
+    // 居中段落（class 规则覆盖）
+    const centerStyle = (await paras.nth(1).getAttribute('style')) ?? ''
+    expect(centerStyle).toContain('text-align: center')
+    // 行内粗体/斜体渲染为 <b>/<em>
+    await expect(page.locator('.para b').first()).toHaveText('重点')
+    await expect(page.locator('.para em').first()).toHaveText('斜体')
+  })
 })

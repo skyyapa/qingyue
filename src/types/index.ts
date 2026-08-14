@@ -43,6 +43,23 @@ export interface Chapter {
   text: string
   /** 正文内嵌图片（data URL，EPUB 特有；文本中以 [img:N] 占位） */
   images?: string[]
+  /** 段落排版样式（与正文段落一一对应；EPUB CSS 子集提取，旧数据缺失） */
+  paragraphStyles?: (ParagraphStyle | null)[]
+}
+
+/** 段落排版样式（EPUB 内嵌 CSS 子集，键与 CSS 属性对应；值为已归一化的 CSS 字符串） */
+export interface ParagraphStyle {
+  /** 首行缩进（em） */
+  textIndent?: string
+  textAlign?: string
+  lineHeight?: string
+  /** 相对字号（em，基于 16px 基准） */
+  fontSize?: string
+  color?: string
+  fontWeight?: 'bold' | 'normal'
+  fontStyle?: 'italic'
+  marginTop?: string
+  marginBottom?: string
 }
 
 /** 阅读进度：章序号 + 章内阅读位置（滚动模式 scrollTop / 翻页模式 scrollLeft，均按可滚范围归一化为 0-1） */

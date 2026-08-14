@@ -60,18 +60,37 @@ interface Paragraph {
   kind: 'text' | 'image' | 'heading'
   text?: string
   src?: string
+  /** EPUB 排版样式（CSS 子集，段级） */
+  style?: Record<string, string> | null
+}
+
+/** 段落文本 → 受控 HTML（先转义再替换 [b]/[i]/[u] 行内标记；EPUB 解析时已剥离原始标签） */
+function toHtml(text: string): string {
+  const esc = text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  return esc
+    .replace(/\[b\]/g, '<b>')
+    .replace(/\[\/b\]/g, '</b>')
+    .replace(/\[i\]/g, '<em>')
+    .replace(/\[\/i\]/g, '</em>')
+    .replace(/\[u\]/g, '<u>')
+    .replace(/\[\/u\]/g, '</u>')
 }
 
 const paragraphs = computed<Paragraph[]>(() => {
   const chapter = reader.chapter
   if (!chapter) return []
   const images = chapter.images ?? []
+  const styles = chapter.paragraphStyles ?? []
   const out: Paragraph[] = []
+  let styleIdx = 0
   for (const raw of chapter.text.split(/\n{2,}/)) {
     const p = raw.trim()
     if (!p) continue
+    // 段落样式与文本段落一一对应（EPUB 解析时按同规则切分）
+    const style = (styles[styleIdx] as Record<string, string> | undefined) ?? null
+    styleIdx++
     if (p.startsWith('# ')) {
-      out.push({ kind: 'heading', text: p.slice(2).trim() })
+      out.push({ kind: 'heading', text: p.slice(2).trim(), style })
       continue
     }
     // 拆出 [img:N] 占位符（可能出现在段落中间）
@@ -80,11 +99,11 @@ const paragraphs = computed<Paragraph[]>(() => {
       const next = p.indexOf('[img:', pos)
       if (next < 0) {
         const rest = p.slice(pos).trim()
-        if (rest) out.push({ kind: 'text', text: rest })
+        if (rest) out.push({ kind: 'text', text: rest, style })
         break
       }
       const before = p.slice(pos, next).trim()
-      if (before) out.push({ kind: 'text', text: before })
+      if (before) out.push({ kind: 'text', text: before, style })
       const m = p.slice(next).match(/^\[img:(\d+)\]/)
       const src = m ? images[Number(m[1])] : undefined
       if (m && src) out.push({ kind: 'image', src })
@@ -370,8 +389,10 @@ onBeforeUnmount(() => {
         <h1 class="chapter-heading">{{ reader.chapter?.title }}</h1>
         <template v-for="(p, i) in paragraphs" :key="i">
           <img v-if="p.kind === 'image'" class="para-img" :src="p.src" alt="" loading="lazy" />
-          <h2 v-else-if="p.kind === 'heading'" class="para-heading">{{ p.text }}</h2>
-          <p v-else class="para">{{ p.text }}</p>
+          <!-- eslint-disable-next-line vue/no-v-html -- toHtml 先转义、内容受控（EPUB 已剥离原始标签） -->
+          <h2 v-else-if="p.kind === 'heading'" class="para-heading" :style="p.style" v-html="toHtml(p.text ?? '')"></h2>
+          <!-- eslint-disable-next-line vue/no-v-html -- toHtml 先转义、内容受控（EPUB 已剥离原始标签） -->
+          <p v-else class="para" :style="p.style" v-html="toHtml(p.text ?? '')"></p>
         </template>
         <button v-if="hasNext && settings.settings.showNextHint" class="next-hint" @click="goChapter(reader.chapterIndex + 1)">
           下一章：{{ nextTitle }} →
@@ -402,8 +423,10 @@ onBeforeUnmount(() => {
         <h1 class="chapter-heading">{{ reader.chapter?.title }}</h1>
         <template v-for="(p, i) in paragraphs" :key="i">
           <img v-if="p.kind === 'image'" class="para-img" :src="p.src" alt="" loading="lazy" />
-          <h2 v-else-if="p.kind === 'heading'" class="para-heading">{{ p.text }}</h2>
-          <p v-else class="para">{{ p.text }}</p>
+          <!-- eslint-disable-next-line vue/no-v-html -- toHtml 先转义、内容受控（EPUB 已剥离原始标签） -->
+          <h2 v-else-if="p.kind === 'heading'" class="para-heading" :style="p.style" v-html="toHtml(p.text ?? '')"></h2>
+          <!-- eslint-disable-next-line vue/no-v-html -- toHtml 先转义、内容受控（EPUB 已剥离原始标签） -->
+          <p v-else class="para" :style="p.style" v-html="toHtml(p.text ?? '')"></p>
         </template>
         <button v-if="hasNext && settings.settings.showNextHint" class="next-hint" @click="goChapter(reader.chapterIndex + 1)">
           下一章：{{ nextTitle }} →

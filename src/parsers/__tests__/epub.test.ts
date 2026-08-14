@@ -169,6 +169,55 @@ describe('parseEpub 正常解析', () => {
     expect(book.chapters).toHaveLength(1)
     expect(book.chapters[0].title).toBe('第二章 真实')
   })
+
+  it('内嵌 CSS 提取段落排版样式（缩进/对齐/字号），body 规则继承', async () => {
+    const epub = await buildEpub({
+      'META-INF/container.xml': CONTAINER,
+      'OEBPS/content.opf': OPF(
+        ['c1', 'css1'],
+        '<item id="c1" href="c1.xhtml" media-type="application/xhtml+xml"/>' +
+          '<item id="css1" href="style.css" media-type="text/css"/>'
+      ),
+      'OEBPS/style.css': 'body { line-height: 1.6; } p { text-indent: 2em; } p.center { text-align: center; font-size: 20px; }',
+      'OEBPS/c1.xhtml': XHTML('第一章', '<p>普通段落。</p><p class="center">居中段落。</p>'),
+    })
+    const book = await parseEpub(epub, 'fallback')
+    const styles = book.chapters[0].paragraphStyles
+    expect(styles).toHaveLength(2)
+    expect(styles?.[0]).toMatchObject({ textIndent: '2em', lineHeight: '1.6' })
+    expect(styles?.[1]).toMatchObject({ textIndent: '2em', textAlign: 'center', fontSize: '1.25em' })
+  })
+
+  it('行内粗体/斜体/下划线保留为 [b]/[i]/[u] 标记', async () => {
+    const epub = await buildEpub({
+      'META-INF/container.xml': CONTAINER,
+      'OEBPS/content.opf': OPF(
+        ['c1'],
+        '<item id="c1" href="c1.xhtml" media-type="application/xhtml+xml"/>'
+      ),
+      'OEBPS/c1.xhtml': XHTML('第一章', '<p>这是<strong>重点</strong>与<em>斜体</em>及<u>下划线</u>，还有<b>粗</b>。</p>'),
+    })
+    const book = await parseEpub(epub, 'fallback')
+    const text = book.chapters[0].text
+    expect(text).toContain('[b]重点[/b]')
+    expect(text).toContain('[i]斜体[/i]')
+    expect(text).toContain('[u]下划线[/u]')
+    expect(text).toContain('[b]粗[/b]')
+    expect(text).not.toContain('<strong>')
+  })
+
+  it('内联 style 的粗体/斜体同样标记', async () => {
+    const epub = await buildEpub({
+      'META-INF/container.xml': CONTAINER,
+      'OEBPS/content.opf': OPF(
+        ['c1'],
+        '<item id="c1" href="c1.xhtml" media-type="application/xhtml+xml"/>'
+      ),
+      'OEBPS/c1.xhtml': XHTML('第一章', '<p>带<span style="font-weight:bold">内联粗体</span>的段落。</p>'),
+    })
+    const book = await parseEpub(epub, 'fallback')
+    expect(book.chapters[0].text).toContain('[b]内联粗体[/b]')
+  })
 })
 
 describe('parseEpub 容错', () => {

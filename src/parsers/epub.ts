@@ -1,4 +1,6 @@
 import JSZip from 'jszip'
+import type { ParagraphStyle } from '@/types'
+import { computeParagraphStyle, parseCssRules } from './epub-css'
 import type { ParsedBook } from './txt'
 
 const BLOCK_TAGS = new Set([
@@ -15,13 +17,52 @@ interface TocEntry {
   src: string
 }
 
-/** XHTML 转纯文本：保留段落、标记小标题、提取图片 src
+/** 行内样式标记（粗体/斜体/下划线 → [b]/[i]/[u]，ReaderView 渲染为受控 HTML） */
+function inlineMarks(el: Element): { open: string; close: string } {
+  const style = el.getAttribute('style') ?? ''
+  let open = ''
+  if (el.tagName === 'B' || el.tagName === 'STRONG' || /font-weight\s*:\s*(bold|[6-9]00)\b/i.test(style)) open += '[b]'
+  if (el.tagName === 'I' || el.tagName === 'EM' || /font-style\s*:\s*italic\b/i.test(style)) open += '[i]'
+  if (el.tagName === 'U' || /text-decoration\s*:\s*underline\b/i.test(style)) open += '[u]'
+  const marks = [...open.matchAll(/\[([a-z])\]/g)].map((m) => m[1])
+  const close = marks
+    .reverse()
+    .map((c) => `[/${c}]`)
+    .join('')
+  return { open, close }
+}
+
+interface HtmlToTextResult {
+  text: string
+  /** 与 text 的 \n\n 段落一一对应（无样式段落为 null） */
+  styles: (ParagraphStyle | null)[]
+}
+
+/** XHTML 转纯文本：保留段落与行内粗斜体标记、标记小标题、提取图片 src
  *  onImage(src) 返回占位符字符串（如 [img:0]），调用方负责收集 src 列表 */
-function htmlToText(body: HTMLElement, onImage: (src: string) => string): string {
-  const parts: string[] = []
+function htmlToText(
+  body: HTMLElement,
+  onImage: (src: string) => string,
+  getStyle: (el: Element) => ParagraphStyle | null
+): HtmlToTextResult {
+  const paras: string[] = []
+  const styles: (ParagraphStyle | null)[] = []
+  let current = ''
+  let currentStyle: ParagraphStyle | null = null
+
+  const flush = () => {
+    const t = current.replace(/[ \t]+\n/g, '\n').replace(/[ \t]{2,}/g, ' ').trim()
+    if (t) {
+      paras.push(t)
+      styles.push(currentStyle)
+    }
+    current = ''
+    currentStyle = null
+  }
+
   const walk = (node: Node) => {
     if (node.nodeType === Node.TEXT_NODE) {
-      parts.push(node.textContent ?? '')
+      current += node.textContent ?? ''
       return
     }
     if (node.nodeType !== Node.ELEMENT_NODE) return
@@ -29,31 +70,40 @@ function htmlToText(body: HTMLElement, onImage: (src: string) => string): string
     const tag = el.tagName
     if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NAV') return
     if (tag === 'BR') {
-      parts.push('\n')
+      current += '\n'
       return
     }
     if (tag === 'IMG') {
       const src = el.getAttribute('src') ?? ''
       if (src) {
-        parts.push(onImage(src))
+        current += onImage(src)
       } else if (el.getAttribute('alt')) {
-        parts.push(el.getAttribute('alt') ?? '')
+        current += el.getAttribute('alt') ?? ''
       }
       return
     }
     const isHeading = /^H[1-6]$/.test(tag)
-    if (isHeading) parts.push('\n' + HEADING_PREFIX)
-    else if (BLOCK_TAGS.has(tag)) parts.push('\n')
+    const isBlock = BLOCK_TAGS.has(tag)
+    // 块级元素/标题：段落边界（标题加 # 标记），并计算段落样式
+    if (isBlock || isHeading) flush()
+    if (isHeading) current += HEADING_PREFIX
+    const savedStyle = currentStyle
+    if (isBlock || isHeading) currentStyle = getStyle(el)
+    // span 带 class 时其样式并入当前段落（近似处理行内样式）
+    if (tag === 'SPAN' && el.getAttribute('class')) {
+      const spanStyle = getStyle(el)
+      if (spanStyle) currentStyle = { ...currentStyle, ...spanStyle }
+    }
+    const marks = inlineMarks(el)
+    current += marks.open
     for (const child of el.childNodes) walk(child)
-    if (BLOCK_TAGS.has(tag)) parts.push('\n')
+    current += marks.close
+    if (isBlock || isHeading) flush()
+    currentStyle = savedStyle
   }
   walk(body)
-  return parts
-    .join('')
-    .replace(/[ \t]+\n/g, '\n')
-    .replace(/[ \t]{2,}/g, ' ')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
+  flush()
+  return { text: paras.join('\n\n'), styles }
 }
 
 /** 解析 XML/HTML，检测解析错误（DOMParser 不抛异常，错误时产生 <parsererror>） */
@@ -226,8 +276,30 @@ export async function parseEpub(buffer: ArrayBuffer, fallbackTitle: string): Pro
     }
   }
 
+  // ---------- 收集内嵌 CSS（mediaType text/css 或 .css 后缀；损坏文件忽略） ----------
+  const cssTexts: string[] = []
+  for (const [, item] of manifest) {
+    if (item.mediaType.includes('css') || /\.css$/i.test(item.href)) {
+      const cssFile = findZipFile(zip, resolvePath(item.href.split('#')[0], opfDir))
+      if (cssFile) {
+        try {
+          cssTexts.push(await cssFile.async('string'))
+        } catch {
+          /* 样式文件损坏则忽略 */
+        }
+      }
+    }
+  }
+  const cssRules = parseCssRules(cssTexts.join('\n'))
+
+  /** 元素 → 段落样式（空样式返回 null） */
+  const styleFor = (el: Element): ParagraphStyle | null => {
+    const style = computeParagraphStyle(cssRules, el.tagName.toLowerCase(), el.getAttribute('class') ?? null)
+    return Object.keys(style).length ? style : null
+  }
+
   // ---------- 按 spine 提取章节 ----------
-  const chapters: { title: string; text: string }[] = []
+  const chapters: { title: string; text: string; paragraphStyles: (ParagraphStyle | null)[] }[] = []
   const chapterImages: string[][] = []
   const skipped: string[] = []
   for (const idref of spineIds) {
@@ -268,11 +340,15 @@ export async function parseEpub(buffer: ArrayBuffer, fallbackTitle: string): Pro
 
     // 收集正文中的图片 src（onImage 直接输出带下标的占位符）
     const placeholderSrcs: string[] = []
-    const text = htmlToText(doc.body, (src) => {
-      const idx = placeholderSrcs.length
-      placeholderSrcs.push(src)
-      return `[img:${idx}]`
-    })
+    const { text, styles } = htmlToText(
+      doc.body,
+      (src) => {
+        const idx = placeholderSrcs.length
+        placeholderSrcs.push(src)
+        return `[img:${idx}]`
+      },
+      styleFor
+    )
     if (!text.trim()) {
       skipped.push(idref)
       continue
@@ -299,6 +375,7 @@ export async function parseEpub(buffer: ArrayBuffer, fallbackTitle: string): Pro
     chapters.push({
       title: tocTitle || headingText || name.replace(/\.[^.]+$/, '').trim() || `第 ${chapters.length + 1} 章`,
       text,
+      paragraphStyles: styles,
     })
     chapterImages.push(validImages)
   }

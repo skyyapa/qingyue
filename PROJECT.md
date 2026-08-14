@@ -228,13 +228,34 @@ src/
 - E2E +3（16）：位置记忆往返恢复、翻页模式键盘翻章（含末页翻章）、窄屏无横向溢出
 - 回归全绿：type-check/lint/test(97)/e2e(16)/build
 
+**迭代 14 —— EPUB 内嵌 CSS 子集排版还原（待提交）**
+- 新增 `src/parsers/epub-css.ts` 零依赖 CSS 子集解析器：
+  - 选择器：tag / .class / tag.class（含逗号分组）；忽略 @media/@import/@font-face、
+    后代/伪类/#id 复杂选择器（容错不报错）
+  - 属性白名单：text-indent / text-align / line-height / font-size / color /
+    font-weight / font-style / margin-top / margin-bottom；px/pt/% 归一化为 em
+  - body 规则作为全局继承基线；class 规则按特异性覆盖标签规则
+- epub.ts：manifest 收集 CSS（mediaType text/css 或 .css）→ 规则匹配每个段落元素；
+  htmlToText 重构为段落数组模式（styles 与文本段落一一对应，防索引错位）；
+  行内 `<b>/<strong>/<i>/<em>/<u>` 与内联 style 粗斜体 → `[b]/[i]/[u]` 标记
+- 数据模型：`Chapter.paragraphStyles?: (ParagraphStyle|null)[]`（可选，旧数据兼容；
+  随 IndexedDB 缓存与备份序列化自动包含）
+- ReaderView：段落 `:style` 应用排版样式（书排版优先于全局设置）；
+  行内标记经 toHtml 受控渲染（先 HTML 转义再替换标记 → 无 XSS 面，已加 eslint 注释）
+- 未做（路线图保留）：@font-face 内嵌字体（需 DB 存储 + 备份体积权衡，另行迭代）
+- 单测 +10（106）：epub-css 解析 6（选择器/容错/单位归一化/继承/特异性覆盖）、
+  epub 样式提取与行内标记 4
+- E2E +1（17）：内嵌 CSS 排版还原（缩进/对齐/行距继承/粗斜体渲染，真实浏览器断言 inline style）
+- 回归全绿：type-check/lint/test(106)/e2e(17)/build
+
 ## 未完成任务
 
 - [ ] **AI 语义能力接入**：远程 API（CORS 方案待定）或本地模型，消费知识库数据
       （Provider 接口已就绪，src/ai/index.ts）
 - [ ] 语义级事件提取（三年之约）——需 LLM，v1 用章节实体快照替代
 - [ ] 书源规则分享社区 / 规则包市场（分享链接与批量导入已支持，缺集中式分发渠道）
-- [ ] EPUB 内嵌 CSS 样式与字体支持（排版还原）
+- [ ] EPUB 内嵌字体支持（@font-face 提取为 data URL；CSS 段落样式子集已完成，
+      需评估 IndexedDB 存储与备份体积）
 - [ ] 测试覆盖扩展：备份往返、在线书知识库（缓存章节分析）——store 层（analysis）已补
 - [ ] README 演示 GIF
 
@@ -379,6 +400,13 @@ src/
     测试按 tick 序列推算累计值，避免「恰好 60s 整多计一次」的边界困惑
 41. **e2e 断言避免写死翻页次数**：序章正文很短，连续方向键会连翻数章（页内翻页 +
     每章末页翻章）——断言「已离开第 1 章」而非「恰在第 2 章」
+
+### EPUB 排版还原（迭代 14 新增）
+42. **v-html 渲染的语义标签与断言选择器要一致**：行内标记 [i] 转 `<em>` 而非 `<i>`，
+    e2e 断言 `.para em` 才能命中；同类坑：CSS 解析时块内 `}` 属罕见情况不做字符串级容错
+43. **htmlToText 重构后段落边界必须与阅读器切分一致**：epub 侧按块级元素分段
+    （trim 后非空），ReaderView 按 `\n{2,}` 切 + trim 过滤——两者顺序一致才能让
+    paragraphStyles 按索引对应；任何一侧改切分逻辑都必须同步验证
 
 ## 测试方法备忘
 

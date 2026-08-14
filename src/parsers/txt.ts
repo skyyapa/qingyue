@@ -1,10 +1,10 @@
-import type { TextEncoding } from '@/types'
+import type { ParagraphStyle, TextEncoding } from '@/types'
 
 /** 解析结果：标题 + 作者 + 章节列表 */
 export interface ParsedBook {
   title: string
   author: string
-  chapters: { title: string; text: string }[]
+  chapters: { title: string; text: string; paragraphStyles?: (ParagraphStyle | null)[] }[]
   /** 各章节的内嵌图片（data URL，EPUB 特有；TXT 为 undefined） */
   chapterImages?: string[][]
 }
