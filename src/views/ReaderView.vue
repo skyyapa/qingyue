@@ -39,13 +39,11 @@ const showAssistant = ref(false)
 const assistantRef = ref<InstanceType<typeof AssistantPanel>>()
 
 /** 选中文字命中实体 → 打开助手并定位详情 */
-function onOpenEntity(entity: Entity): void {
+async function onOpenEntity(entity: Entity): Promise<void> {
   showAssistant.value = true
-  // 面板挂载后定位到实体
-  const timer = window.setTimeout(() => {
-    assistantRef.value?.openEntity(entity.id)
-    window.clearTimeout(timer)
-  }, 50)
+  // 等抽屉挂载完成再定位（nextTick 替代 setTimeout，避免时序竞态）
+  await nextTick()
+  assistantRef.value?.openEntity(entity.id)
 }
 
 // 位置显示（滚动模式百分比 / 翻页模式页数）
@@ -149,12 +147,48 @@ function flushSave(): void {
 
 // ---------- 章节切换 ----------
 
-async function goChapter(index: number): Promise<void> {
-  if (index === reader.chapterIndex) return
+/** 跳到指定章节；带 anchor 时在章内定位到含该文本的段落（找不到则按章节开头处理） */
+async function goChapter(index: number, anchor?: string): Promise<void> {
+  if (index === reader.chapterIndex && !anchor) return
   const goingNext = index > reader.chapterIndex
-  await reader.loadChapter(index)
-  await restoreRatio(goingNext ? 0 : 1) // 下一章从顶部开始，上一章回到底部
+  if (index !== reader.chapterIndex) {
+    await reader.loadChapter(index)
+    await nextTick()
+  }
+  if (anchor && scrollToAnchor(anchor)) {
+    // 已定位到正文锚点
+  } else {
+    await restoreRatio(goingNext ? 0 : 1) // 下一章从顶部开始，上一章回到底部
+  }
   flushSave()
+}
+
+/** 在正文段落中定位锚点文本（滚动模式按段落滚动；翻页模式按视口差值换算列位置） */
+function scrollToAnchor(anchor: string): boolean {
+  const container = pageMode.value === 'scroll' ? scrollArea.value : pagedArea.value
+  if (!container) return false
+  const norm = anchor.replace(/\s+/g, '')
+  const paras = container.querySelectorAll('p.para')
+  for (const p of paras) {
+    if ((p.textContent ?? '').replace(/\s+/g, '').includes(norm)) {
+      if (pageMode.value === 'scroll') {
+        p.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      } else {
+        const rect = p.getBoundingClientRect()
+        const cRect = container.getBoundingClientRect()
+        container.scrollTo({ left: container.scrollLeft + (rect.left - cRect.left), behavior: 'smooth' })
+      }
+      flashAnchor(p as HTMLElement)
+      return true
+    }
+  }
+  return false
+}
+
+/** 锚点段落短暂高亮 */
+function flashAnchor(p: HTMLElement): void {
+  p.classList.add('anchor-flash')
+  window.setTimeout(() => p.classList.remove('anchor-flash'), 2400)
 }
 
 // ---------- 翻页模式分页 ----------
@@ -186,9 +220,11 @@ function onKeydown(e: KeyboardEvent): void {
   if (e.key === 'Escape') {
     showToc.value = false
     showSettings.value = false
+    showAssistant.value = false
     return
   }
-  if (showToc.value || showSettings.value) return
+  // 面板打开时方向键不翻章，避免误触
+  if (showToc.value || showSettings.value || showAssistant.value) return
   if (e.key === 'ArrowRight') {
     e.preventDefault()
     if (pageMode.value === 'paged') scrollPaged(1)
@@ -337,7 +373,7 @@ onBeforeUnmount(() => {
       :book-id="bookId"
       :current-chapter="reader.chapterIndex"
       @close="showAssistant = false"
-      @jump="(i) => { goChapter(i) }"
+      @jump="(i, anchor) => goChapter(i, anchor)"
     />
     <TextSelectionBar :book-id="bookId" @open="onOpenEntity" />
   </div>
@@ -459,6 +495,19 @@ onBeforeUnmount(() => {
   margin: 0 0 1.2em;
   white-space: pre-wrap;
   overflow-wrap: break-word;
+}
+/* 助手跳转定位的锚点段落短暂高亮（JS 动态添加的 class，需 :deep 才能命中） */
+:deep(.anchor-flash) {
+  animation: anchor-flash 2.4s ease;
+}
+@keyframes anchor-flash {
+  0%,
+  60% {
+    background: var(--accent-weak);
+  }
+  100% {
+    background: transparent;
+  }
 }
 .next-hint {
   display: block;

@@ -115,6 +115,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
     base.chapters = [...new Set([...base.chapters, ...target.chapters])].sort((a, b) => a - b)
     base.count += target.count
     base.samples = [...base.samples, ...target.samples].slice(0, 8)
+    base.sampleChapters = [...(base.sampleChapters ?? []), ...(target.sampleChapters ?? [])].slice(0, 8)
     base.note = base.note || target.note
     await db.putEntity(base)
     await db.deleteEntity(target.id)

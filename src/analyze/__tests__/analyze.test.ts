@@ -69,4 +69,90 @@ describe('analyzeBook 分析管线', () => {
       expect(Object.keys(idx.entityCounts)).toHaveLength(0)
     }
   })
+
+  it('提取「A 对 B 说」事件句并纳入章节摘要', async () => {
+    await db.addBook(makeBook('b3'))
+    await db.saveChapters(CHAPTERS.map((text, i) => ({ id: `b3:${i}`, bookId: 'b3', index: i, title: `第${i + 1}章`, text })))
+    await analyzeBook('b3', { onProgress: () => {} })
+
+    const indexes = await db.listChapterIndexes('b3')
+    expect(indexes[0].events).toContain('林夜对苏晚说')
+    expect(indexes[0].summary).toContain('登场：')
+    expect(indexes[0].summary).toContain('事件：林夜对苏晚说')
+  })
+
+  it('重分析后不再出现的实体被清理（锁定实体保留）', async () => {
+    await db.addBook(makeBook('b4'))
+    await db.saveChapters(CHAPTERS.map((text, i) => ({ id: `b4:${i}`, bookId: 'b4', index: i, title: `第${i + 1}章`, text })))
+    // 用户手动添加的锁定实体（名字从未出现在正文）
+    await db.putEntity({
+      id: 'locked-person',
+      bookId: 'b4',
+      name: '李四',
+      type: 'person',
+      aliases: [],
+      chapters: [],
+      count: 0,
+      samples: [],
+      note: '',
+      custom: false,
+      locked: true,
+    })
+    await analyzeBook('b4', { onProgress: () => {} })
+    expect((await db.listEntities('b4')).map((e) => e.name)).toContain('林夜')
+
+    // 全书正文改为不再出现「林夜」（文本需足够长，「苏晚」PMI 才越过 2.5 阈值，见踩坑 #30）
+    const PARAS3 = ['苏晚站在落星谷外的山道上，静静看着远处连绵起伏的群山。', '苏晚缓缓说道：「风起了，该出发了。」']
+    const CHAPTERS3 = Array.from({ length: 6 }, (_, i) => `第${i + 1}章\n\n${PARAS3.join('\n\n')}`)
+    await db.saveChapters(CHAPTERS3.map((text, i) => ({ id: `b4:${i}`, bookId: 'b4', index: i, title: `第${i + 1}章`, text })))
+    await analyzeBook('b4', { onProgress: () => {} })
+
+    const names = (await db.listEntities('b4')).map((e) => e.name)
+    expect(names).not.toContain('林夜')
+    expect(names).toContain('苏晚')
+    expect(names).toContain('李四') // 锁定实体不被清理
+    // 章节索引引用的实体都必须存在（无残留引用）
+    const indexes = await db.listChapterIndexes('b4')
+    for (const idx of indexes) {
+      for (const id of Object.keys(idx.entityCounts)) {
+        expect(await db.getEntity(id)).toBeDefined()
+      }
+    }
+  })
+
+  it('重分析时已有实体的别名参与匹配（计数归入、不新建实体）', async () => {
+    const PARAS2 = [
+      '小夜对苏晚说：「今晚月色不错。」苏晚点了点头。',
+      '林夜看着苏晚，缓缓说道：「你的剑还不够快。」',
+      '林夜掏出储物袋，拿出星辉石，苏晚站在旁边看着。',
+      '林夜对苏晚说：「该来的总会来。」苏晚点了点头。',
+    ]
+    // 「小夜」仅前两章出现（共 2 次 < minFreq，不会是候选词）
+    const CHAPTERS2 = Array.from({ length: 6 }, (_, i) =>
+      i < 2 ? `第${i + 1}章\n\n${PARAS2[0]}\n\n${PARAS2[2]}` : `第${i + 1}章\n\n${PARAS2[1]}\n\n${PARAS2[3]}`
+    )
+    await db.addBook(makeBook('b5'))
+    await db.saveChapters(CHAPTERS2.map((text, i) => ({ id: `b5:${i}`, bookId: 'b5', index: i, title: `第${i + 1}章`, text })))
+    await analyzeBook('b5', { onProgress: () => {} })
+    expect((await db.listEntities('b5')).map((e) => e.name)).not.toContain('小夜')
+
+    // 用户把「小夜」合并为「林夜」的别名
+    const lin = (await db.listEntities('b5')).find((e) => e.name === '林夜')!
+    const beforeCount = lin.count
+    lin.aliases = ['小夜']
+    await db.putEntity(lin)
+
+    await analyzeBook('b5', { onProgress: () => {} })
+
+    const after = await db.listEntities('b5')
+    const names = after.map((e) => e.name)
+    expect(names).not.toContain('小夜') // 别名命中不新建实体
+    const linAfter = after.find((e) => e.name === '林夜')!
+    expect(linAfter.count).toBe(beforeCount + 2) // 「小夜」的 2 次命中归入林夜
+    expect(linAfter.aliases).toContain('小夜')
+    // 章节索引计数与实体总数一致（别名命中正确归入林夜 id）
+    const indexes = await db.listChapterIndexes('b5')
+    const total = indexes.reduce((acc, idx) => acc + (idx.entityCounts[linAfter.id] ?? 0), 0)
+    expect(total).toBe(linAfter.count)
+  })
 })

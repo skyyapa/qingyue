@@ -1,24 +1,50 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 
-/** 阅读助手：知识库分析 → 人物识别 → 实体卡片 */
+/** 阅读助手：知识库分析 → 人物识别 → 实体卡片 → 搜索过滤 → 正文定位 */
 test.describe('阅读助手', () => {
-  test('分析知识库并识别人物', async ({ page }) => {
+  async function importAndAnalyze(page: Page): Promise<void> {
     await page.goto('/')
-    // 导入一本有角色的书
     await page.getByRole('button', { name: '＋ 导入书籍' }).click()
     await page.locator('input[type="file"]').setInputFiles('e2e/fixtures/江湖夜雨.txt')
     await page.waitForURL(/#\/reader\//)
-    // 打开阅读助手 → 开始分析
     await page.getByRole('button', { name: '助' }).click()
-    await expect(page.getByText('还没有知识库')).toBeVisible()
     await page.getByRole('button', { name: '开始分析' }).click()
-    // 分析完成：人物列表出现
-    await expect(page.getByText(/已分析/)).toBeVisible()
     await expect(page.getByRole('button', { name: /林风/ })).toBeVisible()
+  }
+
+  test('分析知识库并识别人物', async ({ page }) => {
+    await importAndAnalyze(page)
+    await expect(page.getByText(/已分析/)).toBeVisible()
     await expect(page.getByRole('button', { name: /苏瑶/ })).toBeVisible()
     // 打开林风实体卡片
     await page.getByRole('button', { name: /林风/ }).first().click()
     await expect(page.getByText('出现章节')).toBeVisible()
     await expect(page.getByText('例句')).toBeVisible()
+  })
+
+  test('人物列表支持搜索过滤', async ({ page }) => {
+    await importAndAnalyze(page)
+    await page.getByPlaceholder(/搜索人物/).fill('苏')
+    await expect(page.getByRole('button', { name: /林风/ })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: /苏瑶/ })).toBeVisible()
+    await page.getByPlaceholder(/搜索人物/).fill('不存在的人')
+    await expect(page.getByText('没有匹配的人物')).toBeVisible()
+  })
+
+  test('例句「定位」跳转到正文并高亮锚点', async ({ page }) => {
+    await importAndAnalyze(page)
+    await page.getByRole('button', { name: /林风/ }).first().click()
+    // 夹具各章正文都很短，默认视口装得下——缩小视口高度让滚动发生
+    await page.setViewportSize({ width: 900, height: 300 })
+    // 例句带出处章节时显示「定位」按钮；第 1 条例句出自序章，用第 2 条（第一章）验证跨章跳转
+    const locate = page.getByRole('button', { name: '定位' }).nth(1)
+    await expect(locate).toBeVisible()
+    await locate.click()
+    // 正文切到例句所在章节，滚动到例句段落并短暂高亮
+    await expect(page.locator('h1.chapter-heading')).toHaveText('第一章 初入江湖')
+    await expect(page.locator('p.anchor-flash').first()).toBeVisible()
+    await expect
+      .poll(async () => page.locator('.scroll-area').evaluate((el) => el.scrollTop), { timeout: 4000 })
+      .toBeGreaterThan(0)
   })
 })

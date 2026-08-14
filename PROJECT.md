@@ -170,6 +170,41 @@ src/
   书页开关纳入设置重排监听，切换后尽量保持阅读位置
 - E2E +1（11 用例）：切换主题皮肤（10 套画廊 + data-theme 联动）与拟真书页开关
 
+**迭代 12 —— 阅读助手打磨（无 AI）（待提交）**
+- 知识库质量：
+  - 事件句提取：句子级「A 对/向/跟 B 说/道」模式（复用 classify.SPEECH_VERBS），
+    每章聚合 top 3 写入 `ChapterIndex.events`，摘要追加「事件：…」段
+  - 重分析时已有实体别名（≥2 字）参与匹配：计数/章节/例句归入现有实体不新建，
+    人工合并的知识在重分析中保留；修复同名实体（原名+别名）命中同章时
+    entityCounts 计数被覆盖的 bug（改为累加）
+  - 残留实体清理：重分析后名字与别名都未命中的非 locked/custom 旧实体自动删除
+    （索引/关系整体重建无引用残留）
+  - 例句带出处章节：`Entity.sampleChapters`（与 samples 对齐，merge 时同步合并；
+    旧数据缺失时例句定位按钮隐藏）
+  - 共现关系按实体 id 去重合并（防别名与原名指向同一实体产生重复边）
+- 交互体验：
+  - 正文内定位：`jump(index, anchor?)` 全链路——例句「定位」按钮、出现章节 chip
+    带实体名锚点；滚动模式 scrollIntoView 居中 + 翻页模式按视口差值换算 scrollLeft；
+    锚点段落高亮 2.4s；匹配失败降级为章节开头
+  - 人物/设定/章节三 tab 列表搜索过滤（名称/别名/摘要/高频词/事件，无结果显示提示）
+  - 前情回顾时间线条目可点击跳章（hover 提示）
+  - 键盘：Escape 关闭助手抽屉；助手打开时方向键不再翻章
+  - 竞态修复：选中文字查实体从 50ms setTimeout 改为 nextTick 等挂载；
+    openEntity 目标不在快照时先 load()（修复「抽屉开着加实体后查不到」）
+  - EntityCard 小修：合并浮层外点关闭（透明遮罩）、空名保存内联错误提示
+- 性能稳健：
+  - 选中文字悬浮条实体缓存（懒加载 + 5 分钟 TTL + 加入知识库后失效），
+    消除每次 mouseup 全表扫描
+  - 助手抽屉加载中/失败态 + 重试按钮
+  - 前情回顾聚合改 entityById Map（消除 O(n×m) 线性 find）
+- 测试补强（路线图「store 层测试」完成）：
+  - 新增 devDependency @vue/test-utils；vitest 配置补 @vitejs/plugin-vue
+  - store 单测 +4（analysis：addCustom/updateEntity 改名忽略/deleteEntity 引用清理/
+    mergeEntities 合并语义 + 无自环残留）
+  - AssistantPanel 组件测试 +5（引导页/列表/搜索过滤/详情往返/章节与回顾跳转 emit）
+  - E2E +2（13 用例）：人物列表搜索过滤、例句「定位」跨章跳转正文高亮
+- 单测 79→91；E2E 11→13；type-check/lint/build 全绿
+
 ## 未完成任务
 
 - [ ] **AI 语义能力接入**：远程 API（CORS 方案待定）或本地模型，消费知识库数据
@@ -177,7 +212,7 @@ src/
 - [ ] 语义级事件提取（三年之约）——需 LLM，v1 用章节实体快照替代
 - [ ] 书源规则分享社区 / 规则包市场（分享链接与批量导入已支持，缺集中式分发渠道）
 - [ ] EPUB 内嵌 CSS 样式与字体支持（排版还原）
-- [ ] 测试覆盖扩展：store 层（pinia）、备份往返、在线书知识库（缓存章节分析）
+- [ ] 测试覆盖扩展：备份往返、在线书知识库（缓存章节分析）——store 层（analysis）已补
 - [ ] README 演示 GIF
 
 ## 关键约束
@@ -298,6 +333,21 @@ src/
 34. **分享 payload 用 base64url**：`btoa` 输出含 `+/=` 会破坏 URL/路由参数，
     需替换为 `-_` 并去掉 `=`；中文先 TextEncoder 转字节再 base64（避免 unescape 弃用 API）
 
+### 阅读助手打磨（迭代 12 新增）
+35. **同名实体同章命中时 entityCounts 会互相覆盖**：原名与别名指向同一实体 id 时，
+    `entityCounts[id] = count` 把后命中的计数覆盖掉前一个 → 必须累加
+    `(entityCounts[id] ?? 0) + count`（别名匹配功能让这种场景变常见）
+36. **组件测试需等 fake-indexeddb 宏任务**：fake-indexeddb 用 setImmediate 调度，
+    `flushPromises()` 只清微任务，mount 后 load() 未完成会一直「加载中」→
+    settle = flushPromises + setTimeout(10) + flushPromises；测试之间用独立 bookId
+    避免共享库的 add 冲突（deleteBook 清理组合会触发奇怪的栈溢出，避免使用）
+37. **e2e 断言滚动需保证内容溢出视口**：夹具各章正文都很短，默认视口装得下时
+    scrollTop 恒为 0（物理上无可滚范围）——`setViewportSize` 缩小高度让滚动发生；
+    scrollIntoView smooth 动画未完成时 evaluate 到 0，用 `expect.poll` 等待
+38. **事件句模式是「A 介词 B 动词」**：动词跟在第二个实体**之后**（「林夜对苏晚**说**」），
+    两实体之间只有介词；正则先验证实体对之间 1-2 字纯介词 + 后随 SPEECH_VERBS 单字，
+    「林夜看着苏晚」这类（中间是「看着」）不会误判为事件
+
 ## 测试方法备忘
 
 - 常规回归：`npm run type-check && npm run build`；`npm run dev` 后浏览器实测
@@ -305,6 +355,9 @@ src/
   模式：`?analyze`（跑分析管线+输出实体分类）、`?store`（跑实体操作）、`?dump`、`?wipe`；
   样书生成脚本在 `.tmp/make-samples.mjs`、`.tmp/make-hard-samples.mjs`、`.tmp/make-assistant-sample.mjs`、
   `.tmp/make-enc-samples.ps1`（PowerShell 需 BOM）
+- 组件/store 测试（Vitest + @vue/test-utils）：每个测试用独立 bookId 造种子数据；
+  fake-indexeddb 用 setImmediate 调度，mount 后需 settle（flushPromises + setTimeout + flushPromises）
+  等异步 load 完成（见踩坑 #36）
 - 种子页约束：纯 JS 无类型注解；避免 const 重名（整页静默失败）
 - UI 交互：IAB 定位器点击可能失效 → `tab.cua.click({x,y})` 坐标点击（布局变化坐标会漂移，
   先读文本定位再估算）；悬停类元素（⋯/✕/析）需单次调用内 悬停→读坐标→点击

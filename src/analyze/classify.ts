@@ -3,8 +3,8 @@
  */
 import type { EntityType } from '@/types'
 
-/** 说话动词：X说 / X道 / X问 / X看着 …… */
-const SPEECH_VERBS = new Set('说道问问答喊笑叫骂叹怒吼斥责答解释求恳谢看望盯瞪瞧瞅')
+/** 说话动词：X说 / X道 / X问 / X看着 ……（事件句提取也复用此集合） */
+export const SPEECH_VERBS = new Set('说道问问答喊笑叫骂叹怒吼斥责答解释求恳谢看望盯瞪瞧瞅')
 /** 介词：对X说 / 跟X / 被X ……；也覆盖「X对Y说」的主语位 */
 const PERSON_PREP = new Set('对跟向被让和与同给随陪')
 /** 处所介词：在X / 来到X / 回到X …… */

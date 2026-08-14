@@ -12,6 +12,21 @@ const emit = defineEmits<{ open: [entity: Entity] }>()
 
 const analysis = useAnalysisStore()
 
+// 实体缓存：避免每次 mouseup 都全表扫描（书籍切换/5 分钟过期/加入知识库后失效）
+let cache: Entity[] | null = null
+let cacheBookId = ''
+let cacheTime = 0
+const CACHE_TTL = 5 * 60 * 1000
+
+async function getCachedEntities(): Promise<Entity[]> {
+  const now = Date.now()
+  if (cache && cacheBookId === props.bookId && now - cacheTime < CACHE_TTL) return cache
+  cache = await db.listEntities(props.bookId)
+  cacheBookId = props.bookId
+  cacheTime = now
+  return cache
+}
+
 const visible = ref(false)
 const selectedText = ref('')
 const match = ref<Entity | null>(null)
@@ -20,7 +35,7 @@ const loading = ref(false)
 
 /** 在知识库中查找选中文字命中的实体（最长名匹配） */
 async function lookup(text: string): Promise<Entity | null> {
-  const entities = await db.listEntities(props.bookId)
+  const entities = await getCachedEntities()
   let best: Entity | null = null
   for (const e of entities) {
     if (e.name && text.includes(e.name)) {
@@ -68,6 +83,7 @@ async function createEntity(): Promise<void> {
   const name = selectedText.value.replace(/\s+/g, '').slice(0, 12)
   if (!name) return
   const entity = await analysis.addCustomEntity(props.bookId, name, 'unknown')
+  cache = null // 知识库已变化，缓存失效
   visible.value = false
   emit('open', entity)
 }

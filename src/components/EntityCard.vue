@@ -13,7 +13,7 @@ const props = defineProps<{
   relations: { a: string; b: string; weight: number }[]
   chapterTitles: string[]
 }>()
-const emit = defineEmits<{ back: []; jump: [index: number]; select: [entityId: string] }>()
+const emit = defineEmits<{ back: []; jump: [index: number, anchor?: string]; select: [entityId: string] }>()
 
 const analysis = useAnalysisStore()
 
@@ -21,8 +21,12 @@ const editing = ref(false)
 const editName = ref(props.entity.name)
 const editType = ref<EntityType>(props.entity.type)
 const editNote = ref(props.entity.note)
+const editError = ref('')
 const showDeleteConfirm = ref(false)
 const showMergePicker = ref(false)
+
+/** 例句对应的章节号（旧数据可能缺失，缺失时例句不可定位） */
+const sampleChapters = computed(() => props.entity.sampleChapters ?? [])
 
 const typeOptions = (Object.keys(TYPE_LABELS) as EntityType[]).map((t) => ({ value: t, label: TYPE_LABELS[t] }))
 
@@ -54,11 +58,21 @@ function startEdit(): void {
 
 async function saveEdit(): Promise<void> {
   const name = editName.value.trim()
-  if (!name) return
+  if (!name) {
+    editError.value = '名称不能为空'
+    return
+  }
+  editError.value = ''
   const renamedFrom = name !== props.entity.name ? props.entity.name : undefined
   const updated: Entity = { ...props.entity, name, type: editType.value, note: editNote.value.trim(), locked: true }
   await analysis.updateEntity(updated, { renamedFrom })
   editing.value = false
+}
+
+/** 例句 → 跳到其出处章节并定位正文 */
+function jumpToSample(i: number): void {
+  const ch = sampleChapters.value[i]
+  if (ch !== undefined) emit('jump', ch, props.entity.samples[i])
 }
 
 async function onDelete(): Promise<void> {
@@ -92,7 +106,7 @@ async function mergeInto(target: Entity): Promise<void> {
     <div v-if="editing" class="entity-edit">
       <label class="edit-row">
         <span>名称</span>
-        <input v-model="editName" type="text" />
+        <input v-model="editName" type="text" @input="editError = ''" />
       </label>
       <label class="edit-row">
         <span>类型</span>
@@ -107,12 +121,14 @@ async function mergeInto(target: Entity): Promise<void> {
       <div class="edit-actions">
         <button class="btn btn-danger" @click="showDeleteConfirm = true">删除</button>
         <button class="btn" @click="showMergePicker = !showMergePicker">合并到…</button>
+        <div v-if="showMergePicker" class="merge-mask" @click="showMergePicker = false"></div>
         <div v-if="showMergePicker" class="merge-list">
           <button v-for="t in mergeTargets" :key="t.id" class="merge-item" @click="mergeInto(t)">{{ t.name }}</button>
           <p v-if="mergeTargets.length === 0" class="merge-empty">没有可合并的同类型实体</p>
         </div>
         <button class="btn" @click="editing = false">取消</button>
       </div>
+      <p v-if="editError" class="edit-error">{{ editError }}</p>
     </div>
 
     <!-- 展示态 -->
@@ -129,7 +145,7 @@ async function mergeInto(target: Entity): Promise<void> {
           :key="c"
           class="chip chapter-chip"
           :title="chapterTitles[c]"
-          @click="emit('jump', c)"
+          @click="emit('jump', c, entity.name)"
         >
           {{ c + 1 }}
         </button>
@@ -149,7 +165,17 @@ async function mergeInto(target: Entity): Promise<void> {
       </p>
       <div v-if="entity.samples.length" class="entity-samples">
         <p class="line-label">例句</p>
-        <blockquote v-for="(s, i) in entity.samples" :key="i" class="sample">「{{ s }}」</blockquote>
+        <blockquote v-for="(s, i) in entity.samples" :key="i" class="sample">
+          <span class="sample-text">「{{ s }}」</span>
+          <button
+            v-if="sampleChapters[i] !== undefined"
+            class="sample-jump"
+            title="在正文中定位该例句"
+            @click="jumpToSample(i)"
+          >
+            定位
+          </button>
+        </blockquote>
       </div>
     </template>
 
@@ -245,6 +271,17 @@ async function mergeInto(target: Entity): Promise<void> {
   align-items: center;
   position: relative;
 }
+.edit-error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--danger);
+}
+/* 合并浮层：点击浮层外的透明遮罩关闭 */
+.merge-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+}
 .merge-list {
   position: absolute;
   top: 38px;
@@ -333,5 +370,26 @@ async function mergeInto(target: Entity): Promise<void> {
   font-size: 12px;
   line-height: 1.8;
   color: var(--fg);
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.sample-text {
+  flex: 1;
+  min-width: 0;
+}
+.sample-jump {
+  flex-shrink: 0;
+  font-size: 11px;
+  padding: 2px 8px;
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+}
+.sample-jump:hover {
+  background: var(--accent);
+  color: #fff;
 }
 </style>

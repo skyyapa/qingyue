@@ -113,6 +113,8 @@ export interface Entity {
   count: number
   /** 代表性句子 */
   samples: string[]
+  /** 例句对应章节（与 samples 一一对应；旧数据可能缺失，缺失时例句不可定位正文） */
+  sampleChapters?: number[]
   /** 用户备注 */
   note: string
   /** 用户手动创建的实体 */
@@ -134,6 +136,8 @@ export interface ChapterIndex {
   summary: string
   /** 代表性句子（无 AI 抽取式） */
   keySentences: string[]
+  /** 本章事件句（「A 对 B 说」规则提取，v1 无 AI；旧数据可能缺失） */
+  events?: string[]
 }
 
 /** 实体共现关系（段落级，关系图边） */

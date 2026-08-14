@@ -13,7 +13,7 @@ const props = defineProps<{
   /** 当前章节号（前情回顾用） */
   currentChapter: number
 }>()
-const emit = defineEmits<{ close: []; jump: [index: number] }>()
+const emit = defineEmits<{ close: []; jump: [index: number, anchor?: string] }>()
 
 const books = useBooksStore()
 const analysis = useAnalysisStore()
@@ -36,6 +36,11 @@ const entities = ref<Entity[]>([])
 const relations = ref<Relation[]>([])
 const chapterIndexes = ref<ChapterIndex[]>([])
 const loading = ref(false)
+const loadError = ref('')
+
+// 列表搜索（名称/别名/摘要/高频词）
+const searchText = ref('')
+watch(activeTab, () => (searchText.value = ''))
 
 // 实体详情视图
 const detailId = ref<string | null>(null)
@@ -46,30 +51,55 @@ const detailEntity = computed(() => entities.value.find((e) => e.id === detailId
 const worldTypes: EntityType[] = ['place', 'skill', 'item', 'org', 'unknown']
 const worldType = ref<EntityType>('place')
 
+function filterByName(list: Entity[]): Entity[] {
+  const q = searchText.value.trim()
+  if (!q) return list
+  return list.filter((e) => e.name.includes(q) || e.aliases.some((a) => a.includes(q)))
+}
+
 const persons = computed(() =>
-  entities.value.filter((e) => e.type === 'person').sort((a, b) => b.count - a.count)
+  filterByName(entities.value.filter((e) => e.type === 'person').sort((a, b) => b.count - a.count))
 )
 const worldEntities = computed(() =>
-  entities.value.filter((e) => e.type === worldType.value).sort((a, b) => b.count - a.count)
+  filterByName(entities.value.filter((e) => e.type === worldType.value).sort((a, b) => b.count - a.count))
 )
+const filteredChapters = computed(() => {
+  const q = searchText.value.trim()
+  if (!q) return chapterIndexes.value
+  return chapterIndexes.value.filter(
+    (ci) =>
+      ci.summary.includes(q) ||
+      ci.topWords.some((w) => w.includes(q)) ||
+      (ci.events ?? []).some((e) => e.includes(q))
+  )
+})
 
 /** 前情回顾：已读章节的摘要与实体时间线 */
 const recapChapters = computed(() =>
   chapterIndexes.value.filter((c) => c.index <= props.currentChapter)
 )
+const entityById = computed(() => new Map(entities.value.map((e) => [e.id, e])))
 const recapEntities = computed(() => {
   const counts = new Map<string, number>()
+  const idByName = new Map<string, string>()
   for (const ci of recapChapters.value) {
     for (const [id, count] of Object.entries(ci.entityCounts)) {
-      const entity = entities.value.find((e) => e.id === id)
-      if (entity && entity.type === 'person') counts.set(entity.name, (counts.get(entity.name) ?? 0) + count)
+      const entity = entityById.value.get(id)
+      if (entity && entity.type === 'person') {
+        counts.set(entity.name, (counts.get(entity.name) ?? 0) + count)
+        idByName.set(entity.name, id)
+      }
     }
   }
-  return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 12)
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 12)
+    .map(([name, count]) => ({ id: idByName.get(name) ?? '', name, count }))
 })
 
 async function load(): Promise<void> {
   loading.value = true
+  loadError.value = ''
   try {
     const [ents, rels, idxs] = await Promise.all([
       db.listEntities(props.bookId),
@@ -79,6 +109,8 @@ async function load(): Promise<void> {
     entities.value = ents.sort((a, b) => b.count - a.count)
     relations.value = rels
     chapterIndexes.value = idxs.sort((a, b) => a.index - b.index)
+  } catch (err) {
+    loadError.value = err instanceof Error ? err.message : String(err)
   } finally {
     loading.value = false
   }
@@ -92,8 +124,11 @@ watch(
   }
 )
 
-/** 打开指定实体详情（选中文字查询入口） */
-function openEntity(entityId: string): void {
+/** 打开指定实体详情（选中文字查询入口；目标不在当前快照时先刷新数据） */
+async function openEntity(entityId: string): Promise<void> {
+  if (!entities.value.some((e) => e.id === entityId)) {
+    await load()
+  }
   detailId.value = entityId
   activeTab.value = 'person'
 }
@@ -148,15 +183,27 @@ defineExpose({ openEntity })
       </div>
 
       <template v-else>
+        <!-- 加载中 / 加载失败 -->
+        <div v-if="loading" class="assistant-empty">
+          <p class="empty-icon">⏳</p>
+          <p class="empty-title">加载中…</p>
+        </div>
+        <div v-else-if="loadError" class="assistant-empty">
+          <p class="empty-icon">⚠️</p>
+          <p class="empty-title">知识库加载失败</p>
+          <p class="empty-sub">{{ loadError }}</p>
+          <button class="btn btn-primary" @click="load">重试</button>
+        </div>
+
         <!-- 实体详情视图 -->
         <EntityCard
-          v-if="detailEntity"
+          v-else-if="detailEntity"
           :entity="detailEntity"
           :all-entities="entities"
           :relations="relations"
           :chapter-titles="book?.chapterTitles ?? []"
           @back="detailId = null"
-          @jump="(i) => emit('jump', i)"
+          @jump="(i, anchor) => emit('jump', i, anchor)"
           @select="openEntity"
         />
 
@@ -177,7 +224,10 @@ defineExpose({ openEntity })
           <div class="assistant-body">
             <!-- 人物 -->
             <div v-if="activeTab === 'person'" class="entity-list">
-              <p v-if="persons.length === 0" class="list-empty">未识别到人物，可选中正文文字「加入知识库」手动添加</p>
+              <input v-model="searchText" class="list-search" type="search" placeholder="搜索人物（名称 / 别名）" />
+              <p v-if="persons.length === 0" class="list-empty">
+                {{ searchText.trim() ? '没有匹配的人物' : '未识别到人物，可选中正文文字「加入知识库」手动添加' }}
+              </p>
               <button v-for="e in persons" :key="e.id" class="entity-item" @click="openEntity(e.id)">
                 <span class="entity-avatar">{{ e.name[0] }}</span>
                 <span class="entity-item-name">{{ e.name }}</span>
@@ -199,7 +249,10 @@ defineExpose({ openEntity })
                 </button>
               </div>
               <div class="entity-list">
-                <p v-if="worldEntities.length === 0" class="list-empty">该分类暂无实体</p>
+                <input v-model="searchText" class="list-search" type="search" placeholder="搜索设定（名称 / 别名）" />
+                <p v-if="worldEntities.length === 0" class="list-empty">
+                  {{ searchText.trim() ? '没有匹配的实体' : '该分类暂无实体' }}
+                </p>
                 <button v-for="e in worldEntities" :key="e.id" class="entity-item" @click="openEntity(e.id)">
                   <span class="entity-avatar">{{ e.name[0] }}</span>
                   <span class="entity-item-name">{{ e.name }}</span>
@@ -221,7 +274,11 @@ defineExpose({ openEntity })
 
             <!-- 章节索引 -->
             <div v-else-if="activeTab === 'chapters'" class="chapter-list">
-              <button v-for="ci in chapterIndexes" :key="ci.id" class="chapter-item" @click="emit('jump', ci.index)">
+              <input v-model="searchText" class="list-search" type="search" placeholder="搜索章节（摘要 / 高频词 / 事件）" />
+              <p v-if="filteredChapters.length === 0" class="list-empty">
+                {{ searchText.trim() ? '没有匹配的章节' : '暂无章节索引' }}
+              </p>
+              <button v-for="ci in filteredChapters" :key="ci.id" class="chapter-item" @click="emit('jump', ci.index)">
                 <span class="chapter-idx">{{ ci.index + 1 }}</span>
                 <span class="chapter-info">
                   <span class="chapter-summary">{{ ci.summary }}</span>
@@ -236,23 +293,23 @@ defineExpose({ openEntity })
                 <p class="recap-title">已读至第 {{ props.currentChapter + 1 }} 章 · 主要人物</p>
                 <div class="recap-chips">
                   <button
-                    v-for="[name] in recapEntities"
-                    :key="name"
+                    v-for="r in recapEntities"
+                    :key="r.name"
                     class="chip"
-                    @click="openEntity(entities.find((e) => e.name === name)?.id ?? '')"
+                    @click="r.id && openEntity(r.id)"
                   >
-                    {{ name }}
+                    {{ r.name }}
                   </button>
                 </div>
               </div>
               <div class="recap-timeline">
-                <div v-for="ci in recapChapters" :key="ci.id" class="recap-item">
+                <button v-for="ci in recapChapters" :key="ci.id" class="recap-item" @click="emit('jump', ci.index)">
                   <span class="recap-idx">{{ ci.index + 1 }}</span>
                   <div class="recap-body">
                     <p class="recap-summary">{{ ci.summary }}</p>
                     <p v-if="ci.keySentences.length" class="recap-sentence">「{{ ci.keySentences[0] }}」</p>
                   </div>
-                </div>
+                </button>
               </div>
             </div>
           </div>
@@ -370,6 +427,22 @@ defineExpose({ openEntity })
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+.list-search {
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--panel-border);
+  background: var(--panel);
+  color: var(--fg);
+  font-size: 13px;
+  outline: none;
+  margin-bottom: 4px;
+}
+.list-search:focus {
+  border-color: var(--accent);
+}
+.list-search::placeholder {
+  color: var(--fg-weak);
 }
 .entity-item {
   display: flex;
@@ -521,7 +594,16 @@ defineExpose({ openEntity })
   display: flex;
   gap: 10px;
   padding: 10px 0;
+  border: none;
   border-bottom: 1px dashed var(--panel-border);
+  background: transparent;
+  color: var(--fg);
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+}
+.recap-item:hover .recap-summary {
+  color: var(--accent);
 }
 .recap-idx {
   font-size: 12px;
