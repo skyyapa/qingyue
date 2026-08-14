@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { base64ToFile, extForMime, fileNameFromUri } from '../intent-uri'
+import { base64ToFile, extForMime, fileNameFromUri, nameWithMimeExtension } from '../intent-uri'
 
 describe('fileNameFromUri intent URI 文件名提取', () => {
   it('content URI 末尾段即文件名', () => {
@@ -40,6 +40,19 @@ describe('extForMime 扩展名兜底', () => {
   it('未知 MIME 返回 null', () => {
     expect(extForMime('image/png')).toBeNull()
     expect(extForMime('')).toBeNull()
+  })
+})
+
+describe('nameWithMimeExtension 文件名标准化', () => {
+  it('无扩展名时按 MIME 补扩展名', () => {
+    expect(nameWithMimeExtension('我的书', 'text/plain')).toBe('我的书.txt')
+    expect(nameWithMimeExtension('我的书', 'application/epub+zip')).toBe('我的书.epub')
+    expect(nameWithMimeExtension('backup', 'application/json')).toBe('backup.json')
+  })
+
+  it('已有扩展名不重复追加，空名使用通用名', () => {
+    expect(nameWithMimeExtension('我的书.txt', 'text/plain')).toBe('我的书.txt')
+    expect(nameWithMimeExtension(null, 'application/epub+zip')).toBe('导入文件.epub')
   })
 })
 

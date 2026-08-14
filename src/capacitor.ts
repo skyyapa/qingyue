@@ -1,7 +1,7 @@
 import { Capacitor, registerPlugin, SystemBars, SystemBarsStyle } from '@capacitor/core'
 import { App } from '@capacitor/app'
 import { Filesystem } from '@capacitor/filesystem'
-import { base64ToFile, extForMime, fileNameFromUri } from '@/utils/intent-uri'
+import { base64ToFile, fileNameFromUri, nameWithMimeExtension } from '@/utils/intent-uri'
 
 /** 是否运行在原生容器（Android App）中；Web 端恒为 false，所有桥接为空操作 */
 export const isNative = Capacitor.isNativePlatform()
@@ -21,29 +21,44 @@ interface IntentFilePlugin {
 }
 const IntentFile = registerPlugin<IntentFilePlugin>('IntentFile')
 
-/** 已处理的 intent URI：getLaunchUrl（冷启动）与 appUrlOpen（热启动）可能对同一 intent 各触发一次 */
-const processedUris = new Set<string>()
+/**
+ * 冷启动 getLaunchUrl 与热启动 appUrlOpen 可能短时间重复投递同一 URI。
+ * 读取失败不能永久吞掉后续重试；成功去重只保留短窗口，允许用户之后再次分享同一文件。
+ */
+const inFlightUris = new Set<string>()
+const recentlyProcessedUris = new Map<string, number>()
+const DUPLICATE_WINDOW_MS = 3_000
 
 /** 读取 content:// / file:// URI 内容为 File（读失败或非字符串返回 null） */
 async function importUri(uri: string): Promise<File | null> {
   if (!uri.startsWith('content://') && !uri.startsWith('file://')) return null
-  if (processedUris.has(uri)) return null
-  processedUris.add(uri)
+  const now = Date.now()
+  const processedAt = recentlyProcessedUris.get(uri)
+  if (processedAt !== undefined && now - processedAt < DUPLICATE_WINDOW_MS) return null
+  if (processedAt !== undefined) recentlyProcessedUris.delete(uri)
+  if (inFlightUris.has(uri)) return null
+  inFlightUris.add(uri)
   try {
     // 优先原生插件：ContentResolver 返回 DISPLAY_NAME（真实文件名）与 MIME
     try {
       const res = await IntentFile.read({ uri })
-      const name = res.name ?? fileNameFromUri(uri) ?? `导入文件${extForMime(res.mime ?? '') ?? '.txt'}`
-      return base64ToFile(res.data, name, res.mime ?? '')
+      const name = nameWithMimeExtension(res.name ?? fileNameFromUri(uri), res.mime ?? '')
+      const file = base64ToFile(res.data, name, res.mime ?? '')
+      recentlyProcessedUris.set(uri, Date.now())
+      return file
     } catch {
       // 兜底：Filesystem 读 content/file URI（原生端始终返回 base64 字符串，Blob 仅 Web 端有）
       const res = await Filesystem.readFile({ path: uri })
       if (typeof res.data !== 'string') return null
-      const name = fileNameFromUri(uri) ?? '导入文件.txt'
-      return base64ToFile(res.data, name)
+      const name = nameWithMimeExtension(fileNameFromUri(uri), '')
+      const file = base64ToFile(res.data, name)
+      recentlyProcessedUris.set(uri, Date.now())
+      return file
     }
   } catch {
     return null
+  } finally {
+    inFlightUris.delete(uri)
   }
 }
 

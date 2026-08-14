@@ -32,6 +32,19 @@ export function extForMime(mime: string): string | null {
   return map[mime] ?? null
 }
 
+/**
+ * 原生 ContentResolver 可能只给无扩展名的 DISPLAY_NAME；导入器按扩展名分流，
+ * 因此已知 MIME 时补上扩展名。已有扩展名与未知 MIME 均保持原样。
+ */
+export function nameWithMimeExtension(name: string | null, mime: string): string {
+  const fallback = `导入文件${extForMime(mime) ?? '.txt'}`
+  if (!name) return fallback
+  const lastSlash = Math.max(name.lastIndexOf('/'), name.lastIndexOf('\\'))
+  const lastDot = name.lastIndexOf('.')
+  if (lastDot > lastSlash && lastDot < name.length - 1) return name
+  return `${name}${extForMime(mime) ?? ''}`
+}
+
 /** base64 解码为 File（原生桥接读到的文件内容，UTF-8 字节） */
 export function base64ToFile(base64: string, name: string, mime = ''): File {
   const binary = atob(base64)

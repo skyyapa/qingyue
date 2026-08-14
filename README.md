@@ -4,7 +4,7 @@
 
 > 书籍与进度只保存在你自己的浏览器（IndexedDB）里，不上传任何数据。
 
-> **v1.2.0**：AI 阅读助手正式版——OpenAI 兼容 Provider（官方/DeepSeek/Gemini/本地 Ollama/LM Studio/vLLM/中转站）、九大阅读任务、🔒 防剧透机制（AI 只读已读章节）；此前 v1.1.0 完成阅读助手打磨、EPUB 排版还原、全书搜索、单书导出、阅读日历等。
+> **v1.3.0-beta.1**：Android App（Capacitor）Beta——文件管理器「用轻阅打开」TXT/EPUB、系统分享导入、冷/热启动、返回键、edge-to-edge SystemBars，签名 APK/AAB 待真机验收后发布。**v1.2.0**：AI 阅读助手正式版——OpenAI 兼容 Provider（官方/DeepSeek/Gemini/本地 Ollama/LM Studio/vLLM/中转站）、九大阅读任务、🔒 防剧透机制（AI 只读已读章节）；此前 v1.1.0 完成阅读助手打磨、EPUB 排版还原、全书搜索、单书导出、阅读日历等。
 
 ## 🚀 立即使用（不用下载）
 
@@ -93,7 +93,7 @@ npm run android:open  # 用 Android Studio 打开 Android 工程
 ```bash
 npm run lint       # ESLint 代码检查
 npm run type-check # TypeScript 类型检查
-npm run test       # 单元测试（Vitest，175 用例：编码检测/EPUB 与 CSS 解析/知识库算法/书源引擎/AI 客户端与任务/数据库/Store/组件/备份/导出/搜索/点按分区/intent URI）
+npm run test       # 单元测试（Vitest，177 用例：编码检测/EPUB 与 CSS 解析/知识库算法/书源引擎/AI 客户端与任务/数据库/Store/组件/备份/导出/搜索/点按分区/intent URI）
 npm run e2e        # 端到端测试（Playwright 48 用例 = Chromium 41 + WebKit/iOS 视口 7，首次需 npx playwright install chromium webkit）
 ```
 

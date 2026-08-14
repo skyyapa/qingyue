@@ -15,5 +15,12 @@ android/build
 android/app/build
 android/capacitor-cordova-android-plugins/build
 
+# Android signing credentials
+android/key.properties
+android/*.jks
+android/*.keystore
+android/app/*.jks
+android/app/*.keystore
+
 # ZCode 内部文件
 .zcode

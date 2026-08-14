@@ -3,15 +3,15 @@
 > 本文档给被压缩/新开的会话快速续接用。完整迭代史、踩坑与测试方法见 `PROJECT.md`、`README.md`。
 > **注意：每次迭代完成后需同步更新本文件「当前状态」与 PROJECT.md/README。**
 
-## 当前状态（截至迭代 33，v1.3 Android（Capacitor）M1：Debug APK + API 35 模拟器已验证）
+## 当前状态（截至迭代 34，v1.3.0-beta.1 签名产物就绪，真机验收待设备接入）
 
-- **版本**：`1.2.0`（package.json 与 v1.2.0 Release 已发布，离线包 workflow success）
-- **测试基线**：单测 **177**（23 套件）/ e2e **48**（chromium 41 + webkit-ios 7）/ type-check / lint / build 全绿；Android `assembleDebug` 全绿
-- **工作区**：干净，main 与 origin/main 同步
+- **版本**：`1.3.0-beta.1`（package.json 与 Android versionCode 2 / versionName 1.3.0-beta.1；GitHub Latest 仍为 v1.2.0，Beta 未发布）
+- **测试基线**：单测 **179**（23 套件）/ e2e **48**（chromium 41 + webkit-ios 7）/ type-check / lint / build 全绿；Android `assembleRelease` + `bundleRelease` 签名构建全绿
+- **签名**：本机 release keystore（`%LOCALAPPDATA%\QingYue\keystore\qingyue-release.jks`，仓库外）；`android/key.properties` 不入库；证书 SHA-256 `5f9b67e549639ea9fb3e51242c20136511eccb91746e16c1ba8a21d45943b1a7`
+- **工作区**：main 与 origin/main 同步
 - **最近迭代**：
-  - 31：移动阅读交互收尾 M1（中央点按工具栏、三区点按翻页、浮层 safe-area、分组删除去 hover、webkit-ios 真 WebKit 验证）
-  - 32：v1.3 Android M0（Capacitor 8 工程集成、content URI → File → 自动导入、返回键、状态栏桥接）
-  - 33：v1.3 Android M1（getLaunchUrl 冷启动 + URI 去重、IntentFilePlugin 处理 opaque content URI 真实文件名/MIME、SystemBars edge-to-edge、ACTION_SEND、JDK21/SDK/Android Studio 安装、Debug APK + API35 模拟器安装启动/手势条/弹窗返回键/content VIEW+SEND intent 验证）
+  - 33：v1.3 Android M1（冷启动/真实元数据/SystemBars/ACTION_SEND，模拟器验证）
+  - 34：v1.3 Android M2 准备（processedUris 失败可重试 + 成功短窗去重、MIME 无扩展名文件名标准化 +2 单测、safe-area 映射 Capacitor 注入变量、版本同步 1.3.0-beta.1、签名 keystore + signingConfig、签名 APK/AAB 构建）；**真机未连接，验收为阻塞项**
 
 ## 核心架构速查
 
@@ -30,8 +30,11 @@
 
 ## 下一步候选（用户路线图：移动端体验 ✅ → Android（Capacitor）→ 多设备同步）
 
-- **v1.3 Android 收尾**：真机验证（TXT / EPUB、文件管理器「用轻阅打开」、ACTION_SEND、
-  返回键、深浅主题 + 刘海/手势条）、签名 release APK；模拟器验证已完成，不能替代真机
+- **v1.3 Android 真机验收（阻塞中）**：等待至少一台 Android 真机接入（USB 调试）——
+  TXT/EPUB 文件管理器打开、冷/热启动、ACTION_SEND、中文/空格/特殊文件名、
+  10MB/50MB/大文件压力、夜间主题 + 手势导航 + 刘海/挖孔、返回键优先级；
+  验收通过后再创建 `v1.3.0-beta.1` tag 发布 GitHub prerelease（签名 APK/AAB + SHA-256）。
+  第二台不同厂商设备是 v1.3.0 正式版的发布前置条件
 - **Android 后续能力**：本地通知（章节摘要/阅读提醒）、分享导出；ACTION_SEND 已完成
 - **多设备同步**：阅读进度与书库跨设备（需自建后端或第三方服务，超出纯前端约束）
 - 远期（AI 不再堆新功能，用户明确）：语义级事件提取、书源规则分享社区、README 演示 GIF

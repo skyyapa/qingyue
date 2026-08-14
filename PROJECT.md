@@ -618,6 +618,31 @@ src/
   用用户级阿里云镜像完成构建，镜像配置不入仓库；Android Studio 已安装
 - 回归全绿：type-check/lint/test(177)/e2e(48)/build + cap sync + `assembleDebug`
 
+**迭代 34 —— v1.3 Android M2 准备：发布前修复 + 签名产物（真机验收待设备接入）（已提交）**
+- **processedUris 修复（发布前）**：原实现读取前就永久标记 URI，一次失败后同 URI 重试被
+  静默吞掉。改为 `inFlightUris`（并发去重，finally 释放）+ `recentlyProcessedUris`
+  （3 秒窗口成功去重，窗口外允许用户再次分享同一文件）——冷启动/热启动双投递不重复导入，
+  失败可重试
+- **文件名标准化（发布前）**：`nameWithMimeExtension`——原生 DISPLAY_NAME 无扩展名但
+  MIME 已知时补 `.txt/.epub/.json`（导入器按文件名扩展名分流，避免走错解析路径）；
+  已有扩展名/未知 MIME 保持原样；单测 +2（179）
+- **safe-area 变量映射（发布前）**：`--safe-top/right/bottom/left` 改读 Capacitor 8
+  SystemBars 注入的 `--safe-area-inset-*`（API 35 edge-to-edge 下 CSS env() 可能为 0），
+  Web/PWA 回退 `env()`；Reader/Bookshelf/浮层业务 CSS 无需改动
+- **版本同步**：package.json `1.3.0-beta.1`；Android `versionCode 2` / `versionName
+  "1.3.0-beta.1"`；README 单测数 175→177（本迭代后又 +2 至 179）
+- **签名配置**：Gradle `signingConfigs.release` 只读仓库外 `android/key.properties`
+  （不存在则不配置）；`.gitignore` 忽略 `key.properties/*.jks/*.keystore`
+- **签名产物**：本机新建 release keystore（`%LOCALAPPDATA%\QingYue\keystore\`，仓库外，
+  证书 SHA-256 `5f9b67e5...43b1a7`）；`assembleRelease` + `bundleRelease` 成功——
+  `app-release.apk`（3.3M，SHA-256 `abc643cc...b7eb6`）与 `app-release.aab`（3.2M，
+  SHA-256 `8c94132b...700a`）；apksigner 验证签名匹配、versionName 正确
+- 回归全绿：type-check/lint/test(179)/e2e(48)/build/cap sync/签名 release 构建
+- **阻塞项**：无真机接入（仅模拟器）——真机验收（TXT/EPUB 打开、冷/热启动、分享、
+  特殊文件名、10/50MB 压力、夜间主题+手势条+刘海、返回键优先级）未执行；
+  验收通过后才创建 `v1.3.0-beta.1` tag 发布 GitHub prerelease；第二台设备为 v1.3.0
+  正式版前置条件
+
 ## 未完成任务
 
 - [ ] Android App（TWA / Capacitor 打包）——移动端体验 M0 之后
