@@ -75,4 +75,26 @@ test.describe('书架与阅读', () => {
     await expect(page.locator('.title-chapter')).toHaveText('序章')
     await expect(page.locator('.pos-chapter')).toHaveText('1 / 5 章')
   })
+
+  test('阅读统计日历：热力图渲染与月份切换', async ({ page }) => {
+    await page.goto('/')
+    await page.getByRole('button', { name: /日历/ }).click()
+    await expect(page.locator('.stats-modal')).toBeVisible()
+    // 星期表头 7 个 + 日历格 42 个
+    await expect(page.locator('.cal-week')).toHaveCount(7)
+    await expect(page.locator('.cal-day')).toHaveCount(42)
+    // 月份标题与切换（避免写死年月，用宽松匹配）
+    await expect(page.locator('.cal-month')).toHaveText(/\d{4} 年 \d{1,2} 月/)
+    const monthText = await page.locator('.cal-month').textContent()
+    await page.getByRole('button', { name: '上个月' }).click()
+    await expect(page.locator('.cal-month')).not.toHaveText(monthText ?? '')
+    // 下个月回到当前月
+    await page.getByRole('button', { name: '下个月' }).click()
+    await expect(page.locator('.cal-month')).toHaveText(monthText ?? '')
+    // 汇总区可见
+    await expect(page.locator('.cal-summary')).toBeVisible()
+    // 关闭
+    await page.getByRole('button', { name: '✕' }).click()
+    await expect(page.locator('.stats-modal')).toHaveCount(0)
+  })
 })

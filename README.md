@@ -50,7 +50,7 @@
   - 按书名 / 作者即时搜索过滤
   - 生成式封面、一键删除（应用内确认对话框）
 - **阅读占比** — 全书已读百分比按字数加权计算，书架卡片与阅读器底部实时显示
-- **阅读统计** — 今日阅读时长、连续阅读天数、累计时长（仅保存在本机；挂机 60 秒无操作自动停止计时）
+- **阅读统计** — 今日阅读时长、连续阅读天数、累计时长（仅保存在本机；挂机 60 秒无操作自动停止计时）；**阅读日历**：📊 查看月度阅读热力图（颜色越深读得越久）
 - **沉浸阅读体验** —
   - 字号 / 行距 / 字体（系统·宋体·黑体·楷体·衬线）自由调节；阅读器底栏 **A− / A+ 快捷调字号**，设置面板可一键恢复默认
   - 十套主题皮肤：默认 / 极简白 / 羊皮纸 / 青瓷 / 护眼 / 樱花粉 / 夜间 / 深蓝 / 墨绿 / 石墨
@@ -82,8 +82,8 @@ npm run preview    # 预览构建产物
 ```bash
 npm run lint       # ESLint 代码检查
 npm run type-check # TypeScript 类型检查
-npm run test       # 单元测试（Vitest，118 用例：编码检测/EPUB 与 CSS 解析/知识库算法/书源引擎/数据库/Store/组件/备份）
-npm run e2e        # 端到端测试（Playwright 21 用例，首次需 npx playwright install chromium）
+npm run test       # 单元测试（Vitest，122 用例：编码检测/EPUB 与 CSS 解析/知识库算法/书源引擎/数据库/Store/组件/备份/日历）
+npm run e2e        # 端到端测试（Playwright 22 用例，首次需 npx playwright install chromium）
 ```
 
 GitHub Actions 自动运行：推送到 `main` 或发起 PR 时执行 CI（lint + type-check + 单测 + 构建 + E2E），部署前自动验证。

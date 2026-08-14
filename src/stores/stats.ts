@@ -83,5 +83,5 @@ export const useStatsStore = defineStore('stats', () => {
     window.removeEventListener('wheel', onActivity)
   }
 
-  return { todaySeconds, totalSeconds, streak, startTracking, stopTracking }
+  return { stats, todaySeconds, totalSeconds, streak, startTracking, stopTracking }
 })

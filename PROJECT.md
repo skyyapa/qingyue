@@ -304,6 +304,19 @@ src/
   （翻章 → 书架菜单 → 确认 → 重开回到第一章）
 - 回归全绿：type-check/lint/test(118)/e2e(21)/build
 
+**迭代 19 —— 阅读统计日历面板（待提交）**
+- 新增 `utils/stats-calendar.ts` 纯函数：`buildMonthGrid`（周一为每周起点的 42 格
+  月度网格，前后补齐置灰、今日标记）、`toDateKey`、`intensityLevel`（分钟 → 0-4
+  档热力分档）
+- 新增 StatsPanel 组件：月度阅读热力图（颜色深浅 = 当日阅读分钟数，5 档）、
+  上/下月切换（未来月份禁）、汇总区（本月 / 今日 / 连续天数 / 累计）；
+  stats store 暴露原始 `stats` 数据（此前仅 computed，日历需要 byDate）
+- 书架顶栏「📊 日历」按钮打开面板（mask + modal，点击遮罩或 ✕ 关闭）
+- 单测 +4（122）：buildMonthGrid（2026-08 首格周一/当月 31 天/分钟映射/今日标记/
+  跨月补齐）、intensityLevel 边界分档
+- E2E +1（22）：日历面板打开、42 格 + 7 表头、月份切换往返、汇总区、关闭
+- 回归全绿：type-check/lint/test(122)/e2e(22)/build
+
 ## 未完成任务
 
 - [ ] **AI 语义能力接入**：远程 API（CORS 方案待定）或本地模型，消费知识库数据

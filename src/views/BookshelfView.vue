@@ -6,6 +6,7 @@ import { useStatsStore } from '@/stores/stats'
 import { formatDuration } from '@/utils/progress'
 import BookCard from '@/components/BookCard.vue'
 import ImportDialog from '@/components/ImportDialog.vue'
+import StatsPanel from '@/components/StatsPanel.vue'
 import AppDialog from '@/components/AppDialog.vue'
 import BackupDialog from '@/components/BackupDialog.vue'
 import BookSourceDialog from '@/components/BookSourceDialog.vue'
@@ -24,6 +25,7 @@ const router = useRouter()
 const showImport = ref(false)
 const showBackup = ref(false)
 const showSources = ref(false)
+const showStats = ref(false)
 const dragging = ref(false)
 
 /** 应用内对话框（替代原生 confirm/prompt） */
@@ -242,10 +244,11 @@ const emptyText = computed(() => {
         <span class="brand-name">轻阅</span>
         <span class="brand-sub">QingYue</span>
       </div>
-      <div class="shelf-stats" title="阅读统计（仅保存在本机）">
+      <div class="shelf-stats">
         <span class="stat-chip">今日 {{ formatDuration(stats.todaySeconds) }}</span>
         <span v-if="stats.streak > 0" class="stat-chip">连续 {{ stats.streak }} 天</span>
         <span class="stat-chip stat-total">累计 {{ formatDuration(stats.totalSeconds) }}</span>
+        <button class="stat-chip stat-btn" title="阅读日历" @click="showStats = true">📊 日历</button>
       </div>
       <div class="search-wrap">
         <input
@@ -323,6 +326,7 @@ const emptyText = computed(() => {
     <ImportDialog v-if="showImport" @close="showImport = false" @imported="onImported" />
     <BackupDialog v-if="showBackup" @close="showBackup = false" @imported="books.refresh" />
     <BookSourceDialog v-if="showSources" @close="showSources = false" />
+    <StatsPanel v-if="showStats" @close="showStats = false" />
     <InstallPrompt />
     <AppDialog
       v-if="dialog"
@@ -402,6 +406,16 @@ const emptyText = computed(() => {
   color: var(--fg-weak);
   background: transparent;
   border: 1px solid var(--panel-border);
+}
+.stat-btn {
+  border: 1px solid var(--panel-border);
+  background: transparent;
+  cursor: pointer;
+  color: var(--fg);
+}
+.stat-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 .search-input {
   width: 170px;
