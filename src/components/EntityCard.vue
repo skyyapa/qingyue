@@ -12,8 +12,10 @@ const props = defineProps<{
   /** 共现关系（a/b 为实体 id） */
   relations: { a: string; b: string; weight: number }[]
   chapterTitles: string[]
+  /** 章节索引（经历时间线用） */
+  chapterIndexes?: import('@/types').ChapterIndex[]
 }>()
-const emit = defineEmits<{ back: []; jump: [index: number, anchor?: string]; select: [entityId: string] }>()
+const emit = defineEmits<{ back: []; jump: [index: number, anchor?: string]; select: [entityId: string]; aiTimeline: [] }>()
 
 const analysis = useAnalysisStore()
 
@@ -27,6 +29,21 @@ const showMergePicker = ref(false)
 
 /** 例句对应的章节号（旧数据可能缺失，缺失时例句不可定位） */
 const sampleChapters = computed(() => props.entity.sampleChapters ?? [])
+
+/** 经历时间线：出现章节 + 该章相关事件 + 该章例句（最多 12 章） */
+const timeline = computed(() =>
+  props.entity.chapters.slice(0, 12).map((c) => {
+    const idx = (props.chapterIndexes ?? []).find((x) => x.index === c)
+    const events = (idx?.events ?? []).filter((ev) => ev.includes(props.entity.name))
+    const sampleIdx = sampleChapters.value.indexOf(c)
+    return {
+      chapter: c,
+      title: props.chapterTitles[c] ?? '',
+      events,
+      sample: sampleIdx >= 0 ? props.entity.samples[sampleIdx] : '',
+    }
+  })
+)
 
 const typeOptions = (Object.keys(TYPE_LABELS) as EntityType[]).map((t) => ({ value: t, label: TYPE_LABELS[t] }))
 
@@ -177,6 +194,26 @@ async function mergeInto(target: Entity): Promise<void> {
           </button>
         </blockquote>
       </div>
+
+      <!-- 经历时间线 -->
+      <div v-if="timeline.length" class="entity-timeline">
+        <p class="line-label">经历时间线</p>
+        <button
+          v-for="t in timeline"
+          :key="t.chapter"
+          class="tl-item"
+          :title="`跳到第 ${t.chapter + 1} 章`"
+          @click="emit('jump', t.chapter, entity.name)"
+        >
+          <span class="tl-idx">{{ t.chapter + 1 }}</span>
+          <span class="tl-body">
+            <span class="tl-title">{{ t.title }}</span>
+            <span v-if="t.events.length" class="tl-events">{{ t.events.join('；') }}</span>
+            <span v-if="t.sample" class="tl-sample">「{{ t.sample }}」</span>
+          </span>
+        </button>
+        <button class="btn tl-ai" @click="emit('aiTimeline')">✨ AI 梳理经历</button>
+      </div>
     </template>
 
     <AppDialog
@@ -196,6 +233,8 @@ async function mergeInto(target: Entity): Promise<void> {
   display: flex;
   flex-direction: column;
   height: 100%;
+  min-height: 0;
+  overflow-y: auto; /* 内容多（章节/例句/时间线）时卡片内滚动，避免 flex 压缩底部按钮 */
 }
 .entity-head {
   display: flex;
@@ -391,5 +430,54 @@ async function mergeInto(target: Entity): Promise<void> {
 .sample-jump:hover {
   background: var(--accent);
   color: #fff;
+}
+/* 经历时间线 */
+.entity-timeline {
+  margin: 8px 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.tl-item {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 7px 9px;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--fg);
+  text-align: left;
+  cursor: pointer;
+}
+.tl-item:hover {
+  border-color: var(--accent);
+}
+.tl-idx {
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.tl-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.tl-title {
+  font-size: 12px;
+}
+.tl-events {
+  font-size: 11px;
+  color: var(--accent);
+}
+.tl-sample {
+  font-size: 11px;
+  color: var(--fg-weak);
+}
+.tl-ai {
+  align-self: flex-start;
+  font-size: 12px;
 }
 </style>

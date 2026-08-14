@@ -10,6 +10,7 @@ import { runAITask } from '@/ai/assistant'
 import { bookReadPercent, formatPercent } from '@/utils/progress'
 import { searchBookChapters, type BookSearchResult } from '@/utils/book-search'
 import { recordTodayChapter } from '@/utils/reading-days'
+import type { AITask, AITaskParams } from '@/ai/assistant'
 import TocPanel from '@/components/TocPanel.vue'
 import SettingsPanel from '@/components/SettingsPanel.vue'
 import AssistantPanel from '@/components/AssistantPanel.vue'
@@ -262,6 +263,52 @@ async function generateChapterSummary(index: number): Promise<void> {
   } finally {
     chapterSummaryLoading.value = false
   }
+}
+
+// ---------- AI 阅读浮层（快速操作：解释/总结/询问人物/查看伏笔） ----------
+
+const aiFabOpen = ref(false)
+const aiFabPersonMode = ref(false)
+const aiFabAnswer = ref('')
+const aiFabLoading = ref(false)
+const aiFabError = ref('')
+const aiFabPersons = ref<{ id: string; name: string }[]>([])
+
+/** 执行浮层任务，回答显示在底部面板 */
+async function runFloatTask(task: AITask, params: AITaskParams = {}): Promise<void> {
+  const provider = ai.activeProvider
+  if (!provider) return
+  aiFabOpen.value = false
+  aiFabPersonMode.value = false
+  aiFabAnswer.value = ''
+  aiFabError.value = ''
+  aiFabLoading.value = true
+  try {
+    aiFabAnswer.value = await runAITask(provider, bookId.value, task, {
+      chapterIndex: reader.chapterIndex,
+      ...params,
+    })
+  } catch (err) {
+    aiFabError.value = err instanceof Error ? err.message : String(err)
+  } finally {
+    aiFabLoading.value = false
+  }
+}
+
+/** 加载当前章人物（浮层「询问人物」） */
+async function loadFloatPersons(): Promise<void> {
+  aiFabPersonMode.value = true
+  const [indexes, entities] = await Promise.all([
+    db.listChapterIndexes(bookId.value),
+    db.listEntities(bookId.value),
+  ])
+  const idx = indexes.find((x) => x.index === reader.chapterIndex)
+  const counts = idx?.entityCounts ?? {}
+  aiFabPersons.value = entities
+    .filter((e) => e.type === 'person' && e.id in counts)
+    .sort((a, b) => (counts[b.id] ?? 0) - (counts[a.id] ?? 0))
+    .slice(0, 8)
+    .map((e) => ({ id: e.id, name: e.name }))
 }
 
 // 位置显示（滚动模式百分比 / 翻页模式页数）
@@ -796,6 +843,36 @@ onBeforeUnmount(() => {
       @jump="(i, anchor) => goChapter(i, anchor)"
     />
     <TextSelectionBar :book-id="bookId" @open="onOpenEntity" @ai="onAskAI" />
+
+    <!-- AI 阅读浮层（快速操作；面板打开时隐藏避免遮挡） -->
+    <div v-if="ai.activeProvider && !showAssistant && !showToc && !showSettings" class="ai-fab">
+      <button class="fab-btn" title="AI 快速操作" @click="aiFabOpen = !aiFabOpen; aiFabPersonMode = false">⚡</button>
+      <div v-if="aiFabOpen" class="fab-menu">
+        <button class="fab-item" @click="runFloatTask('explain')">📖 解释本章</button>
+        <button class="fab-item" @click="runFloatTask('summarize')">📝 总结本章</button>
+        <button class="fab-item" @click="loadFloatPersons()">🧑 询问人物</button>
+        <button class="fab-item" @click="runFloatTask('foreshadow')">🔍 查看伏笔</button>
+        <div v-if="aiFabPersonMode" class="fab-persons">
+          <button v-for="p in aiFabPersons" :key="p.id" class="fab-person" @click="runFloatTask('who', { entityId: p.id, text: p.name })">
+            {{ p.name }}
+          </button>
+          <p v-if="aiFabPersons.length === 0" class="fab-empty">当前章未识别到人物</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- AI 回答面板（浮层结果就地显示） -->
+    <div v-if="aiFabLoading || aiFabAnswer || aiFabError" class="ai-fab-panel">
+      <p v-if="aiFabLoading" class="fab-loading">✨ AI 思考中…</p>
+      <template v-else>
+        <!-- eslint-disable-next-line vue/no-v-html -- renderAI 先转义、内容受控 -->
+        <p class="fab-answer" v-html="renderAI(aiFabAnswer)"></p>
+        <p v-if="aiFabError" class="fab-error">{{ aiFabError }}</p>
+        <div class="fab-panel-actions">
+          <button class="fab-panel-btn" @click="aiFabAnswer = ''; aiFabError = ''">关闭</button>
+        </div>
+      </template>
+    </div>
   </div>
 </template>
 
@@ -1069,6 +1146,136 @@ onBeforeUnmount(() => {
   text-align: center;
   font-size: 12px;
   color: var(--fg-weak);
+}
+/* AI 阅读浮层 */
+.ai-fab {
+  position: fixed;
+  right: 18px;
+  bottom: 68px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+.fab-btn {
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 1px solid var(--accent);
+  background: var(--panel);
+  color: var(--accent);
+  font-size: 20px;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+}
+.fab-btn:hover {
+  background: var(--accent);
+  color: #fff;
+}
+.fab-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 7px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  min-width: 150px;
+}
+.fab-item {
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--fg);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+.fab-item:hover {
+  background: var(--accent-weak);
+  color: var(--accent);
+}
+.fab-persons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 5px 3px 3px;
+  border-top: 1px dashed var(--panel-border);
+}
+.fab-person {
+  padding: 3px 9px;
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--fg);
+  font-size: 12px;
+  cursor: pointer;
+}
+.fab-person:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.fab-empty {
+  margin: 2px 6px;
+  font-size: 11px;
+  color: var(--fg-weak);
+}
+/* AI 回答面板 */
+.ai-fab-panel {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  z-index: 45;
+  width: min(92vw, 560px);
+  max-height: 42vh;
+  overflow-y: auto;
+  padding: 12px 14px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+.fab-loading {
+  margin: 0;
+  font-size: 13px;
+  color: var(--fg-weak);
+}
+.fab-answer {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.9;
+  color: var(--fg);
+  overflow-wrap: break-word;
+}
+.fab-answer b {
+  color: var(--accent);
+}
+.fab-error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--danger);
+}
+.fab-panel-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+.fab-panel-btn {
+  padding: 4px 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--fg-weak);
+  font-size: 12px;
+  cursor: pointer;
+}
+.fab-panel-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 .para-heading {
   text-align: center;

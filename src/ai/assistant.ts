@@ -8,12 +8,23 @@ import { chatCompletion, type ChatMessage } from './client'
 import type { AIProviderConfig } from './presets'
 import type { ChapterIndex, Entity, Relation } from '@/types'
 
-export type AITask = 'who' | 'recap' | 'explain' | 'relation' | 'world' | 'timeline' | 'ask' | 'foreshadow' | 'summarize' | 'daily'
+export type AITask =
+  | 'who'
+  | 'recap'
+  | 'explain'
+  | 'relation'
+  | 'world'
+  | 'timeline'
+  | 'ask'
+  | 'foreshadow'
+  | 'summarize'
+  | 'daily'
+  | 'personTimeline'
 
 export interface AITaskParams {
   /** 选中的正文文字 */
   text?: string
-  /** 目标实体 id（who/relation/world） */
+  /** 目标实体 id（who/relation/world/personTimeline） */
   entityId?: string
   /** 当前章节号（防剧透边界与任务上下文） */
   chapterIndex?: number
@@ -31,7 +42,26 @@ export const AI_TASK_LABELS: Record<AITask, string> = {
   foreshadow: '伏笔回顾',
   summarize: '章节摘要',
   daily: '今日回顾',
+  personTimeline: '经历时间线',
   ask: '自由提问',
+}
+
+/** 模型档位：多模型策略——简单任务/摘要任务可用更便宜的模型降低成本 */
+export type ModelTier = 'main' | 'easy' | 'summary'
+
+export function taskTier(task: AITask): ModelTier {
+  switch (task) {
+    case 'summarize':
+    case 'daily':
+      return 'summary' // 摘要类：用便宜模型
+    case 'who':
+    case 'recap':
+    case 'foreshadow':
+    case 'ask':
+      return 'easy' // 简单问答：用便宜模型
+    default:
+      return 'main' // 复杂剧情分析：用主模型（GPT/Claude 等）
+  }
 }
 
 /** 知识库快照（任务上下文数据源；readUpTo 之外的章节数据已被真正剔除） */
@@ -135,6 +165,8 @@ export function planChapterLoads(k: KnowledgeSnapshot, task: AITask, params: AIT
       const e = k.entities.find((x) => x.id === params.entityId)
       return e ? e.chapters.slice(0, 2) : []
     }
+    case 'personTimeline':
+      return [] // 用章节索引摘要/事件即可，无需正文
     case 'explain':
     case 'ask':
     case 'summarize':
@@ -283,13 +315,17 @@ export function buildTaskMessages(
       const text = params.text ?? ''
       const chapter = chapterTexts.get(idx) ?? ''
       const ev = (current?.events ?? []).join('；')
-      // 定位到选中文字附近（匹配不到不硬塞章节开头）
+      // 定位到选中文字附近（匹配不到不硬塞章节开头）；无选中文字时解释整章
       const snippet = text ? findSnippet(chapter, text) : ''
+      const ask =
+        text.length > 0
+          ? `${progress}请解释这段剧情/这句话的含义与背景。\n选中文字：「${text}」`
+          : `${progress}请解释本章剧情：发生了什么、有何要点与进展。`
       return [
         { role: 'system', content: system },
         {
           role: 'user',
-          content: `${progress}请解释这段剧情/这句话的含义与背景。\n选中文字：「${text}」\n当前章节摘要：${current?.summary ?? '无'}${ev ? `\n本章事件：${ev}` : ''}${snippet ? `\n章节片段：${snippet}` : ''}`,
+          content: `${ask}\n当前章节摘要：${current?.summary ?? '无'}${ev ? `\n本章事件：${ev}` : ''}${snippet ? `\n章节片段：${snippet}` : ''}`,
         },
       ]
     }
@@ -359,8 +395,9 @@ export function buildTaskMessages(
       ]
     }
     case 'daily': {
-      // 每日阅读回顾：今日读过章节的摘要与事件聚合
-      const items = (params.todayChapters ?? [])
+      // 每日阅读回顾：结构化输出（主要事件/新增人物/未解决伏笔）
+      const today = params.todayChapters ?? []
+      const items = today
         .map((ci) => {
           const idx = k.indexes.find((x) => x.index === ci)
           return idx
@@ -369,11 +406,38 @@ export function buildTaskMessages(
         })
         .filter((x): x is string => !!x)
         .slice(-20)
+      // 今日首次登场的人物（实体首次出现章节 ∈ 今日）
+      const newComers = take(
+        k.entities
+          .filter((e) => e.type === 'person' && e.chapters.length > 0 && today.includes(e.chapters[0]))
+          .slice(0, 8),
+        8
+      )
       return [
         { role: 'system', content: system },
         {
           role: 'user',
-          content: `${progress}请回顾今天的阅读：主要发生了什么、人物动向、值得注意的伏笔或悬念。\n${book}\n今日读过章节：\n${items.join('\n') || '今日暂无已读章节记录'}`,
+          content: `${progress}请生成今日阅读总结，严格按以下格式输出：\n主要事件：\n1. …\n2. …\n3. …\n新增人物：xxx、xxx（无则写「无」）\n未解决伏笔：xxx、xxx（无则写「无」）\n\n${book}\n今日读过章节：\n${items.join('\n') || '今日暂无已读章节记录'}\n今日首次登场人物：${newComers.map((e) => e.name).join('、') || '无'}`,
+        },
+      ]
+    }
+    case 'personTimeline': {
+      // 人物经历时间线：出场章节的摘要/事件聚合，AI 梳理经历脉络
+      const e = k.entities.find((x) => x.id === params.entityId)
+      const block = e ? entityBlock(k, e.id, chapterTexts) : ''
+      const chapters = (e?.chapters ?? [])
+        .slice(0, 15)
+        .map((ci) => {
+          const idx = k.indexes.find((x) => x.index === ci)
+          const ev = (idx?.events ?? []).filter((x) => e && x.includes(e.name)).join('；')
+          return `第${ci + 1}章${k.chapterTitles[ci] ? `（${k.chapterTitles[ci]}）` : ''}：${idx?.summary ?? '无摘要'}${ev ? `｜${ev}` : ''}`
+        })
+        .join('\n')
+      return [
+        { role: 'system', content: system },
+        {
+          role: 'user',
+          content: `${progress}请按时间线梳理「${e?.name ?? '该人物'}」的经历：首次登场、关键转折、与他人的关系变化、当前状态。\n${book}\n出场章节（${e?.chapters.length ?? 0} 章）：\n${chapters || '暂无出场记录'}${block ? `\n\n${block}` : ''}`,
         },
       ]
     }
@@ -396,7 +460,8 @@ export function buildTaskMessages(
   }
 }
 
-/** 执行 AI 任务：进度感知知识库上下文（防剧透）→ 按需加载相关章节正文 → chat 请求 */
+/** 执行 AI 任务：进度感知知识库上下文（防剧透）→ 按需加载相关章节正文 →
+ *  按任务档位选择模型（多模型策略）→ chat 请求 */
 export async function runAITask(
   cfg: AIProviderConfig,
   bookId: string,
@@ -414,5 +479,9 @@ export async function runAITask(
     })
   )
   const messages = buildTaskMessages(knowledge, task, params, chapterTexts)
-  return chatCompletion(cfg, messages)
+  // 多模型策略：简单/摘要任务使用对应档位模型（未配置则回退主模型）
+  const tier = taskTier(task)
+  const tierModel = tier === 'summary' ? cfg.summaryModel : tier === 'easy' ? cfg.easyModel : undefined
+  const effective = tierModel?.trim() ? { ...cfg, model: tierModel.trim() } : cfg
+  return chatCompletion(effective, messages)
 }

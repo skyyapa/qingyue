@@ -170,6 +170,9 @@ const aiError = ref('')
 const aiAnswer = ref('')
 let lastTask: AITask | null = null
 
+/** AI tab 快捷任务 chips（personTimeline 是实体卡片入口，不出现在 chips） */
+const CHIP_TASKS = (Object.entries(AI_TASK_LABELS) as [AITask, string][]).filter(([k]) => k !== 'personTimeline')
+
 /** 打开 AI tab 并预填问题（选中文字入口） */
 function openAI(text: string): void {
   activeTab.value = 'ai'
@@ -212,6 +215,28 @@ function askFree(): void {
 
 function retryAI(): void {
   if (lastTask) runTask(lastTask)
+}
+
+/** 实体卡片「AI 梳理经历」：执行 personTimeline 并在 AI tab 展示 */
+async function runEntityTimeline(entityId: string): Promise<void> {
+  const active = ai.activeProvider
+  if (!active) return
+  detailId.value = null // 退出实体卡片视图（其优先于 tab 栏渲染）
+  activeTab.value = 'ai'
+  aiBusy.value = true
+  aiError.value = ''
+  aiAnswer.value = ''
+  lastTask = 'personTimeline'
+  try {
+    aiAnswer.value = await runAITask(active, props.bookId, 'personTimeline', {
+      chapterIndex: props.currentChapter,
+      entityId,
+    })
+  } catch (err) {
+    aiError.value = err instanceof Error ? err.message : String(err)
+  } finally {
+    aiBusy.value = false
+  }
 }
 
 /** AI 回答受控渲染：先转义再替换轻量标记（**粗体**、换行） */
@@ -292,9 +317,11 @@ defineExpose({ openEntity, openAI })
           :all-entities="entities"
           :relations="relations"
           :chapter-titles="book?.chapterTitles ?? []"
+          :chapter-indexes="chapterIndexes"
           @back="detailId = null"
           @jump="(i, anchor) => emit('jump', i, anchor)"
           @select="openEntity"
+          @ai-timeline="runEntityTimeline(detailEntity.id)"
         />
 
         <!-- 列表视图 -->
@@ -429,11 +456,11 @@ defineExpose({ openEntity, openAI })
               <template v-else>
                 <div class="ai-chips">
                   <button
-                    v-for="(label, key) in AI_TASK_LABELS"
-                    :key="key"
+                    v-for="[task, label] in CHIP_TASKS"
+                    :key="task"
                     class="chip"
                     :disabled="aiBusy"
-                    @click="runTask(key as AITask)"
+                    @click="runTask(task)"
                   >
                     {{ label }}
                   </button>

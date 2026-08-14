@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as db from '@/db'
-import { buildTaskMessages, findSnippet, loadKnowledge, pickAnchor, planChapterLoads, runAITask, type KnowledgeSnapshot } from '@/ai/assistant'
+import { buildTaskMessages, findSnippet, loadKnowledge, pickAnchor, planChapterLoads, runAITask, taskTier, type KnowledgeSnapshot } from '@/ai/assistant'
 import { defaultProviderConfig } from '@/ai/presets'
 import type { BookMeta, ChapterIndex, Entity, Relation } from '@/types'
 
@@ -241,6 +241,60 @@ describe('loadKnowledge 防剧透截断', () => {
     expect(pickAnchor('为什么林凡会突然离开灵剑宗？', entities)).toBe('灵剑宗')
     expect(pickAnchor('林凡去了哪里', entities)).toBe('林凡')
     expect(pickAnchor('今天天气不错', entities)).toBeNull() // 无实体 → 不硬塞片段
+  })
+
+  it('taskTier 多模型策略：摘要/简单/复杂任务分档', () => {
+    expect(taskTier('summarize')).toBe('summary')
+    expect(taskTier('daily')).toBe('summary')
+    expect(taskTier('who')).toBe('easy')
+    expect(taskTier('ask')).toBe('easy')
+    expect(taskTier('recap')).toBe('easy')
+    expect(taskTier('foreshadow')).toBe('easy')
+    expect(taskTier('explain')).toBe('main')
+    expect(taskTier('relation')).toBe('main')
+    expect(taskTier('timeline')).toBe('main')
+    expect(taskTier('personTimeline')).toBe('main')
+  })
+
+  it('daily：结构化输出（主要事件/新增人物/未解决伏笔）+ 今日首次登场人物', () => {
+    const todaySnap: KnowledgeSnapshot = {
+      ...snapshot,
+      entities: [makeEntity('e1', '林夜', 'person'), makeEntity('e2', '苏晚', 'person')],
+      indexes: [makeIndex(0, '登场：林夜', ['林夜对苏晚说'])],
+    }
+    const msgs = buildTaskMessages(todaySnap, 'daily', { chapterIndex: 0, todayChapters: [0] }, texts)
+    expect(msgs[1].content).toContain('主要事件')
+    expect(msgs[1].content).toContain('新增人物')
+    expect(msgs[1].content).toContain('未解决伏笔')
+    expect(msgs[1].content).toContain('林夜') // 今日首次登场
+  })
+
+  it('personTimeline：按出场章节梳理经历', () => {
+    const msgs = buildTaskMessages(snapshot, 'personTimeline', { entityId: 'e1', chapterIndex: 2 }, texts)
+    expect(msgs[1].content).toContain('经历')
+    expect(msgs[1].content).toContain('第1章')
+    expect(msgs[1].content).toContain('首次登场')
+  })
+
+  it('多模型策略：摘要任务使用 summaryModel，简单任务使用 easyModel', async () => {
+    await db.addBook(makeMeta('tm'))
+    await db.saveChapters([{ id: 'tm:0', bookId: 'tm', index: 0, title: '第1章', text: '林夜登场。' }])
+    const cfg = defaultProviderConfig('deepseek')
+    cfg.apiKey = 'sk'
+    cfg.model = 'main-model'
+    cfg.easyModel = 'cheap-easy'
+    cfg.summaryModel = 'cheap-summary'
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ choices: [{ message: { content: 'ok' } }] }) }))
+    await runAITask(cfg, 'tm', 'summarize', { chapterIndex: 0 })
+    let body = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))
+    expect(body.model).toBe('cheap-summary')
+    await runAITask(cfg, 'tm', 'who', { chapterIndex: 0 })
+    body = JSON.parse(String(vi.mocked(fetch).mock.calls[1][1]?.body))
+    expect(body.model).toBe('cheap-easy')
+    await runAITask(cfg, 'tm', 'explain', { chapterIndex: 0, text: 'x' })
+    body = JSON.parse(String(vi.mocked(fetch).mock.calls[2][1]?.body))
+    expect(body.model).toBe('main-model')
+    vi.unstubAllGlobals()
   })
 })
 

@@ -56,14 +56,14 @@ test.describe('AI Provider', () => {
     await page.getByRole('button', { name: '开始分析' }).click()
     await expect(page.getByText(/已分析/)).toBeVisible()
     await page.getByRole('button', { name: 'AI', exact: true }).click()
-    // 九个任务 chips
-    await expect(page.locator('.ai-chips .chip')).toHaveCount(9)
+    // 十个任务 chips
+    await expect(page.locator('.ai-chips .chip')).toHaveCount(10)
     // 问「这是谁」：输入林风
     await page.locator('.ai-input-row input').fill('林风')
     await page.getByRole('button', { name: '这是谁' }).click()
     await expect(page.locator('.ai-text')).toContainText('林风是序章出场的少年')
-    // 请求体防剧透：含防剧透指令与进度，且不含未读章节数据
-    expect(lastBody).toContain('防剧透')
+    // 请求体防剧透：含防剧透指令（私人管家「不剧透」规则）与进度，且不含未读章节数据
+    expect(lastBody).toContain('不剧透')
     expect(lastBody).toContain('第 1 至第 1 章')
     expect(lastBody).not.toContain('第二章')
     expect(lastBody).not.toContain('江湖雨剑谱') // 第一章内容不可见
@@ -103,11 +103,83 @@ test.describe('AI Provider', () => {
     await page.getByRole('button', { name: '开始分析' }).click()
     await expect(page.getByText(/已分析/)).toBeVisible()
     await page.getByRole('button', { name: 'AI', exact: true }).click()
-    // 九个任务 chips 齐全（含伏笔回顾/章节摘要）
-    await expect(page.locator('.ai-chips .chip')).toHaveCount(9)
+    // 十个任务 chips（含伏笔回顾/章节摘要；经历时间线为实体卡片入口不在此列）
+    await expect(page.locator('.ai-chips .chip')).toHaveCount(10)
     // 执行「前情回顾」
     await page.getByRole('button', { name: '前情回顾' }).click()
     await expect(page.locator('.ai-text')).toContainText('林风与苏瑶初识于客栈')
     await expect(page.locator('.ai-text b')).toHaveText('前情回顾') // **粗体** 受控渲染
+  })
+
+  test('AI 阅读浮层：四操作与多模型策略（总结走摘要模型）', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        'qingyue:aiProviders',
+        JSON.stringify({
+          deepseek: {
+            baseUrl: 'https://api.deepseek.com/v1',
+            apiKey: 'sk-e2e',
+            model: 'deepseek-chat',
+            easyModel: 'cheap-easy',
+            summaryModel: 'cheap-summary',
+            enabled: true,
+          },
+        })
+      )
+    })
+    let lastBody = ''
+    await page.route('**/chat/completions', async (route) => {
+      lastBody = route.request().postData() ?? ''
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ choices: [{ message: { content: '**本章摘要**：林风与苏瑶交谈。' } }] }),
+      })
+    })
+    await importBook(page)
+    await page.getByRole('button', { name: '助' }).click()
+    await page.getByRole('button', { name: '开始分析' }).click()
+    await expect(page.getByText(/已分析/)).toBeVisible()
+    await page.locator('.assistant-head button').click()
+    // 浮层四操作
+    await page.getByRole('button', { name: '⚡' }).click()
+    await expect(page.locator('.fab-item')).toHaveCount(4)
+    // 总结本章 → 底部面板就地显示回答
+    await page.getByRole('button', { name: '📝 总结本章' }).click()
+    await expect(page.locator('.ai-fab-panel .fab-answer')).toContainText('林风与苏瑶交谈')
+    // 多模型策略：摘要任务使用 summaryModel
+    expect(JSON.parse(lastBody).model).toBe('cheap-summary')
+  })
+
+  test('实体卡片：经历时间线（静态 + AI 梳理）', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        'qingyue:aiProviders',
+        JSON.stringify({
+          deepseek: { baseUrl: 'https://api.deepseek.com/v1', apiKey: 'sk-e2e', model: 'deepseek-chat', enabled: true },
+        })
+      )
+    })
+    let lastBody = ''
+    await page.route('**/chat/completions', async (route) => {
+      lastBody = route.request().postData() ?? ''
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ choices: [{ message: { content: '林风的经历时间线如下…' } }] }),
+      })
+    })
+    await importBook(page)
+    await page.getByRole('button', { name: '助' }).click()
+    await page.getByRole('button', { name: '开始分析' }).click()
+    await expect(page.getByText(/已分析/)).toBeVisible()
+    // 打开林风实体卡片：静态经历时间线
+    await page.getByRole('button', { name: /林风/ }).first().click()
+    await expect(page.locator('.entity-timeline')).toBeVisible()
+    await expect(page.locator('.tl-item').first()).toBeVisible()
+    // AI 梳理经历 → 结果显示在 AI tab
+    await page.getByRole('button', { name: '✨ AI 梳理经历' }).click()
+    await expect(page.locator('.ai-text')).toContainText('林风的经历时间线如下')
+    expect(lastBody).toContain('经历')
   })
 })

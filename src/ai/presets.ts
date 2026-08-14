@@ -15,8 +15,12 @@ export interface AIProviderConfig {
   baseUrl: string
   /** API Key（本地服务可留空） */
   apiKey: string
-  /** 模型名 */
+  /** 主模型名（复杂剧情任务用） */
   model: string
+  /** 简单任务模型（who/recap/伏笔/自由提问；留空用主模型）——多模型策略降成本 */
+  easyModel?: string
+  /** 摘要任务模型（章节摘要/今日回顾；留空用主模型）——用便宜模型降成本 */
+  summaryModel?: string
   /** 是否启用（列表中选择当前使用的 Provider） */
   enabled: boolean
 }
@@ -94,6 +98,8 @@ export function defaultProviderConfig(id: AIProviderPreset): AIProviderConfig {
     baseUrl: preset.defaultBaseUrl,
     apiKey: '',
     model: preset.defaultModel,
+    easyModel: '',
+    summaryModel: '',
     enabled: false,
   }
 }

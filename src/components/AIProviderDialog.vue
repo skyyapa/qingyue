@@ -81,7 +81,16 @@ function enableAndClose(): void {
           <span>Model</span>
           <input v-model="selected.model" type="text" spellcheck="false" />
         </label>
+        <label class="ai-row">
+          <span>简单任务</span>
+          <input v-model="selected.easyModel" type="text" placeholder="留空用主模型（who/回顾/伏笔等）" spellcheck="false" />
+        </label>
+        <label class="ai-row">
+          <span>摘要任务</span>
+          <input v-model="selected.summaryModel" type="text" placeholder="留空用主模型（章节摘要/今日回顾）" spellcheck="false" />
+        </label>
         <p class="ai-hint">{{ AI_PRESETS[selected.id].hint }}</p>
+        <p class="ai-hint">💡 多模型策略：简单问答与摘要可用更便宜的模型（如 DeepSeek），复杂剧情分析用主模型（如 GPT），降低成本。</p>
 
         <div class="ai-actions">
           <button class="btn" :disabled="testing" @click="runTest">

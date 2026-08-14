@@ -31,6 +31,8 @@ function loadProviders(): AIProviderConfig[] {
       if (typeof item.baseUrl === 'string') cfg.baseUrl = item.baseUrl
       if (typeof item.apiKey === 'string') cfg.apiKey = item.apiKey
       if (typeof item.model === 'string' && item.model.trim()) cfg.model = item.model
+      if (typeof item.easyModel === 'string') cfg.easyModel = item.easyModel
+      if (typeof item.summaryModel === 'string') cfg.summaryModel = item.summaryModel
       if (typeof item.enabled === 'boolean') cfg.enabled = item.enabled
     }
     return cfg
@@ -45,7 +47,15 @@ export const useAIStore = defineStore('ai', () => {
     providers,
     (list) => {
       const save: Record<string, Omit<AIProviderConfig, 'id' | 'label'>> = {}
-      for (const cfg of list) save[cfg.id] = { baseUrl: cfg.baseUrl, apiKey: cfg.apiKey, model: cfg.model, enabled: cfg.enabled }
+      for (const cfg of list)
+        save[cfg.id] = {
+          baseUrl: cfg.baseUrl,
+          apiKey: cfg.apiKey,
+          model: cfg.model,
+          easyModel: cfg.easyModel ?? '',
+          summaryModel: cfg.summaryModel ?? '',
+          enabled: cfg.enabled,
+        }
       localStorage.setItem(STORAGE_KEY, JSON.stringify(save))
     },
     { deep: true }
