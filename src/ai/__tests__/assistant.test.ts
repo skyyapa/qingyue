@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as db from '@/db'
-import { buildTaskMessages, findSnippet, loadKnowledge, runAITask, type KnowledgeSnapshot } from '@/ai/assistant'
+import { buildTaskMessages, findSnippet, loadKnowledge, pickAnchor, planChapterLoads, runAITask, type KnowledgeSnapshot } from '@/ai/assistant'
 import { defaultProviderConfig } from '@/ai/presets'
 import type { BookMeta, ChapterIndex, Entity, Relation } from '@/types'
 
@@ -32,16 +32,23 @@ const snapshot: KnowledgeSnapshot = {
   bookTitle: '测试书',
   entities: [makeEntity('e1', '林夜', 'person'), makeEntity('e2', '落星谷', 'place')],
   indexes: [makeIndex(0, '登场：林夜', ['林夜对苏晚说']), makeIndex(1, '登场：林夜、苏晚', ['林夜与苏晚同行']), makeIndex(2, '登场：苏晚', [])],
-  relations: [{ id: 'r1', bookId: 'b', a: 'e1', b: 'e2', weight: 4 } as Relation],
+  relations: [{ id: 'r1', bookId: 'b', a: 'e1', b: 'e2', weight: 4, chapterWeights: [4] } as Relation],
   chapterCount: 3,
   chapterTitles: ['第1章', '第2章', '第3章'],
-  chapterTexts: ['第一章正文。林夜出现。', '第二章正文。', '第三章正文。'],
   readUpTo: 2,
+  staleData: false,
 }
+
+/** 按需加载的章节正文（测试辅助） */
+const texts = new Map<number, string>([
+  [0, '第一章正文。林夜出现。'],
+  [1, '第二章正文。'],
+  [2, '第三章正文。'],
+])
 
 describe('buildTaskMessages 上下文组装', () => {
   it('who：携带实体信息与例句', () => {
-    const msgs = buildTaskMessages(snapshot, 'who', { entityId: 'e1' })
+    const msgs = buildTaskMessages(snapshot, 'who', { entityId: 'e1' }, texts)
     expect(msgs[0].content).toContain('测试书')
     expect(msgs[1].content).toContain('林夜')
     expect(msgs[1].content).toContain('常共现')
@@ -49,7 +56,7 @@ describe('buildTaskMessages 上下文组装', () => {
   })
 
   it('recap：只取当前章之前的最近章节', () => {
-    const msgs = buildTaskMessages(snapshot, 'recap', { chapterIndex: 2 })
+    const msgs = buildTaskMessages(snapshot, 'recap', { chapterIndex: 2 }, texts)
     expect(msgs[1].content).toContain('第1章')
     expect(msgs[1].content).toContain('第2章')
     expect(msgs[1].content).not.toContain('第3章')
@@ -57,27 +64,27 @@ describe('buildTaskMessages 上下文组装', () => {
   })
 
   it('explain：携带选中文字与当前章上下文', () => {
-    const msgs = buildTaskMessages(snapshot, 'explain', { chapterIndex: 0, text: '这是什么意思' })
+    const msgs = buildTaskMessages(snapshot, 'explain', { chapterIndex: 0, text: '这是什么意思' }, texts)
     expect(msgs[1].content).toContain('这是什么意思')
     expect(msgs[1].content).toContain('登场：林夜')
     expect(msgs[1].content).toContain('林夜对苏晚说')
   })
 
   it('timeline：按章节收集事件', () => {
-    const msgs = buildTaskMessages(snapshot, 'timeline', {})
+    const msgs = buildTaskMessages(snapshot, 'timeline', {}, texts)
     expect(msgs[1].content).toContain('第1章：登场：林夜｜林夜对苏晚说')
     expect(msgs[1].content).toContain('第2章')
   })
 
   it('ask：自由提问携带当前章摘要', () => {
-    const msgs = buildTaskMessages(snapshot, 'ask', { chapterIndex: 1, text: '苏晚的剑法？' })
+    const msgs = buildTaskMessages(snapshot, 'ask', { chapterIndex: 1, text: '苏晚的剑法？' }, texts)
     expect(msgs[1].content).toContain('苏晚的剑法？')
     expect(msgs[1].content).toContain('林夜与苏晚同行')
   })
 
   it('防剧透：system 提示只能使用已读章节，各任务携带当前进度', () => {
     for (const task of ['who', 'recap', 'explain', 'relation', 'world', 'timeline', 'foreshadow', 'summarize', 'ask'] as const) {
-      const msgs = buildTaskMessages({ ...snapshot, readUpTo: 1 }, task, { chapterIndex: 1 })
+      const msgs = buildTaskMessages({ ...snapshot, readUpTo: 1 }, task, { chapterIndex: 1 }, texts)
       expect(msgs[0].content).toContain('防剧透')
       expect(msgs[0].content).toContain('第 1 至第 2 章')
       expect(msgs[0].content).toContain('未读章节')
@@ -88,20 +95,20 @@ describe('buildTaskMessages 上下文组装', () => {
   })
 
   it('who：携带相关章节片段（snippet）', () => {
-    const msgs = buildTaskMessages(snapshot, 'who', { entityId: 'e1', chapterIndex: 0 })
+    const msgs = buildTaskMessages(snapshot, 'who', { entityId: 'e1', chapterIndex: 0 }, texts)
     expect(msgs[1].content).toContain('第1章片段')
     expect(msgs[1].content).toContain('林夜出现')
   })
 
   it('foreshadow：伏笔回顾携带关键句与身份不明实体', () => {
-    const msgs = buildTaskMessages(snapshot, 'foreshadow', { chapterIndex: 2 })
+    const msgs = buildTaskMessages(snapshot, 'foreshadow', { chapterIndex: 2 }, texts)
     expect(msgs[1].content).toContain('伏笔')
     expect(msgs[1].content).toContain('未解之谜')
     expect(msgs[0].content).toContain('防剧透')
   })
 
   it('summarize：章节摘要携带当前章正文', () => {
-    const msgs = buildTaskMessages(snapshot, 'summarize', { chapterIndex: 0 })
+    const msgs = buildTaskMessages(snapshot, 'summarize', { chapterIndex: 0 }, texts)
     expect(msgs[1].content).toContain('概括本章情节')
     expect(msgs[1].content).toContain('林夜出现')
   })
@@ -131,13 +138,11 @@ describe('loadKnowledge 防剧透截断', () => {
     await db.saveRelations([{ id: 'sp:r1', bookId: 'sp', a: 'pe1', b: 'pe2', weight: 3 } as Relation])
   })
 
-  it('读到第 1 章时：未读章节索引/正文/标题全部剔除；未来实体彻底移除，实体计数按已读重建', async () => {
+  it('读到第 1 章时：未读章节索引/标题全部剔除；未来实体彻底移除，实体计数按已读重建', async () => {
     const k = await loadKnowledge('sp', { upTo: 0 })
     expect(k.readUpTo).toBe(0)
     expect(k.indexes.map((i) => i.index)).toEqual([0])
-    expect(k.chapterTexts[2]).toBe('') // 未读正文为空
     expect(k.chapterTitles[2]).toBe('') // 未读标题为空（防剧透）
-    expect(k.chapterTexts[0]).toContain('林夜登场')
     // 第 2 章才出现的苏晚：已读范围内无出现 → 从 entities 彻底剔除（防未来实体名泄漏）
     expect(k.entities.find((e) => e.name === '苏晚')).toBeUndefined()
     // 苏晚被剔除 → 关系也被过滤
@@ -145,17 +150,19 @@ describe('loadKnowledge 防剧透截断', () => {
     // 林夜计数按已读章节 entityCounts 重建
     const lin = k.entities.find((e) => e.name === '林夜')!
     expect(lin.chapters).toEqual([0])
-    expect(lin.samples).toEqual(['例句'])
+    expect(lin.samples).toEqual([]) // 无 sampleChapters 的旧例句严格舍弃
     expect(lin.count).toBe(2) // 第 1 章 entityCounts 计数（pe1: 2）
+    // 正文不预加载：loadKnowledge 无 chapterTexts；由 planChapterLoads 按需决定
+    expect((k as unknown as Record<string, unknown>).chapterTexts).toBeUndefined()
+    expect(planChapterLoads(k, 'who', { entityId: lin.id })).toEqual([0])
   })
 
   it('读到第 2 章时：第 3 章数据仍不可见', async () => {
     const k = await loadKnowledge('sp', { upTo: 1 })
     expect(k.indexes.map((i) => i.index)).toEqual([0, 1])
-    expect(k.chapterTexts[2]).toBe('')
     expect(k.chapterTitles[2]).toBe('')
     const lin = k.entities.find((e) => e.name === '林夜')!
-    expect(lin.samples).toEqual(['例句']) // 「林夜身世揭晓」所在第 3 章未读
+    expect(lin.samples).toEqual([]) // 无 sampleChapters 的旧例句严格舍弃 // 「林夜身世揭晓」所在第 3 章未读
   })
 
   it('关系权重按已读章节重建（chapterWeights 求和）', async () => {
@@ -176,15 +183,26 @@ describe('loadKnowledge 防剧透截断', () => {
     const k2 = await loadKnowledge('sp', { upTo: 1 })
     expect(k2.relations).toHaveLength(1)
     expect(k2.relations[0].weight).toBe(2) // 第 3 章的 10 不计入
+    // 林夜旧例句（无 sampleChapters）同样标记 staleData，提示重新分析
     const k3 = await loadKnowledge('sp', { upTo: 2 })
     expect(k3.relations[0].weight).toBe(12)
   })
 
-  it('旧数据（无 chapterWeights）权重上界截断防泄漏', async () => {
-    // 苏晚第 1 章出现；全书关系权重 30，但已读第 1 章内 min(已读 a, 已读 b) = min(2, 2) = 2
-    await db.saveRelations([{ id: 'sp:r1', bookId: 'sp', a: 'pe1', b: 'pe2', weight: 30 } as Relation])
+  it('严格防剧透：旧关系（无 chapterWeights）直接剔除并标记 staleData', async () => {
+    // beforeEach 保存的是无 chapterWeights 的旧关系
     const k = await loadKnowledge('sp', { upTo: 1 })
-    expect(k.relations[0].weight).toBeLessThanOrEqual(2)
+    expect(k.relations).toHaveLength(0) // 旧关系不传给 AI（不再降级截断）
+    expect(k.staleData).toBe(true) // 提示重新分析
+  })
+
+  it('严格防剧透：旧实体无 sampleChapters 时例句舍弃', async () => {
+    // 林夜无 sampleChapters（makeEntity 默认）→ samples 应被舍弃
+    const k = await loadKnowledge('sp', { upTo: 1 })
+    const lin = k.entities.find((e) => e.name === '林夜')!
+    expect(lin.samples).toEqual([]) // 无出处的旧例句不泄漏
+    // 苏晚有 sampleChapters → 已读内的例句保留
+    const suwan = k.entities.find((e) => e.name === '苏晚')!
+    expect(suwan.samples).toEqual(['第二章例句'])
   })
 
   it('稀疏章节索引：在线书只缓存部分章时按 index 查找', async () => {
@@ -200,7 +218,7 @@ describe('loadKnowledge 防剧透截断', () => {
     )
     const k = await loadKnowledge('sparse', { upTo: 2 })
     expect(k.indexes.map((i) => i.index)).toEqual([0, 2]) // 稀疏
-    const msgs = buildTaskMessages(k, 'explain', { chapterIndex: 2, text: '揭晓' })
+    const msgs = buildTaskMessages(k, 'explain', { chapterIndex: 2, text: '揭晓' }, texts)
     expect(msgs[1].content).toContain('林夜身世揭晓') // 命中第 2 章索引（非数组下标 2 处）
   })
 
@@ -210,8 +228,19 @@ describe('loadKnowledge 防剧透截断', () => {
     expect(snippet).toContain('林夜在此处出现')
     expect(snippet.startsWith('开头无关内容。')).toBe(false) // 不是从章节开头截
     expect(snippet.startsWith('…')).toBe(true)
-    // 无锚点时回退到开头
-    expect(findSnippet('无匹配内容', '不存在的词')).toContain('无匹配内容')
+    // 锚点未匹配 → 返回空串（不硬塞章节开头）
+    expect(findSnippet('无匹配内容', '不存在的词')).toBe('')
+  })
+
+  it('pickAnchor：从自由提问匹配最长实体名作为检索锚点', () => {
+    const entities = [
+      makeEntity('a', '林凡', 'person'),
+      makeEntity('b', '灵剑宗', 'org'),
+      makeEntity('c', '落星谷', 'place'),
+    ]
+    expect(pickAnchor('为什么林凡会突然离开灵剑宗？', entities)).toBe('灵剑宗')
+    expect(pickAnchor('林凡去了哪里', entities)).toBe('林凡')
+    expect(pickAnchor('今天天气不错', entities)).toBeNull() // 无实体 → 不硬塞片段
   })
 })
 

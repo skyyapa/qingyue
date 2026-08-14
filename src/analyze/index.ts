@@ -300,16 +300,18 @@ export async function analyzeBook(bookId: string, cb: AnalyzeCallbacks): Promise
     }
     const extraNames = new Set(aliasToEntityId.keys())
 
-    // ---- 第 3 遍：分类 + 事件 + 章节索引 + 共现 + 例句（逐章读入即弃） ----
+    // ---- 第 3 遍：分类 + 事件 + 章节索引 + 共现 + 例句（逐章读入即弃）
+    // 注意：在线书可能只缓存部分章节，walk 必须携带**真实章节号**，
+    // 后续落库（实体章节/ChapterIndex.index/chapterWeights）一律使用真实章节号
     const globalCounts = new Map<string, number>()
     const globalVotes = new Map<string, Votes>()
     const samples = new Map<string, Sample[]>()
-    const chapterWalks: WalkResult[] = []
+    const chapterWalks: { chapterIndex: number; walk: WalkResult }[] = []
     for (let i = 0; i < chapterCount; i++) {
       const chapter = await db.getChapter(bookId, i)
       if (!chapter) continue
       const walk = walkChapter(chapter.text, candidates, extraNames, graphNames, globalVotes, samples, i)
-      chapterWalks.push(walk)
+      chapterWalks.push({ chapterIndex: i, walk })
       for (const [name, count] of walk.counts) {
         globalCounts.set(name, (globalCounts.get(name) ?? 0) + count)
       }
@@ -330,8 +332,8 @@ export async function analyzeBook(bookId: string, cb: AnalyzeCallbacks): Promise
       const votes = globalVotes.get(name) ?? {}
       const type = decideType(votes)
       const chapters: number[] = []
-      for (let i = 0; i < chapterWalks.length; i++) {
-        if (chapterWalks[i].counts.has(name)) chapters.push(i)
+      for (const { chapterIndex, walk } of chapterWalks) {
+        if (walk.counts.has(name)) chapters.push(chapterIndex)
       }
       const newSamples = samples.get(name) ?? []
 
@@ -407,8 +409,7 @@ export async function analyzeBook(bookId: string, cb: AnalyzeCallbacks): Promise
 
     // ---- 章节索引 ----
     const indexList: ChapterIndex[] = []
-    for (let i = 0; i < chapterWalks.length; i++) {
-      const walk = chapterWalks[i]
+    for (const { chapterIndex, walk } of chapterWalks) {
       const entityCounts: Record<string, number> = {}
       for (const [name, count] of walk.counts) {
         const id = idByName.get(name)
@@ -423,9 +424,9 @@ export async function analyzeBook(bookId: string, cb: AnalyzeCallbacks): Promise
         .slice(0, 3)
         .map(([e]) => e)
       indexList.push({
-        id: `${bookId}:${i}`,
+        id: `${bookId}:${chapterIndex}`,
         bookId,
-        index: i,
+        index: chapterIndex,
         entityCounts,
         topWords,
         summary: buildSummary(walk.counts, nameType, topWords, events),
@@ -436,10 +437,10 @@ export async function analyzeBook(bookId: string, cb: AnalyzeCallbacks): Promise
     if (indexList.length) await db.saveChapterIndexes(indexList)
 
     // ---- 共现关系（仅人物/势力之间，按实体 id 去重合并——别名与原名可能指向同一实体）
-    // 同时记录每章权重（chapterWeights，下标 = 章节号），供防剧透时按已读章节重建 ----
+    // 同时记录每章权重（chapterWeights，下标 = **真实章节号**），供防剧透时按已读章节重建 ----
     const chapterRelMap = new Map<string, number[]>()
-    for (let ci = 0; ci < chapterWalks.length; ci++) {
-      for (const [key, weight] of chapterWalks[ci].cooccur) {
+    for (const { chapterIndex, walk } of chapterWalks) {
+      for (const [key, weight] of walk.cooccur) {
         if (weight < GRAPH_MIN_WEIGHT) continue
         const [na, nb] = key.split('|')
         const ta = nameType.get(na)
@@ -450,7 +451,7 @@ export async function analyzeBook(bookId: string, cb: AnalyzeCallbacks): Promise
         if (!idA || !idB || idA === idB) continue
         const pairKey = idA < idB ? `${idA}|${idB}` : `${idB}|${idA}`
         const arr = chapterRelMap.get(pairKey) ?? []
-        arr[ci] = (arr[ci] ?? 0) + weight
+        arr[chapterIndex] = (arr[chapterIndex] ?? 0) + weight
         chapterRelMap.set(pairKey, arr)
       }
     }

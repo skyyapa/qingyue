@@ -87,7 +87,7 @@ npm run preview    # 预览构建产物
 ```bash
 npm run lint       # ESLint 代码检查
 npm run type-check # TypeScript 类型检查
-npm run test       # 单元测试（Vitest，156 用例：编码检测/EPUB 与 CSS 解析/知识库算法/书源引擎/AI 客户端与任务/数据库/Store/组件/备份/导出/搜索）
+npm run test       # 单元测试（Vitest，159 用例：编码检测/EPUB 与 CSS 解析/知识库算法/书源引擎/AI 客户端与任务/数据库/Store/组件/备份/导出/搜索）
 npm run e2e        # 端到端测试（Playwright 30 用例，首次需 npx playwright install chromium）
 ```
 

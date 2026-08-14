@@ -38,32 +38,32 @@ export interface KnowledgeSnapshot {
   entities: Entity[]
   /** 已读章节索引（稀疏：在线书可能只缓存部分章节，查找需按 index 匹配） */
   indexes: ChapterIndex[]
-  /** 已读范围内的关系（权重已按已读章节重建） */
+  /** 已读范围内的关系（仅含新数据 chapterWeights；权重已按已读章节重建） */
   relations: Relation[]
   chapterCount: number
   /** 已读章节标题（未读章节标题剔除，防剧透；下标 = 章节号） */
   chapterTitles: string[]
-  /** 已读章节完整正文（未读章节为空串；下标 = 章节号） */
-  chapterTexts: string[]
   /** 防剧透边界：允许使用的最大章节号（含） */
   readUpTo: number
+  /** 存在旧版数据（无每章权重的关系 / 无出处例句）——严格防剧透下已剔除，提示重新分析 */
+  staleData: boolean
 }
 
 /** 读取知识库：按已读边界（readUpTo）真正重建——
- *  未来实体剔除、实体计数按已读章节求和、关系权重按已读章节重建、未读正文/标题剔除 */
+ *  未来实体剔除、实体计数按已读章节求和、关系权重按已读章节重建；
+ *  章节正文**不在此加载**（按需由 planChapterLoads + getChapter 懒加载） */
 export async function loadKnowledge(
   bookId: string,
   opts: { upTo?: number } = {}
 ): Promise<KnowledgeSnapshot> {
   const { upTo } = opts
   const meta = await db.getBookMeta(bookId)
-  const [entities, indexes, relations, chapters] = await Promise.all([
+  const [entities, indexes, relations] = await Promise.all([
     db.listEntities(bookId),
     db.listChapterIndexes(bookId),
     db.listRelations(bookId),
-    db.listChapters(bookId),
   ])
-  const chapterCount = meta?.chapterCount ?? chapters.length
+  const chapterCount = meta?.chapterCount ?? 0
   const readUpTo = upTo === undefined ? Math.max(0, chapterCount - 1) : Math.min(upTo, chapterCount - 1)
 
   const readIndexes = [...indexes].filter((idx) => idx.index <= readUpTo).sort((a, b) => a.index - b.index)
@@ -75,48 +75,42 @@ export async function loadKnowledge(
       readCounts.set(id, (readCounts.get(id) ?? 0) + n)
     }
   }
-  // 未来章节才出现的实体彻底剔除（手动/锁定实体保留）
+  // 例句严格防剧透：无出处（旧数据无 sampleChapters）的例句直接舍弃
+  let staleData = false
   const readEntities = entities
-    .map((e) => ({
-      ...e,
-      chapters: e.chapters.filter((c) => c <= readUpTo),
-      count: readCounts.get(e.id) ?? 0,
-      samples: e.sampleChapters
-        ? e.samples.filter((_, i) => (e.sampleChapters?.[i] ?? 0) <= readUpTo)
-        : e.samples,
-    }))
+    .map((e) => {
+      let samples = e.samples
+      if (e.sampleChapters) {
+        samples = e.samples.filter((_, i) => (e.sampleChapters?.[i] ?? 0) <= readUpTo)
+      } else if (e.samples.length > 0) {
+        samples = [] // 旧数据例句无出处 → 舍弃，避免泄漏未读章节内容
+        staleData = true
+      }
+      return {
+        ...e,
+        chapters: e.chapters.filter((c) => c <= readUpTo),
+        count: readCounts.get(e.id) ?? 0,
+        samples,
+      }
+    })
     .filter((e) => e.chapters.length > 0 || e.custom || e.locked)
 
-  // 关系：两端实体在已读章节仍有出现才保留；权重按已读章节重建
+  // 关系严格防剧透：只有带 chapterWeights 的新数据才可安全按已读重建；
+  // 旧数据无法证明某对关系发生在已读章节 → 不传给 AI（提示重新分析）
   const readIds = new Set(readEntities.filter((e) => e.chapters.length > 0).map((e) => e.id))
-  const readRelations = relations
-    .filter((r) => readIds.has(r.a) && readIds.has(r.b))
-    .map((r) => {
-      if (r.chapterWeights) {
-        // 新数据：已读章节权重求和
-        let w = 0
-        for (let c = 0; c <= readUpTo && c < r.chapterWeights.length; c++) w += r.chapterWeights[c] ?? 0
-        return { ...r, weight: w }
-      }
-      // 旧数据（无每章权重）：上界截断——每章共现 ≤ min(该章 a, 该章 b)，已读和 ≤ min(已读 a, 已读 b)
-      const a = readCounts.get(r.a) ?? 0
-      const b = readCounts.get(r.b) ?? 0
-      return { ...r, weight: Math.min(r.weight, Math.min(a, b)) }
-    })
+  const readRelations: Relation[] = []
+  for (const r of relations) {
+    if (!readIds.has(r.a) || !readIds.has(r.b)) continue
+    if (!r.chapterWeights) {
+      staleData = true
+      continue // 旧关系无每章权重 → 剔除
+    }
+    let w = 0
+    for (let c = 0; c <= readUpTo && c < r.chapterWeights.length; c++) w += r.chapterWeights[c] ?? 0
+    readRelations.push({ ...r, weight: w })
+  }
 
   const titles = (meta?.chapterTitles ?? []).map((t, i) => (i <= readUpTo ? t : ''))
-  const cleanText = (text: string) =>
-    text
-      .replace(/\[\/?[biu]\]/g, '')
-      .replace(/\[img:\d+\]/g, '')
-      .replace(/\s+/g, ' ')
-      .trim()
-  const textByIndex = new Map(chapters.map((c) => [c.index, c.text]))
-  const chapterTexts: string[] = []
-  for (let i = 0; i < chapterCount; i++) {
-    const raw = i <= readUpTo ? textByIndex.get(i) ?? '' : ''
-    chapterTexts.push(cleanText(raw)) // 完整正文（检索时按需截取）
-  }
 
   return {
     bookTitle: meta?.title ?? '本书',
@@ -125,19 +119,56 @@ export async function loadKnowledge(
     relations: readRelations,
     chapterCount,
     chapterTitles: titles,
-    chapterTexts,
     readUpTo,
+    staleData,
   }
 }
 
-/** 在章节完整正文中定位锚点（实体名/选中文字），截取前后片段 */
+/** 按任务确定需要加载正文的章节（按需懒加载，避免全量拉取章节） */
+export function planChapterLoads(k: KnowledgeSnapshot, task: AITask, params: AITaskParams): number[] {
+  switch (task) {
+    case 'who':
+    case 'relation': {
+      const e = k.entities.find((x) => x.id === params.entityId)
+      return e ? e.chapters.slice(0, 2) : []
+    }
+    case 'explain':
+    case 'ask':
+    case 'summarize':
+      return [params.chapterIndex ?? 0]
+    default:
+      return []
+  }
+}
+
+/** 清洗章节正文（标记/图片占位符/空白） */
+function cleanText(text: string): string {
+  return text
+    .replace(/\[\/?[biu]\]/g, '')
+    .replace(/\[img:\d+\]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/** 在章节完整正文中定位锚点（实体名/选中文字），截取前后片段；无锚点/未匹配返回空串 */
 export function findSnippet(chapterText: string, anchor: string, before = 160, after = 280): string {
-  if (!chapterText) return ''
+  if (!chapterText || !anchor) return ''
   const idx = chapterText.indexOf(anchor)
-  if (idx < 0) return chapterText.slice(0, before + after)
+  if (idx < 0) return ''
   const start = Math.max(0, idx - before)
   const end = Math.min(chapterText.length, idx + anchor.length + after)
   return `${start > 0 ? '…' : ''}${chapterText.slice(start, end)}${end < chapterText.length ? '…' : ''}`
+}
+
+/** 从自由提问中挑选最长实体名作为检索锚点（匹配不到返回 null，不硬塞章节开头） */
+export function pickAnchor(question: string, entities: Entity[]): string | null {
+  let best: string | null = null
+  for (const e of entities) {
+    if (e.name.length >= 2 && question.includes(e.name)) {
+      if (!best || e.name.length > best.length) best = e.name
+    }
+  }
+  return best
 }
 
 /** 截断列表到上限 */
@@ -145,8 +176,13 @@ function take<T>(list: T[], n: number): T[] {
   return list.slice(0, n)
 }
 
-/** 实体 → 上下文文本块（withSnippet 时附带相关章节片段） */
-function entityBlock(k: KnowledgeSnapshot, id: string, withSnippet = false): string {
+/** 实体 → 上下文文本块（withSnippet 时附带相关章节片段，正文来自按需加载的 Map） */
+function entityBlock(
+  k: KnowledgeSnapshot,
+  id: string,
+  chapterTexts: Map<number, string>,
+  withSnippet = false
+): string {
   const e = k.entities.find((x) => x.id === id)
   if (!e) return ''
   const co = k.relations
@@ -175,27 +211,32 @@ function entityBlock(k: KnowledgeSnapshot, id: string, withSnippet = false): str
   if (withSnippet) {
     // 相关章节片段：实体出现的前 2 章，在完整正文中定位实体名附近截取
     for (const cn of e.chapters.slice(0, 2)) {
-      const snippet = findSnippet(k.chapterTexts[cn] ?? '', e.name)
+      const snippet = findSnippet(chapterTexts.get(cn) ?? '', e.name)
       if (snippet) lines.push(`第${cn + 1}章片段：${snippet}`)
     }
   }
   return lines.join('\n')
 }
 
-/** 防剧透系统提示（所有任务共用） */
+/** 防剧透系统提示（所有任务共用；存在旧版数据时提示重新分析） */
 function systemPrompt(k: KnowledgeSnapshot): string {
+  const stale = k.staleData
+    ? '\n注意：部分关系/例句来自旧版分析（缺少按章数据），已被严格排除；建议用户重新分析知识库以获得更准确回答。'
+    : ''
   return (
     `你是小说《${k.bookTitle}》的资深读者和文学分析助手。根据提供的知识库信息回答问题，用简体中文，简洁准确，不要编造书中没有的信息；回答不超过 200 字。` +
     `\n**防剧透规则**：你只能基于已读章节（第 1 至第 ${k.readUpTo + 1} 章）的信息回答；` +
-    `如果答案涉及未读章节的内容，请直接说明「该信息涉及未读章节」，绝不透露任何未读情节。`
+    `如果答案涉及未读章节的内容，请直接说明「该信息涉及未读章节」，绝不透露任何未读情节。${stale}`
   )
 }
 
-/** 按任务组装系统提示与用户消息（纯函数，可单测） */
+/** 按任务组装系统提示与用户消息（纯函数，可单测）
+ *  chapterTexts：按需加载的章节正文（章节号 → 清洗后全文），由 runAITask 传入 */
 export function buildTaskMessages(
   k: KnowledgeSnapshot,
   task: AITask,
-  params: AITaskParams
+  params: AITaskParams,
+  chapterTexts: Map<number, string> = new Map()
 ): ChatMessage[] {
   const system = systemPrompt(k)
   const progress = `当前读到第 ${(params.chapterIndex ?? 0) + 1} 章。`
@@ -204,7 +245,7 @@ export function buildTaskMessages(
   switch (task) {
     case 'who': {
       const e = k.entities.find((x) => x.id === params.entityId)
-      const block = e ? entityBlock(k, e.id, true) : ''
+      const block = e ? entityBlock(k, e.id, chapterTexts, true) : ''
       const sel = params.text ? `用户选中文字：「${params.text}」` : ''
       return [
         { role: 'system', content: system },
@@ -232,21 +273,21 @@ export function buildTaskMessages(
       const idx = params.chapterIndex ?? 0
       const current = k.indexes.find((x) => x.index === idx)
       const text = params.text ?? ''
-      const chapter = k.chapterTexts[idx] ?? ''
+      const chapter = chapterTexts.get(idx) ?? ''
       const ev = (current?.events ?? []).join('；')
-      // 定位到选中文字附近（而非章节开头）
-      const snippet = text ? findSnippet(chapter, text) : chapter.slice(0, 500)
+      // 定位到选中文字附近（匹配不到不硬塞章节开头）
+      const snippet = text ? findSnippet(chapter, text) : ''
       return [
         { role: 'system', content: system },
         {
           role: 'user',
-          content: `${progress}请解释这段剧情/这句话的含义与背景。\n选中文字：「${text}」\n当前章节摘要：${current?.summary ?? '无'}${ev ? `\n本章事件：${ev}` : ''}\n章节片段：${snippet}`,
+          content: `${progress}请解释这段剧情/这句话的含义与背景。\n选中文字：「${text}」\n当前章节摘要：${current?.summary ?? '无'}${ev ? `\n本章事件：${ev}` : ''}${snippet ? `\n章节片段：${snippet}` : ''}`,
         },
       ]
     }
     case 'relation': {
       const e = k.entities.find((x) => x.id === params.entityId)
-      const block = e ? entityBlock(k, e.id, true) : ''
+      const block = e ? entityBlock(k, e.id, chapterTexts, true) : ''
       return [
         { role: 'system', content: system },
         { role: 'user', content: `${progress}请梳理「${e?.name ?? '该人物'}」与他人的关系（师徒/盟友/对手/同门等，如能判断），以及他在当前故事中的位置。\n${book}\n${block || '知识库信息有限，请谨慎回答。'}` },
@@ -257,7 +298,7 @@ export function buildTaskMessages(
       const places = take(k.entities.filter((x) => x.type === 'place').slice(0, 8), 8)
       const orgs = take(k.entities.filter((x) => x.type === 'org').slice(0, 8), 8)
       const realms = take(k.entities.filter((x) => x.type === 'realm').slice(0, 10), 10)
-      const block = e ? entityBlock(k, e.id) : ''
+      const block = e ? entityBlock(k, e.id, chapterTexts) : ''
       return [
         { role: 'system', content: system },
         {
@@ -299,7 +340,7 @@ export function buildTaskMessages(
     }
     case 'summarize': {
       const idx = params.chapterIndex ?? 0
-      const chapter = k.chapterTexts[idx] ?? ''
+      const chapter = chapterTexts.get(idx) ?? ''
       const ev = (k.indexes.find((x) => x.index === idx)?.events ?? []).join('；')
       return [
         { role: 'system', content: system },
@@ -312,10 +353,11 @@ export function buildTaskMessages(
     case 'ask': {
       const idx = params.chapterIndex ?? 0
       const current = k.indexes.find((x) => x.index === idx)
-      const chapter = k.chapterTexts[idx] ?? ''
-      // 自由提问：问题可能引用正文内容，尝试定位提问关键词附近
+      const chapter = chapterTexts.get(idx) ?? ''
       const q = params.text ?? ''
-      const snippet = q ? findSnippet(chapter, q.slice(0, 12)) : ''
+      // 自由提问：从问题中匹配最长实体名作为锚点；匹配不到不硬塞章节开头
+      const anchor = pickAnchor(q, k.entities)
+      const snippet = anchor ? findSnippet(chapter, anchor) : ''
       return [
         { role: 'system', content: system },
         {
@@ -327,7 +369,7 @@ export function buildTaskMessages(
   }
 }
 
-/** 执行 AI 任务：进度感知知识库上下文（防剧透）→ chat 请求 → 返回回答 */
+/** 执行 AI 任务：进度感知知识库上下文（防剧透）→ 按需加载相关章节正文 → chat 请求 */
 export async function runAITask(
   cfg: AIProviderConfig,
   bookId: string,
@@ -335,6 +377,15 @@ export async function runAITask(
   params: AITaskParams
 ): Promise<string> {
   const knowledge = await loadKnowledge(bookId, { upTo: params.chapterIndex ?? 0 })
-  const messages = buildTaskMessages(knowledge, task, params)
+  // 真正按需：只加载任务需要的那几章（不整本书拉进内存）
+  const loads = planChapterLoads(knowledge, task, params)
+  const chapterTexts = new Map<number, string>()
+  await Promise.all(
+    loads.map(async (ci) => {
+      const chapter = await db.getChapter(bookId, ci)
+      if (chapter) chapterTexts.set(ci, cleanText(chapter.text))
+    })
+  )
+  const messages = buildTaskMessages(knowledge, task, params, chapterTexts)
   return chatCompletion(cfg, messages)
 }

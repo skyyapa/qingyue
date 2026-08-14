@@ -442,6 +442,26 @@ src/
 - 版本 v1.2.0（AI 阅读助手 + 防剧透主题）
 - 回归全绿：type-check/lint/test(156)/e2e(30)/build
 
+**迭代 27 —— 严格防剧透 + 真正按需检索（架构可靠）（待提交）**
+- **在线书稀疏章节索引修复（最高优先级）**：`chapterWalks` 改为携带真实
+  `chapterIndex`（`{ chapterIndex, walk }`），实体出现章节 / ChapterIndex.index /
+  chapterWeights 下标全部使用真实章节号——在线书只缓存 0/2/4 章时不再被分析成
+  0/1/2 章（防剧透边界随之正确）
+- **严格防剧透（去掉不安全降级）**：
+  - 旧关系（无 chapterWeights）**不再上界截断，直接剔除**（无法证明关系发生在
+    已读章节 → 不传给 AI），并标记 staleData
+  - 旧实体无 sampleChapters → 例句**直接舍弃**（无出处的例句可能来自未读章节）
+  - `staleData` 进系统提示：告知 AI 数据受限并建议用户重新分析知识库
+- **真正按需正文加载**：`loadKnowledge` 不再 `listChapters` 全量拉取全书正文
+  （200MB 大书不再整本进内存）；新增 `planChapterLoads` 按任务确定所需章节 →
+  `db.getChapter` 逐章懒加载 → `buildTaskMessages` 收 `Map<章节号, 正文>`
+- **自由提问锚点改进**：`pickAnchor` 从问题匹配最长实体名作检索锚点；
+  匹配不到不硬塞章节开头（findSnippet 未匹配返回空串）
+- 单测 +3（159）：稀疏缓存 0/2/4 章分析（真实章节号/权重下标）、旧关系剔除 +
+  staleData、旧例句舍弃、pickAnchor 最长实体匹配
+- 回归全绿：type-check/lint/test(159)/e2e(30)/build
+- 至此「AI 防剧透阅读助手」从功能可用进入架构可靠阶段
+
 ## 未完成任务
 
 - [ ] 语义级事件提取（三年之约）——需 LLM，v1 用章节实体快照替代

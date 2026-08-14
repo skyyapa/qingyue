@@ -183,4 +183,36 @@ describe('analyzeBook 分析管线', () => {
     expect(indexes).toHaveLength(5)
     expect(indexes.map((i) => i.index)).toEqual([0, 1, 2, 3, 4])
   })
+
+  it('稀疏缓存（在线书只缓存 0/2/4 章）：实体章节/索引/chapterWeights 用真实章节号', async () => {
+    const meta = makeBook('bs')
+    meta.source = 'web'
+    meta.webInfo = {
+      sourceId: 'demo',
+      sourceName: '演示',
+      bookUrl: 'http://demo.example/book',
+      chapterUrls: CHAPTERS.map((_, i) => `http://demo.example/${i}`),
+    }
+    await db.addBook(meta)
+    // 只缓存第 0、2、4 章（稀疏）
+    await db.saveChapters(
+      [0, 2, 4].map((i) => ({ id: `bs:${i}`, bookId: 'bs', index: i, title: `第${i + 1}章`, text: CHAPTERS[i] }))
+    )
+    await analyzeBook('bs', { onProgress: () => {} })
+
+    // 章节索引必须是真实章节号（而非数组下标 0/1/2）
+    const indexes = await db.listChapterIndexes('bs')
+    expect(indexes.map((x) => x.index)).toEqual([0, 2, 4])
+    // 实体出现章节同样是真实章节号
+    const lin = (await db.listEntities('bs')).find((e) => e.name === '林夜')!
+    expect(lin.chapters).toEqual([0, 2, 4])
+    // chapterWeights 下标对齐真实章节号（第 0/2/4 章有共现权重）
+    const relations = await db.listRelations('bs')
+    for (const r of relations) {
+      expect(r.chapterWeights?.[0]).toBeGreaterThan(0)
+      expect(r.chapterWeights?.[1] ?? 0).toBe(0) // 未缓存第 1 章无数据
+      expect(r.chapterWeights?.[2]).toBeGreaterThan(0)
+      expect(r.chapterWeights?.[4]).toBeGreaterThan(0)
+    }
+  })
 })
