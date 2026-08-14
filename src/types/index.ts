@@ -174,6 +174,8 @@ export interface Relation {
   a: string
   b: string
   weight: number
+  /** 每章共现权重（数组下标 = 章节号；旧数据缺失——防剧透时按已读实体次数上界截断） */
+  chapterWeights?: number[]
 }
 
 /** 全书知识库分析状态（存于 BookMeta.analysis） */

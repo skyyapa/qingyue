@@ -62,11 +62,13 @@ test.describe('AI Provider', () => {
     await page.locator('.ai-input-row input').fill('林风')
     await page.getByRole('button', { name: '这是谁' }).click()
     await expect(page.locator('.ai-text')).toContainText('林风是序章出场的少年')
-    // 请求体防剧透：含防剧透指令与进度，且不含未读章节（第二章）标题
+    // 请求体防剧透：含防剧透指令与进度，且不含未读章节数据
     expect(lastBody).toContain('防剧透')
     expect(lastBody).toContain('第 1 至第 1 章')
     expect(lastBody).not.toContain('第二章')
     expect(lastBody).not.toContain('江湖雨剑谱') // 第一章内容不可见
+    expect(lastBody).not.toContain('苏瑶') // 未来章节才出现的实体名不入上下文
+    expect(lastBody).not.toContain('黑衣人')
   })
 
   test('阅读助手 AI tab：未配置时显示引导', async ({ page }) => {

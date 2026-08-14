@@ -4,7 +4,7 @@ import * as db from '@/db'
 import { analyzeBook } from '@/analyze'
 import { genId } from '@/utils/id'
 import { useBooksStore } from './books'
-import type { Entity, EntityType } from '@/types'
+import type { Entity, EntityType, Relation } from '@/types'
 
 /** 运行中的分析任务：bookId → 进度 */
 export interface RunningTask {
@@ -148,7 +148,7 @@ export const useAnalysisStore = defineStore('analysis', () => {
     }
   }
 
-  /** 引用改写（合并实体时 target → base） */
+  /** 引用改写（合并实体时 target → base；同端关系按章权重合并） */
   async function rewriteReferences(bookId: string, fromId: string, toId: string): Promise<void> {
     const [indexes, relations] = await Promise.all([db.listChapterIndexes(bookId), db.listRelations(bookId)])
     let changed = false
@@ -159,18 +159,29 @@ export const useAnalysisStore = defineStore('analysis', () => {
         changed = true
       }
     }
-    const kept: typeof relations = []
+    // 引用改写 + 同端关系合并（含每章权重逐章相加）
+    const merged = new Map<string, Relation>()
     for (const r of relations) {
-      if (r.a === fromId) {
-        r.a = toId
+      const a = r.a === fromId ? toId : r.a
+      const b = r.b === fromId ? toId : r.b
+      if (a === b) {
         changed = true
+        continue
       }
-      if (r.b === fromId) {
-        r.b = toId
+      const key = a < b ? `${a}|${b}` : `${b}|${a}`
+      const cur = merged.get(key)
+      if (cur) {
         changed = true
+        cur.weight += r.weight
+        const n = Math.max(cur.chapterWeights?.length ?? 0, r.chapterWeights?.length ?? 0)
+        const cw: number[] = Array.from({ length: n }, (_, i) => (cur.chapterWeights?.[i] ?? 0) + (r.chapterWeights?.[i] ?? 0))
+        cur.chapterWeights = cw
+      } else {
+        merged.set(key, { ...r, a, b, weight: r.weight })
+        if (r.a === fromId || r.b === fromId) changed = true
       }
-      if (r.a !== r.b) kept.push(r)
     }
+    const kept = [...merged.values()]
     if (changed) {
       if (indexes.length) await db.saveChapterIndexes(indexes)
       await db.replaceRelations(bookId, kept)

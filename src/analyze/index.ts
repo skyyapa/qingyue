@@ -435,10 +435,11 @@ export async function analyzeBook(bookId: string, cb: AnalyzeCallbacks): Promise
     }
     if (indexList.length) await db.saveChapterIndexes(indexList)
 
-    // ---- 共现关系（仅人物/势力之间，按实体 id 去重合并——别名与原名可能指向同一实体） ----
-    const relMapById = new Map<string, Relation>()
-    for (const walk of chapterWalks) {
-      for (const [key, weight] of walk.cooccur) {
+    // ---- 共现关系（仅人物/势力之间，按实体 id 去重合并——别名与原名可能指向同一实体）
+    // 同时记录每章权重（chapterWeights，下标 = 章节号），供防剧透时按已读章节重建 ----
+    const chapterRelMap = new Map<string, number[]>()
+    for (let ci = 0; ci < chapterWalks.length; ci++) {
+      for (const [key, weight] of chapterWalks[ci].cooccur) {
         if (weight < GRAPH_MIN_WEIGHT) continue
         const [na, nb] = key.split('|')
         const ta = nameType.get(na)
@@ -448,12 +449,24 @@ export async function analyzeBook(bookId: string, cb: AnalyzeCallbacks): Promise
         const idB = idByName.get(nb)
         if (!idA || !idB || idA === idB) continue
         const pairKey = idA < idB ? `${idA}|${idB}` : `${idB}|${idA}`
-        const cur = relMapById.get(pairKey)
-        if (cur) cur.weight += weight
-        else relMapById.set(pairKey, { id: `${bookId}:${pairKey}`, bookId, a: idA, b: idB, weight })
+        const arr = chapterRelMap.get(pairKey) ?? []
+        arr[ci] = (arr[ci] ?? 0) + weight
+        chapterRelMap.set(pairKey, arr)
       }
     }
-    const relations = [...relMapById.values()].sort((x, y) => y.weight - x.weight)
+    const relations: Relation[] = []
+    for (const [pairKey, weights] of chapterRelMap) {
+      const [idA, idB] = pairKey.split('|')
+      relations.push({
+        id: `${bookId}:${pairKey}`,
+        bookId,
+        a: idA,
+        b: idB,
+        weight: weights.reduce((a, b) => a + b, 0),
+        chapterWeights: weights,
+      })
+    }
+    relations.sort((x, y) => y.weight - x.weight)
     if (relations.length > MAX_RELATIONS) relations.length = MAX_RELATIONS
     // 整体替换：旧分析残留的关系（实体已删除/被忽略后不再生成）一并清除
     await db.replaceRelations(bookId, relations)

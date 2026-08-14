@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as db from '@/db'
-import { buildTaskMessages, loadKnowledge, runAITask, type KnowledgeSnapshot } from '@/ai/assistant'
+import { buildTaskMessages, findSnippet, loadKnowledge, runAITask, type KnowledgeSnapshot } from '@/ai/assistant'
 import { defaultProviderConfig } from '@/ai/presets'
 import type { BookMeta, ChapterIndex, Entity, Relation } from '@/types'
 
@@ -125,25 +125,28 @@ describe('loadKnowledge 防剧透截断', () => {
         ...x,
         bookId: 'sp',
         id: `sp:${x.index}`,
+        entityCounts: { pe1: 2 },
       }))
     )
     await db.saveRelations([{ id: 'sp:r1', bookId: 'sp', a: 'pe1', b: 'pe2', weight: 3 } as Relation])
   })
 
-  it('读到第 1 章时：未读章节索引/正文/标题全部剔除，实体与关系只保留已读', async () => {
+  it('读到第 1 章时：未读章节索引/正文/标题全部剔除；未来实体彻底移除，实体计数按已读重建', async () => {
     const k = await loadKnowledge('sp', { upTo: 0 })
     expect(k.readUpTo).toBe(0)
     expect(k.indexes.map((i) => i.index)).toEqual([0])
     expect(k.chapterTexts[2]).toBe('') // 未读正文为空
     expect(k.chapterTitles[2]).toBe('') // 未读标题为空（防剧透）
     expect(k.chapterTexts[0]).toContain('林夜登场')
-    // 实体：第 2 章才出现的苏晚无已读出现 → 关系被过滤
-    const suwan = k.entities.find((e) => e.name === '苏晚')!
-    expect(suwan.chapters).toEqual([])
+    // 第 2 章才出现的苏晚：已读范围内无出现 → 从 entities 彻底剔除（防未来实体名泄漏）
+    expect(k.entities.find((e) => e.name === '苏晚')).toBeUndefined()
+    // 苏晚被剔除 → 关系也被过滤
     expect(k.relations).toHaveLength(0)
-    // 林夜的例句只保留已读部分
+    // 林夜计数按已读章节 entityCounts 重建
     const lin = k.entities.find((e) => e.name === '林夜')!
+    expect(lin.chapters).toEqual([0])
     expect(lin.samples).toEqual(['例句'])
+    expect(lin.count).toBe(2) // 第 1 章 entityCounts 计数（pe1: 2）
   })
 
   it('读到第 2 章时：第 3 章数据仍不可见', async () => {
@@ -153,6 +156,62 @@ describe('loadKnowledge 防剧透截断', () => {
     expect(k.chapterTitles[2]).toBe('')
     const lin = k.entities.find((e) => e.name === '林夜')!
     expect(lin.samples).toEqual(['例句']) // 「林夜身世揭晓」所在第 3 章未读
+  })
+
+  it('关系权重按已读章节重建（chapterWeights 求和）', async () => {
+    // 第 1 章共现 2、第 3 章共现 10 → 读到第 1 章权重应只有 2（覆盖 beforeEach 的同 id 关系）
+    const r: Relation = {
+      id: 'sp:r1',
+      bookId: 'sp',
+      a: 'pe1',
+      b: 'pe2',
+      weight: 12,
+      chapterWeights: [2, 0, 10],
+    }
+    await db.saveRelations([r])
+    const k1 = await loadKnowledge('sp', { upTo: 0 })
+    // 苏晚（pe2）第 2 章才出现 → 已读第 1 章无出现 → 关系被剔除
+    expect(k1.relations).toHaveLength(0)
+    // 苏晚在第 1 章出现后（upTo=1），关系权重 = 已读章求和 2
+    const k2 = await loadKnowledge('sp', { upTo: 1 })
+    expect(k2.relations).toHaveLength(1)
+    expect(k2.relations[0].weight).toBe(2) // 第 3 章的 10 不计入
+    const k3 = await loadKnowledge('sp', { upTo: 2 })
+    expect(k3.relations[0].weight).toBe(12)
+  })
+
+  it('旧数据（无 chapterWeights）权重上界截断防泄漏', async () => {
+    // 苏晚第 1 章出现；全书关系权重 30，但已读第 1 章内 min(已读 a, 已读 b) = min(2, 2) = 2
+    await db.saveRelations([{ id: 'sp:r1', bookId: 'sp', a: 'pe1', b: 'pe2', weight: 30 } as Relation])
+    const k = await loadKnowledge('sp', { upTo: 1 })
+    expect(k.relations[0].weight).toBeLessThanOrEqual(2)
+  })
+
+  it('稀疏章节索引：在线书只缓存部分章时按 index 查找', async () => {
+    // 新书只存第 0、2 章索引（模拟在线书稀疏缓存）
+    await db.addBook(makeMeta('sparse'))
+    await db.saveChapterIndexes(
+      [makeIndex(0, '登场：林夜', ['林夜登场']), makeIndex(2, '登场：林夜', ['林夜身世揭晓'])].map((x) => ({
+        ...x,
+        bookId: 'sparse',
+        id: `sparse:${x.index}`,
+        entityCounts: { pe1: 2 },
+      }))
+    )
+    const k = await loadKnowledge('sparse', { upTo: 2 })
+    expect(k.indexes.map((i) => i.index)).toEqual([0, 2]) // 稀疏
+    const msgs = buildTaskMessages(k, 'explain', { chapterIndex: 2, text: '揭晓' })
+    expect(msgs[1].content).toContain('林夜身世揭晓') // 命中第 2 章索引（非数组下标 2 处）
+  })
+
+  it('findSnippet：锚点定位截取而非章节开头', () => {
+    const text = '开头无关内容。'.repeat(30) + '林夜在此处出现，后续内容。'
+    const snippet = findSnippet(text, '林夜在此处出现')
+    expect(snippet).toContain('林夜在此处出现')
+    expect(snippet.startsWith('开头无关内容。')).toBe(false) // 不是从章节开头截
+    expect(snippet.startsWith('…')).toBe(true)
+    // 无锚点时回退到开头
+    expect(findSnippet('无匹配内容', '不存在的词')).toContain('无匹配内容')
   })
 })
 
