@@ -85,20 +85,39 @@ async function doOnlineSearch(): Promise<void> {
   searching.value = true
   searchError.value = ''
   onlineResults.value = []
-  const settled = await Promise.allSettled(sources.map((s) => searchSource(s, q)))
-  const results: SearchResult[] = []
-  for (const r of settled) {
-    if (r.status === 'fulfilled') results.push(...r.value)
-  }
+  // 整体限时：慢书源/失效代理不拖累整体搜索（各源自身还有 requester 的 15s 超时）
+  const { results, failures } = await searchWithTimeout(sources, q, 8000)
   onlineResults.value = results.slice(0, 30)
   if (results.length === 0) {
-    const failures = settled.filter((r) => r.status === 'rejected') as PromiseRejectedResult[]
     searchError.value =
-      failures.length === settled.length && failures.length > 0
-        ? `全部书源请求失败：${failures[0].reason?.message ?? '未知错误'}`
+      failures.length === sources.length && failures.length > 0
+        ? `全部书源请求失败：${failures[0] ?? '未知错误'}`
         : '没有匹配的书籍'
   }
   searching.value = false
+}
+
+/** 并行搜索并整体限时：超过时限未返回的书源结果丢弃（不影响其他源展示） */
+async function searchWithTimeout(
+  sources: ReturnType<typeof getEnabledSources>,
+  q: string,
+  limitMs: number
+): Promise<{ results: SearchResult[]; failures: string[] }> {
+  const tasks = sources.map((s) =>
+    Promise.race([
+      searchSource(s, q).catch((e) => ({ error: e instanceof Error ? e.message : String(e) })),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), limitMs)),
+    ])
+  )
+  const settled = await Promise.all(tasks)
+  const results: SearchResult[] = []
+  const failures: string[] = []
+  settled.forEach((r, i) => {
+    if (Array.isArray(r)) results.push(...r)
+    else if (r === null) failures.push(`书源「${sources[i].name}」请求超时`)
+    else if (r && typeof r === 'object' && 'error' in r) failures.push(`书源「${sources[i].name}」：${r.error}`)
+  })
+  return { results, failures }
 }
 
 async function addWebBook(result: SearchResult): Promise<void> {

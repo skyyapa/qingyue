@@ -5,9 +5,28 @@ export interface BookSource {
   /** 站点根地址；为空表示同源（相对路径直连，无需代理） */
   baseUrl: string
   enabled: boolean
+  /** html=解析 HTML（CSS 选择器）；json=解析 JSON 接口（JSONPath，如 $.data 列表） */
+  format?: 'html' | 'json'
   search?: SearchRule
   chapters?: ChaptersRule
   content?: ContentRule
+}
+
+/** JSONPath 提取：`$.data` 取字段，`$.data[0].name` 按下标/字段逐级取值 */
+export function jsonPath(root: unknown, path: string): unknown {
+  const p = path.trim()
+  if (!p.startsWith('$')) return undefined
+  const steps = p
+    .slice(1)
+    .replace(/\[['"]?(\w+)['"]?\]/g, '.$1')
+    .split('.')
+    .filter(Boolean)
+  let cur: unknown = root
+  for (const step of steps) {
+    if (cur === null || cur === undefined) return undefined
+    cur = (cur as Record<string, unknown>)[step]
+  }
+  return cur
 }
 
 export interface SearchRule {

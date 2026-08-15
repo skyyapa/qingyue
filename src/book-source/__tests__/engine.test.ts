@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from 'vitest'
-import { extractField, fetchChapters, fetchContent, renderTemplate, resolveExtracted, searchSource, MAX_TOC_PAGES, MAX_CONTENT_PAGES } from '../engine'
-import { DEMO_SOURCE } from '../store'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { extractField, fetchChapters, fetchContent, renderTemplate, resolveExtracted, searchSource, jsonPath, jsonField, renderJsonTemplate, MAX_TOC_PAGES, MAX_CONTENT_PAGES } from '../engine'
+import { DEMO_SOURCE, KUWO_SOURCE } from '../store'
 import type { BookSource } from '../types'
 
 /** 模拟同源 fetch（返回 HTML 文本）；跨源走 allorigins /get 时返回 JSON 包装的 contents */
@@ -251,5 +251,115 @@ describe('fetchContent 正文分页', () => {
     for (let i = 0; i < MAX_CONTENT_PAGES; i++) {
       expect(text).toContain(`第${i}页片段`)
     }
+  })
+})
+
+describe('JSONPath 工具', () => {
+  it('jsonPath 提取字段与数组元素', () => {
+    const data = { code: 200, data: [{ title: '三体', book_id: '123' }], meta: { total: 1 } }
+    expect(jsonPath(data, '$.data')).toHaveLength(1)
+    expect(jsonPath(data, '$.data[0].title')).toBe('三体')
+    expect(jsonPath(data, '$.data[0]["book_id"]')).toBe('123')
+    expect(jsonPath(data, '$.meta.total')).toBe(1)
+    expect(jsonPath(data, '$.nope')).toBeUndefined()
+    expect(jsonPath(data, 'bad')).toBeUndefined()
+  })
+
+  it('jsonField 按字段规则取值并应用 replace 管道', () => {
+    const item = { title: '三体 全集', author_name: '刘慈欣' }
+    expect(jsonField(item, '$.title')).toBe('三体 全集')
+    expect(jsonField(item, '$.title|replace:全集,')).toBe('三体')
+    expect(jsonField(item, '$.nope')).toBe('')
+  })
+
+  it('renderJsonTemplate 支持 {{$.字段}} 与外部变量', () => {
+    const item = { chapter_id: 'c1', book_id: 'b1' }
+    expect(renderJsonTemplate('/book/{{$.book_id}}/chapters/{{$.chapter_id}}', item, {})).toBe('/book/b1/chapters/c1')
+    expect(renderJsonTemplate('/book/{{bookUrl}}/x', item, { bookUrl: 'B1' })).toBe('/book/B1/x')
+  })
+})
+
+describe('JSON 格式书源（酷我小说）', () => {
+  /** JSON 书源 fetch mock：按路径匹配返回 JSON（兼容 host 前缀与代理包装） */
+  function stubJson(map: Record<string, string>) {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: string) => {
+        const raw = String(input)
+        // 兼容公共代理包装：从 ?url= 还原目标地址（allorigins /get）
+        const isProxy = raw.includes('api.allorigins.win/get')
+        const q2 = raw.indexOf('?url=')
+        const effective = isProxy && q2 >= 0 ? decodeURIComponent(raw.slice(q2 + 5)) : raw
+        const q = effective.indexOf('?')
+        const noQuery = q >= 0 ? effective.slice(0, q) : effective
+        // 去掉 host 前缀后按路径匹配
+        const path = noQuery.replace(/^https?:\/\/[^/]+/, '')
+        const html = map[path] ?? map[noQuery] ?? map[effective]
+        if (html === undefined) return new Response('not found', { status: 404 })
+        return new Response(html, { status: 200, headers: { 'content-type': 'application/json' } })
+      })
+    )
+  }
+
+  beforeEach(() => {
+    localStorage.setItem('qingyue:proxy', JSON.stringify({ mode: 'direct', customUrl: '' }))
+  })
+
+  it('搜索：JSONPath 提取列表、字段与 book_id', async () => {
+    stubJson({
+      '/novels/api/book/search': JSON.stringify({
+        code: 200,
+        data: [{ title: '三体：史上最称职的面壁者', author_name: '火炀', book_id: '21041885901615104' }],
+      }),
+    })
+    const results = await searchSource(KUWO_SOURCE, '三体')
+    expect(results).toHaveLength(1)
+    expect(results[0].title).toContain('三体')
+    expect(results[0].author).toBe('火炀')
+    expect(results[0].bookUrl).toBe('21041885901615104')
+  })
+
+  it('搜索：关键词不匹配过滤为空', async () => {
+    stubJson({
+      '/novels/api/book/search': JSON.stringify({ code: 200, data: [{ title: '斗破苍穹', author_name: '土豆', book_id: 'b2' }] }),
+    })
+    const results = await searchSource(KUWO_SOURCE, '三体')
+    expect(results).toHaveLength(0)
+  })
+
+  it('目录：JSONPath 列表 + itemUrl 模板拼接完整章节 URL', async () => {
+    stubJson({
+      '/novels/api/book/b1/chapters': JSON.stringify({
+        code: 200,
+        data: [
+          { chapter_id: 'c1', chapter_title: '第一章 开始' },
+          { chapter_id: 'c2', chapter_title: '第二章 展开' },
+        ],
+      }),
+    })
+    const chapters = await fetchChapters(KUWO_SOURCE, 'b1')
+    expect(chapters).toHaveLength(2)
+    expect(chapters[0].title).toBe('第一章 开始')
+    expect(chapters[0].url).toContain('/novels/api/book/b1/chapters/c1')
+  })
+
+  it('正文：JSONPath 提取 content 并清洗', async () => {
+    stubJson({
+      '/novels/api/book/b1/chapters/c1': JSON.stringify({
+        code: 200,
+        data: { content: '　　第一段正文。\r\n　　第二段正文。' },
+      }),
+    })
+    const text = await fetchContent(KUWO_SOURCE, '/novels/api/book/b1/chapters/c1')
+    expect(text).toContain('第一段正文')
+    expect(text).toContain('第二段正文')
+  })
+
+  it('返回非 JSON 时给出明确错误', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('<html>not json</html>', { status: 200, headers: { 'content-type': 'text/html' } }))
+    )
+    await expect(searchSource(KUWO_SOURCE, '三体')).rejects.toThrow(/不是 JSON/)
   })
 })

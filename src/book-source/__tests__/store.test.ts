@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from 'vitest'
-import { DEMO_SOURCE, importSources, loadSources, encodeSourcePayload, decodeSourcePayload, shareSourceUrl } from '../store'
+import { DEMO_SOURCE, KUWO_SOURCE, importSources, loadSources, removeSource, encodeSourcePayload, decodeSourcePayload, shareSourceUrl } from '../store'
 import type { BookSource } from '../types'
 
 describe('importSources 批量导入', () => {
@@ -45,11 +45,30 @@ describe('importSources 批量导入', () => {
     expect(list.some((s) => s.id === 'a')).toBe(true) // 其他书源不受影响
   })
 
-  it('localStorage 无 demo 时补入内置演示书源', () => {
+  it('localStorage 无 demo 时补入内置演示书源与酷我书源', () => {
     localStorage.setItem('qingyue:sources', JSON.stringify([makeSource('a', 'A源')]))
     const list = loadSources()
     expect(list.some((s) => s.id === DEMO_SOURCE.id)).toBe(true)
     expect(list.find((s) => s.id === DEMO_SOURCE.id)!.search!.url).toBe(DEMO_SOURCE.search!.url)
+    expect(list.some((s) => s.id === KUWO_SOURCE.id)).toBe(true)
+    expect(list.find((s) => s.id === KUWO_SOURCE.id)!.format).toBe('json')
+  })
+
+  it('内置酷我书源：残留旧定义被覆盖、不可删除、不可被导入覆盖', () => {
+    // 残留旧定义（如缺 format 或格式损坏）被内置定义覆盖；启用开关保留用户选择
+    localStorage.setItem('qingyue:sources', JSON.stringify([{ id: 'kuwo', name: '酷我', baseUrl: '', enabled: false }]))
+    const list = loadSources()
+    const kuwo = list.find((s) => s.id === KUWO_SOURCE.id)!
+    expect(kuwo.format).toBe('json')
+    expect(kuwo.enabled).toBe(false) // 用户停用保留
+    expect(kuwo.search!.list).toBe('$.data')
+
+    // 不可删除
+    expect(() => removeSource(KUWO_SOURCE.id)).toThrow(/内置书源不可删除/)
+    // 不可被导入覆盖
+    const r = importSources(JSON.stringify({ ...KUWO_SOURCE, name: '被篡改' }), { overwrite: true })
+    expect(r).toEqual({ added: 0, updated: 0, skipped: 1 })
+    expect(loadSources().find((s) => s.id === KUWO_SOURCE.id)!.name).toBe(KUWO_SOURCE.name)
   })
 
   it('格式无效条目跳过', () => {

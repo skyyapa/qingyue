@@ -722,6 +722,34 @@ src/
 - 教训：演示书源定义以代码为准，localStorage 持久化条目必须做「用内置定义覆盖
   id=demo」的迁移，否则线上修复对存量用户不生效
 
+**迭代 40 —— 内置公共书源（酷我小说）+ JSON 书源引擎（已提交）**
+- 用户需求：内置真实公共书源（选「内置真实书源规则」）；实测当前网络下绝大多
+  数笔趣阁类站不可达/Cloudflare 验证/域名出售，最终选定**酷我小说官方 API**
+  （http://appi.kuwo.cn，阅文正版，搜索/目录/正文全 JSON，无验证）——三条链路
+  Playwright 真实浏览器验证可用
+- 引擎扩展：`BookSource.format: 'html' | 'json'`——json 格式时列表/字段用 JSONPath
+  （`$.data` 列表、`$.title` 字段、`$.data.content` 正文）；`jsonPath`（支持
+  `$.data[0].name` 数组/字段）、`jsonField`（字段规则+replace 管道）、
+  `renderJsonTemplate`（模板支持 `{{$.xxx}}` 与 `{{bookUrl}}`）；`fetchChapters`
+  对 JSON 目录 itemUrl 用模板渲染（拼 book_id + chapter_id 完整 URL）
+- 内置 KUWO_SOURCE（id: kuwo，默认启用）：search 返回 book_id 作 bookUrl →
+  chapters `/novels/api/book/{{bookUrl}}/chapters` → content `$.data.content`；
+  BUILTIN_SOURCES 数组管理内置源（demo + kuwo），loadSources 规则字段用当前定义
+  覆盖但**保留用户启用开关**（用户可停用内置源）；不可删除/不可导入覆盖
+- 代理设置 UI：「自备代理」模式加「如何部署免费代理？」折叠引导（Cloudflare
+  Workers 免费 10 万次/天，粘贴 proxy/worker.js 即部署，无需信用卡）
+- 搜索整体限时：doOnlineSearch 改 searchWithTimeout（8s cap），慢/失效书源不
+  拖累整体（各源还有 requester 15s 超时）；失败仅在所有源都失败时提示
+- 单测 +9（203）：jsonPath（数组/字段/下标/缺值）、jsonField（管道/缺值）、
+  renderJsonTemplate、kuwo 搜索/关键词过滤/目录拼接/正文清洗/非 JSON 报错、
+  store 内置 kuwo 覆盖语义（enabled 保留）
+- e2e 适配：online-source 前置 initScript 只启用 demo（kuwo 测试环境会触发真实
+  网络请求）；书源管理对话框断言 2 个内置源删除按钮均禁用
+- 关键约束：浏览器 fetch 酷我 API 会被 **CORS 拦截**（实测 Failed to fetch）——
+  任何真实书源必须走代理；公共代理在用户网络不可用，内置酷我书源需配自备代理
+  （Cloudflare Worker）才能搜到书
+- 回归全绿：type-check/lint/test(203)/e2e(48)/build
+
 ## 未完成任务
 
 - [ ] Android App（TWA / Capacitor 打包）——Capacitor 已集成；真机验收 + 发布仍阻塞
@@ -971,6 +999,19 @@ src/
     localStorage 里残留的旧版 demo（前导斜杠 URL）盖过内置定义。内置演示书源
     必须以代码定义为准，loadSources 对 id=demo 强制覆盖迁移；真实浏览器无痕
     访问（无旧 localStorage）验证线上，能区分「部署没生效」vs「用户数据残留」
+
+### 内置公共书源（迭代 40 新增）
+66. **浏览器跨域 fetch 一律被 CORS 拦截**：Playwright 直接 goto API URL 能拿到
+    JSON（导航非跨域），但从网页 fetch 同一 URL 报 `Failed to fetch`——验证书源
+    可用性必须区分「直接导航可达」与「浏览器 fetch 可达」，后者才决定书源能否用
+67. **legado 书源与轻阅简化引擎不兼容**：社区书源（XIU2/Yuedu 等）用
+    XPath/JS 规则（`class.x@tag.a`、`@js:`、POST body），轻阅只支持 GET + CSS +
+    文本字段。内置真实书源需重写为轻阅格式或扩展引擎（本次为 JSON 书源扩展
+    JSONPath）；不能直接照搬社区书源 JSON
+68. **内置源强制覆盖要保留用户 enabled 开关**：loadSources 若整体 `{...builtin}`
+    会把用户停用状态重置；改为规则字段覆盖 + `enabled` 用已有值
+69. **搜索并行请求会等最慢源**：`Promise.allSettled` 等所有源（含 15s 超时），
+    一个失效代理拖慢全部——用 `Promise.race` 给整体加 8s 上限，超时源结果丢弃
 
 ## 测试方法备忘
 

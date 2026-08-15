@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { loadSources, saveSources, addSource, updateSource, removeSource, importSources, exportSources, shareSourceUrl, DEMO_SOURCE } from '@/book-source/store'
+import { loadSources, saveSources, addSource, updateSource, removeSource, importSources, exportSources, shareSourceUrl, BUILTIN_SOURCES } from '@/book-source/store'
 import { loadProxyConfig, saveProxyConfig, testProxy } from '@/book-source/requester'
 import { searchSource, validateSource, sourceTemplate } from '@/book-source/engine'
 import { downloadBlob } from '@/utils/file'
@@ -12,6 +12,7 @@ const emit = defineEmits<{ close: [] }>()
 const proxy = ref<ProxyConfig>(loadProxyConfig())
 const proxyTestResult = ref('')
 const proxyTesting = ref(false)
+const showWorkerGuide = ref(false)
 
 async function onTestProxy(): Promise<void> {
   proxyTesting.value = true
@@ -209,6 +210,20 @@ async function runSearchTest(index: number): Promise<void> {
         <div v-if="proxy.mode === 'custom'" class="proxy-custom">
           <input v-model="proxy.customUrl" type="text" placeholder="https://你的代理地址（如 xxx.workers.dev）" />
           <button class="btn" :disabled="proxyTesting" @click="onTestProxy">测试连接</button>
+          <button class="btn btn-ghost" @click="showWorkerGuide = !showWorkerGuide">
+            {{ showWorkerGuide ? '收起部署教程' : '如何部署免费代理？' }}
+          </button>
+          <div v-if="showWorkerGuide" class="worker-guide">
+            <p><b>免费方案（Cloudflare Workers，零成本）</b>：</p>
+            <ol>
+              <li>打开 <code>https://dash.cloudflare.com</code> 注册账号（免费，无需信用卡）</li>
+              <li>左侧「Workers &amp; Pages」→「创建 Worker」</li>
+              <li>把项目里的 <code>proxy/worker.js</code> 全部内容粘贴进去 →「部署」</li>
+              <li>把生成的 <code>https://xxx.workers.dev</code> 地址填到上面输入框</li>
+              <li>点「测试连接」，显示「连接正常」即可搜索</li>
+            </ol>
+            <p class="worker-tip">免费额度每天 10 万次请求，个人阅读完全够用。</p>
+          </div>
         </div>
         <button v-if="proxy.mode === 'public'" class="btn" :disabled="proxyTesting" @click="onTestProxy">
           {{ proxyTesting ? '测试中…' : '测试公共代理' }}
@@ -232,7 +247,7 @@ async function runSearchTest(index: number): Promise<void> {
             <button class="btn-small" @click="startEdit(i)">编辑</button>
             <button class="btn-small" @click="openTestPanel(i)">搜索测试</button>
             <button class="btn-small" @click="openShare(i)">分享</button>
-            <button class="btn-small danger" :disabled="s.id === DEMO_SOURCE.id" @click="onRemove(i)">删除</button>
+            <button class="btn-small danger" :disabled="BUILTIN_SOURCES.some((b) => b.id === s.id)" @click="onRemove(i)">删除</button>
           </div>
         </div>
 
@@ -365,11 +380,13 @@ async function runSearchTest(index: number): Promise<void> {
 }
 .proxy-custom {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 10px;
 }
 .proxy-custom input {
   flex: 1;
+  min-width: 180px;
   padding: 8px 10px;
   border-radius: 8px;
   border: 1px solid var(--panel-border);
@@ -380,6 +397,30 @@ async function runSearchTest(index: number): Promise<void> {
 }
 .proxy-custom input:focus {
   border-color: var(--accent);
+}
+.worker-guide {
+  flex-basis: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--bg);
+  border: 1px solid var(--panel-border);
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--fg);
+}
+.worker-guide ol {
+  margin: 6px 0;
+  padding-left: 18px;
+}
+.worker-guide code {
+  background: var(--panel);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+.worker-tip {
+  margin: 4px 0 0;
+  color: var(--fg-weak);
 }
 .proxy-result {
   margin: 0 0 10px;

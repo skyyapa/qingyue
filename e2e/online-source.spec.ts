@@ -4,6 +4,19 @@ import type { BookSource } from '../src/book-source/types'
 
 /** 在线书源（演示书源，同源直连） */
 test.describe('在线书源', () => {
+  test.beforeEach(async ({ page }) => {
+    // 仅启用演示书源：酷我书源在测试环境会触发真实网络请求（无代理时挂起/超时）
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        'qingyue:sources',
+        JSON.stringify([
+          { id: 'demo', name: '轻阅演示', baseUrl: '', enabled: true },
+          { id: 'kuwo', name: '酷我小说', baseUrl: 'http://appi.kuwo.cn', enabled: false, format: 'json' },
+        ])
+      )
+    })
+  })
+
   test('搜索 → 添加 → 阅读 → 缓存续读', async ({ page }) => {
     await page.goto('/')
     // 输入关键词，触发在线搜索
@@ -76,10 +89,11 @@ test.describe('在线书源', () => {
     await page.getByRole('button', { name: '源' }).click()
     await expect(page.getByRole('heading', { name: '书源管理' })).toBeVisible()
     await expect(page.getByText('轻阅演示')).toBeVisible()
-    // 内置演示源不可删除
-    await expect(page.getByRole('button', { name: '删除' })).toBeDisabled()
-    // 搜索测试
-    await page.getByRole('button', { name: '搜索测试' }).click()
+    // 内置源不可删除（演示 + 酷我均禁用删除）
+    await expect(page.getByRole('button', { name: '删除' }).first()).toBeDisabled()
+    await expect(page.getByRole('button', { name: '删除' }).nth(1)).toBeDisabled()
+    // 搜索测试（演示源行）
+    await page.getByRole('button', { name: '搜索测试' }).first().click()
     await page.locator('.test-input input').fill('数据')
     await page.getByRole('button', { name: '测试', exact: true }).click()
     await expect(page.locator('.test-item').first()).toContainText('数据之海')
