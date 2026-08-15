@@ -643,9 +643,34 @@ src/
   验收通过后才创建 `v1.3.0-beta.1` tag 发布 GitHub prerelease；第二台设备为 v1.3.0
   正式版前置条件
 
+**迭代 35 —— Android 每日阅读提醒（本地通知）（已提交）**
+- 新增依赖 `@capacitor/local-notifications@8.3.0`（`cap sync` 后 Android 工程自动注册，
+  插件自带 POST_NOTIFICATIONS / RECEIVE_BOOT_COMPLETED / WAKE_LOCK 权限合并）
+- 设置项：`ReaderSettings.readingReminder = { enabled, hour, minute }`（默认关闭、21:00）；
+  settings store sanitize 逐字段校验（布尔/0-23/0-59，越界回退默认、非法结构整体回退）
+- `src/utils/reminder.ts` 纯函数：`buildReminderBody(todaySeconds)`（未读鼓励开卷 /
+  已读显示今日分钟数）、`toDailySchedule`（时刻 + repeats:true 每日重复）、
+  `REMINDER_NOTIFICATION_ID`（固定 id 供取消/重调度）
+- `src/capacitor.ts` 新增 `syncReadingReminder`：仅原生生效——开启时 checkPermissions →
+  requestPermissions（未授予则放弃）→ schedule 每日重复通知；关闭时 cancel；
+  失败静默不打扰；文案结合当天阅读时长
+- App.vue：deep watch readingReminder（immediate 初始同步 + 变更重调度）——
+  不监听 stats.todaySeconds，避免 10s 计时 tick 触发无谓重调度
+- SettingsPanel 新增「每日阅读提醒（Android）」组：开关 + 时间选择器（HH:MM 双向
+  绑定 hour/minute）+ 说明（Web 端忽略）；移动端 560px 下时间输入 16px 防 iOS 放大
+- 单测 +6（185）：reminder 纯函数 3（文案边界/调度描述/凌晨时刻）、settings 校验 +3
+  （非法结构回退/合法保留/越界时间收敛——store 实例按 pinia 缓存，同一测试内
+  多次写 localStorage 不生效需拆多个 it）
+- e2e 48 / type-check / lint / build 全绿；`cap sync` + JDK 21 `assembleDebug`（含
+  local-notifications 插件）构建成功
+- **阻塞项**：真机验收仍未执行（仅模拟器）——通知权限弹窗、通知实际送达、
+  点击通知打开 App、精确闹钟授权（SCHEDULE_EXACT_ALARM）需真机确认；
+  验收通过后仍按原计划发布 v1.3.0-beta.1
+
 ## 未完成任务
 
-- [ ] Android App（TWA / Capacitor 打包）——移动端体验 M0 之后
+- [ ] Android App（TWA / Capacitor 打包）——Capacitor 已集成；真机验收 + 发布仍阻塞
+- [ ] Android 分享导出（导出 .qingyue 单书经系统分享发送，@capacitor/share 已装待接入）
 - [ ] 多设备同步（阅读进度与书库跨设备同步）
 - [ ] 语义级事件提取（三年之约）——需 LLM，v1 用章节实体快照替代，远期
 - [ ] 书源规则分享社区 / 规则包市场（分享链接与批量导入已支持，缺集中式分发渠道）——远期
@@ -840,6 +865,21 @@ src/
     （`string | Blob` 的 Blob 仅 Web 端有），且 v8 无 `type` 字段——文件名兜底
     只能自己拼；content URI 的 document id 形如 `primary:Download/xx.txt`
     （`primary:` 卷前缀 + 编码路径），取文件名需剥离前缀再取尾段
+
+### Android 本地通知（迭代 35 新增）
+54. **local-notifications 权限在插件自带 Manifest**：`POST_NOTIFICATIONS` /
+    `RECEIVE_BOOT_COMPLETED` / `WAKE_LOCK` / `SCHEDULE_EXACT_ALARM` 声明在
+    `node_modules/@capacitor/local-notifications/android/.../AndroidManifest.xml`，
+    gradle 构建时自动合并——不要在自己工程的 Manifest 重复声明
+55. **每日重复通知固定 id 复用**：Android 按 id 区分通知，重调度同一提醒必须用
+    同一 id（否则叠加多条）；`LocalNotifications.schedule` 在 Android 13+ 会自动
+    请求权限，但显式 `checkPermissions → requestPermissions` 可在未授予时直接放弃
+    调度（不弹系统对话框打扰）
+56. **Capacitor 本地通知在 Web 端是 no-op**：`registerPlugin` 的 web 实现为空——
+    设置面板需要文案提示「仅 Android 生效」，避免 Web 用户以为开了没用
+57. **watch 监听提醒配置不要挂 stats.todaySeconds**：阅读计时每 10s tick 更新，
+    若 watchEffect 依赖当天阅读秒数会每次 tick 重调度本地通知（取消+重排）——
+    只 deep watch readingReminder 配置对象即可（文案在调度瞬间取当前值）
 
 ## 测试方法备忘
 

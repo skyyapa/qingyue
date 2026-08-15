@@ -1,9 +1,28 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { useSettingsStore } from '@/stores/settings'
 import type { FontName, ThemeName } from '@/types'
 
 const emit = defineEmits<{ close: [] }>()
 const settings = useSettingsStore()
+
+/** 提醒时间 <input type="time"> 的 HH:MM 双向绑定（小时/分钟分开存） */
+const reminderTime = computed<string>({
+  get: () => {
+    const r = settings.settings.readingReminder
+    return `${String(r.hour).padStart(2, '0')}:${String(r.minute).padStart(2, '0')}`
+  },
+  set: (v) => {
+    const m = /^(\d{2}):(\d{2})$/.exec(v)
+    if (!m) return
+    const hour = Number(m[1])
+    const minute = Number(m[2])
+    if (hour >= 0 && hour <= 23 && minute >= 0 && minute <= 59) {
+      settings.settings.readingReminder.hour = hour
+      settings.settings.readingReminder.minute = minute
+    }
+  },
+})
 
 const themes: { name: ThemeName; label: string; swatch: string; accent: string }[] = [
   { name: 'default', label: '默认', swatch: '#f7f5f0', accent: '#4f7cff' },
@@ -133,6 +152,25 @@ const fonts: { name: FontName; label: string }[] = [
           </label>
         </section>
 
+        <section class="setting-group">
+          <p class="group-title">每日阅读提醒（Android）</p>
+          <label class="setting-row">
+            <span>开启每日提醒</span>
+            <input v-model="settings.settings.readingReminder.enabled" type="checkbox" />
+          </label>
+          <label v-if="settings.settings.readingReminder.enabled" class="setting-row">
+            <span>提醒时间</span>
+            <input
+              v-model="reminderTime"
+              type="time"
+              class="reminder-time"
+              min="00:00"
+              max="23:59"
+            />
+          </label>
+          <p class="group-hint">每天到点提醒阅读；仅在 Android App 中生效（Web 端忽略）</p>
+        </section>
+
         <button class="btn reset-btn" @click="settings.resetSettings()">恢复默认设置</button>
       </div>
     </aside>
@@ -192,6 +230,24 @@ const fonts: { name: FontName; label: string }[] = [
   font-weight: 600;
   font-size: 13px;
   color: var(--accent);
+}
+.reminder-time {
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--fg);
+  font-size: 13px;
+  padding: 5px 8px;
+  outline: none;
+}
+.reminder-time:focus {
+  border-color: var(--accent);
+}
+.group-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--fg-weak);
+  line-height: 1.6;
 }
 .theme-grid {
   display: grid;
@@ -259,5 +315,11 @@ const fonts: { name: FontName; label: string }[] = [
 .reset-btn {
   width: 100%;
   margin-top: 14px;
+}
+@media (max-width: 560px) {
+  /* 16px 起：iOS 聚焦输入框时不自动放大页面 */
+  .reminder-time {
+    font-size: 16px;
+  }
 }
 </style>

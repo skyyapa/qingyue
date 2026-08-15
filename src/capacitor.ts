@@ -1,7 +1,10 @@
 import { Capacitor, registerPlugin, SystemBars, SystemBarsStyle } from '@capacitor/core'
 import { App } from '@capacitor/app'
 import { Filesystem } from '@capacitor/filesystem'
+import { LocalNotifications } from '@capacitor/local-notifications'
 import { base64ToFile, fileNameFromUri, nameWithMimeExtension } from '@/utils/intent-uri'
+import { buildReminderBody, REMINDER_NOTIFICATION_ID, toDailySchedule } from '@/utils/reminder'
+import type { ReadingReminder } from '@/types'
 
 /** 是否运行在原生容器（Android App）中；Web 端恒为 false，所有桥接为空操作 */
 export const isNative = Capacitor.isNativePlatform()
@@ -88,6 +91,37 @@ export function syncStatusBarTheme(theme: string): void {
   if (!isNative) return
   const dark = ['night', 'ocean', 'pine', 'graphite'].includes(theme)
   void SystemBars.setStyle({ style: dark ? SystemBarsStyle.Dark : SystemBarsStyle.Light })
+}
+
+/**
+ * 同步每日阅读提醒（仅原生）：开启时请求权限并调度每日重复通知，关闭时取消。
+ * 文案根据当天已读时长生成；Android 8+ 通知必须申请 POST_NOTIFICATIONS 权限。
+ */
+export async function syncReadingReminder(reminder: ReadingReminder, todaySeconds: number): Promise<void> {
+  if (!isNative) return
+  try {
+    if (!reminder.enabled) {
+      await LocalNotifications.cancel({ notifications: [{ id: REMINDER_NOTIFICATION_ID }] })
+      return
+    }
+    const perms = await LocalNotifications.checkPermissions()
+    if (perms.display !== 'granted') {
+      const req = await LocalNotifications.requestPermissions()
+      if (req.display !== 'granted') return
+    }
+    await LocalNotifications.schedule({
+      notifications: [
+        {
+          id: REMINDER_NOTIFICATION_ID,
+          title: '轻阅 · 阅读提醒',
+          body: buildReminderBody(todaySeconds),
+          schedule: toDailySchedule(reminder),
+        },
+      ],
+    })
+  } catch {
+    /* 权限拒绝/调度失败静默，不打扰阅读 */
+  }
 }
 
 /** 通知书架页：原生打开的文件已就绪（App 全局桥接 → 目标页监听） */

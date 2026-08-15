@@ -13,6 +13,18 @@ export const DEFAULT_SETTINGS: ReaderSettings = {
   showNextHint: true,
   bookPage: true,
   aiChapterSummary: true,
+  readingReminder: { enabled: false, hour: 21, minute: 0 },
+}
+
+/** 校验阅读提醒时间（越界回退默认），非法结构整体回退 */
+function sanitizeReminder(raw: unknown): ReaderSettings['readingReminder'] {
+  const d = DEFAULT_SETTINGS.readingReminder
+  if (typeof raw !== 'object' || raw === null) return { ...d }
+  const r = raw as Record<string, unknown>
+  const enabled = typeof r.enabled === 'boolean' ? r.enabled : d.enabled
+  const hour = typeof r.hour === 'number' && r.hour >= 0 && r.hour <= 23 ? Math.floor(r.hour) : d.hour
+  const minute = typeof r.minute === 'number' && r.minute >= 0 && r.minute <= 59 ? Math.floor(r.minute) : d.minute
+  return { enabled, hour, minute }
 }
 
 const THEMES: ThemeName[] = ['default', 'pure', 'paper', 'celadon', 'eye', 'pink', 'night', 'ocean', 'pine', 'graphite']
@@ -32,6 +44,7 @@ function sanitize(raw: unknown): ReaderSettings {
   if (typeof r.showNextHint === 'boolean') s.showNextHint = r.showNextHint
   if (typeof r.bookPage === 'boolean') s.bookPage = r.bookPage
   if (typeof r.aiChapterSummary === 'boolean') s.aiChapterSummary = r.aiChapterSummary
+  s.readingReminder = sanitizeReminder(r.readingReminder)
   return s
 }
 

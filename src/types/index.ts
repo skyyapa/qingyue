@@ -99,6 +99,16 @@ export type ThemeName =
 /** 正文字体 */
 export type FontName = 'system' | 'serif' | 'song' | 'hei' | 'kai'
 
+/** 每日阅读提醒（Android 本地通知，Web 端忽略） */
+export interface ReadingReminder {
+  /** 是否启用每日提醒 */
+  enabled: boolean
+  /** 提醒时间（小时 0-23） */
+  hour: number
+  /** 提醒时间（分钟 0-59） */
+  minute: number
+}
+
 /** 阅读设置（localStorage 持久化） */
 export interface ReaderSettings {
   /** 字号 px，14 - 28 */
@@ -114,6 +124,8 @@ export interface ReaderSettings {
   bookPage: boolean
   /** 配置 AI 后，翻章自动生成当前章 AI 摘要 */
   aiChapterSummary: boolean
+  /** 每日阅读提醒（仅 Android 本地通知生效） */
+  readingReminder: ReadingReminder
 }
 
 /** TXT 解码编码选项 */

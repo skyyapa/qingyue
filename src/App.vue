@@ -1,18 +1,31 @@
 <script setup lang="ts">
-import { watchEffect } from 'vue'
+import { watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSettingsStore } from '@/stores/settings'
-import { emitOpenFiles, setupNativeBridge, syncStatusBarTheme } from '@/capacitor'
+import { useStatsStore } from '@/stores/stats'
+import { emitOpenFiles, setupNativeBridge, syncReadingReminder, syncStatusBarTheme } from '@/capacitor'
 import { App } from '@capacitor/app'
 
 const settings = useSettingsStore()
+const stats = useStatsStore()
 const router = useRouter()
 
 // 主题挂到 <html data-theme>，全局 CSS 变量随之切换；原生端同步状态栏
-watchEffect(() => {
-  document.documentElement.dataset.theme = settings.settings.theme
-  syncStatusBarTheme(settings.settings.theme)
-})
+watch(
+  () => settings.settings.theme,
+  (theme) => {
+    document.documentElement.dataset.theme = theme
+    syncStatusBarTheme(theme)
+  },
+  { immediate: true }
+)
+
+// 每日阅读提醒（仅原生生效）：配置变化（开关/时间）时重调度本地通知
+watch(
+  () => settings.settings.readingReminder,
+  (r) => void syncReadingReminder(r, stats.todaySeconds),
+  { deep: true, immediate: true }
+)
 
 // 原生桥接（Web 端为空操作）：
 // - 文件管理器「用轻阅打开」→ 回书架并交给导入对话框
