@@ -15,6 +15,7 @@ import BookSourceDialog from '@/components/BookSourceDialog.vue'
 import AIProviderDialog from '@/components/AIProviderDialog.vue'
 import InstallPrompt from '@/components/InstallPrompt.vue'
 import { useAnalysisStore } from '@/stores/analysis'
+import { shareBookFile } from '@/capacitor'
 import { searchSource } from '@/book-source/engine'
 import { getEnabledSources, getSource } from '@/book-source/store'
 import type { SearchResult } from '@/book-source/types'
@@ -189,10 +190,12 @@ function confirmResetProgress(book: BookMeta): void {
   }
 }
 
-/** 导出本书为单书文件（含进度与知识库，可迁移/分享） */
+/** 导出本书：原生 App 调系统分享面板，Web 端浏览器下载 */
 async function exportBook(book: BookMeta): Promise<void> {
   const file = await exportBookFile(book.id)
-  if (file) downloadBlob(file.blob, file.filename)
+  if (!file) return
+  const shared = await shareBookFile(file.blob, file.filename)
+  if (!shared) downloadBlob(file.blob, file.filename)
 }
 
 // ---------- 过滤与排序 ----------

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { useBooksStore } from '@/stores/books'
+import { isNative } from '@/capacitor'
 import { bookReadPercent, formatPercent } from '@/utils/progress'
 import type { BookMeta } from '@/types'
 
@@ -77,8 +78,12 @@ function onMove(group: string): void {
             {{ g }}
           </button>
           <hr class="menu-divider" />
-          <button class="move-item" title="导出为单书文件（可迁移/分享）" @click="menuOpen = false; emit('exportBook')">
-            导出本书
+          <button
+            class="move-item"
+            :title="isNative ? '导出单书文件并经系统分享发送' : '导出为单书文件（可迁移/分享）'"
+            @click="menuOpen = false; emit('exportBook')"
+          >
+            {{ isNative ? '分享本书' : '导出本书' }}
           </button>
           <button class="move-item danger" title="回到第一章重新阅读" @click="menuOpen = false; emit('resetProgress')">
             重置阅读进度

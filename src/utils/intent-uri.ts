@@ -52,3 +52,17 @@ export function base64ToFile(base64: string, name: string, mime = ''): File {
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
   return new File([bytes], name, { type: mime })
 }
+
+/** Blob 编码为纯 base64 字符串（原生 Filesystem.writeFile 要求 base64，去掉 data: 前缀） */
+export function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : ''
+      const comma = result.indexOf(',')
+      resolve(comma >= 0 ? result.slice(comma + 1) : result)
+    }
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(blob)
+  })
+}

@@ -1,8 +1,9 @@
 import { Capacitor, registerPlugin, SystemBars, SystemBarsStyle } from '@capacitor/core'
 import { App } from '@capacitor/app'
-import { Filesystem } from '@capacitor/filesystem'
+import { Directory, Filesystem } from '@capacitor/filesystem'
+import { Share } from '@capacitor/share'
 import { LocalNotifications } from '@capacitor/local-notifications'
-import { base64ToFile, fileNameFromUri, nameWithMimeExtension } from '@/utils/intent-uri'
+import { base64ToFile, blobToBase64, fileNameFromUri, nameWithMimeExtension } from '@/utils/intent-uri'
 import { buildReminderBody, REMINDER_NOTIFICATION_ID, toDailySchedule } from '@/utils/reminder'
 import type { ReadingReminder } from '@/types'
 
@@ -127,4 +128,30 @@ export async function syncReadingReminder(reminder: ReadingReminder, todaySecond
 /** 通知书架页：原生打开的文件已就绪（App 全局桥接 → 目标页监听） */
 export function emitOpenFiles(files: File[]): void {
   window.dispatchEvent(new CustomEvent('qingyue:open-files', { detail: { files } }))
+}
+
+/**
+ * 原生分享单书导出文件（Web 端返回 null 走浏览器下载）。
+ * 流程：Blob → base64 → 写入应用缓存目录 → 取 file:// URI → 调系统分享面板。
+ * 分享不保证目标应用，失败返回 null 让调用方回退下载。
+ */
+export async function shareBookFile(blob: Blob, filename: string): Promise<boolean> {
+  if (!isNative) return false
+  try {
+    const base64 = await blobToBase64(blob)
+    const { uri } = await Filesystem.writeFile({
+      path: filename,
+      data: base64,
+      directory: Directory.Cache,
+      recursive: true,
+    })
+    await Share.share({
+      title: '轻阅 · 分享书籍',
+      dialogTitle: '分享《' + filename.replace(/\.qingyue\.json$/, '') + '》',
+      files: [uri],
+    })
+    return true
+  } catch {
+    return false
+  }
 }

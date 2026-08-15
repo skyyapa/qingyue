@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { base64ToFile, extForMime, fileNameFromUri, nameWithMimeExtension } from '../intent-uri'
+import { base64ToFile, blobToBase64, extForMime, fileNameFromUri, nameWithMimeExtension } from '../intent-uri'
 
 describe('fileNameFromUri intent URI 文件名提取', () => {
   it('content URI 末尾段即文件名', () => {
@@ -65,5 +65,21 @@ describe('base64ToFile 解码', () => {
     expect(file.name).toBe('样书.txt')
     expect(file.type).toBe('text/plain')
     expect(await file.text()).toBe('你好，轻阅')
+  })
+})
+
+describe('blobToBase64 Blob 编码', () => {
+  it('UTF-8 Blob 编码为纯 base64（去掉 data: 前缀）', async () => {
+    const blob = new Blob([new TextEncoder().encode('你好，轻阅')], { type: 'application/json' })
+    const b64 = await blobToBase64(blob)
+    expect(b64).not.toContain('data:')
+    const bytes = new TextEncoder().encode('你好，轻阅')
+    let bin = ''
+    for (const b of bytes) bin += String.fromCharCode(b)
+    expect(b64).toBe(btoa(bin))
+  })
+
+  it('空 Blob 返回空 base64', async () => {
+    expect(await blobToBase64(new Blob([]))).toBe('')
   })
 })

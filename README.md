@@ -4,7 +4,7 @@
 
 > 书籍与进度只保存在你自己的浏览器（IndexedDB）里，不上传任何数据。
 
-> **v1.3.0-beta.1**：Android App（Capacitor）Beta——文件管理器「用轻阅打开」TXT/EPUB、系统分享导入、冷/热启动、返回键、edge-to-edge SystemBars、**每日阅读提醒本地通知**，签名 APK/AAB 待真机验收后发布。**v1.2.0**：AI 阅读助手正式版——OpenAI 兼容 Provider（官方/DeepSeek/Gemini/本地 Ollama/LM Studio/vLLM/中转站）、九大阅读任务、🔒 防剧透机制（AI 只读已读章节）；此前 v1.1.0 完成阅读助手打磨、EPUB 排版还原、全书搜索、单书导出、阅读日历等。
+> **v1.3.0-beta.1**：Android App（Capacitor）Beta——文件管理器「用轻阅打开」TXT/EPUB、系统分享导入、冷/热启动、返回键、edge-to-edge SystemBars、每日阅读提醒本地通知、**单书系统分享导出**，签名 APK/AAB 待真机验收后发布。**v1.2.0**：AI 阅读助手正式版——OpenAI 兼容 Provider（官方/DeepSeek/Gemini/本地 Ollama/LM Studio/vLLM/中转站）、九大阅读任务、🔒 防剧透机制（AI 只读已读章节）；此前 v1.1.0 完成阅读助手打磨、EPUB 排版还原、全书搜索、单书导出、阅读日历等。
 
 ## 🚀 立即使用（不用下载）
 
@@ -48,7 +48,7 @@
 - **AI 阅读助手（可选接入，零成本方案）** — 书架顶栏「AI」统一配置 Provider：**OpenAI 兼容协议**下直接可用 **OpenAI 官方 / DeepSeek / Gemini（Gateway）/ 本地 Ollama / LM Studio / vLLM / 任意中转站**（Base URL + API Key + Model + 一键测试连接），项目本身不承担任何 AI 成本。**多模型策略**：可分别为「简单问答 / 摘要」配置更便宜的模型降本，复杂剧情分析走主模型。配置后：**私人小说管家**（不剧透 / 跟随阅读进度 / 优先引用已发生剧情 / 不确定就说不知道），支持**这是谁 / 前情回顾 / 剧情解释 / 人物关系 / 世界观解释 / 事件时间线 / 伏笔回顾 / 章节摘要 / 今日回顾 / 自由提问**；**阅读页 ⚡ 浮层一键解释/总结/问人物/看伏笔**，选中正文一键「✨ AI」带入提问，翻章自动生成章节摘要（可关闭），实体卡片含**经历时间线**与「AI 梳理经历」。<br>⚠️ 说明：API Key 为**明文**保存在浏览器本机 localStorage（未加密，请勿在公用设备配置）；中转站需允许浏览器跨域（CORS）请求
 - **🔒 防剧透机制** — AI 默认只能使用**已读章节**（第 1～当前章）的数据：读到第 327 章时问「林凡是什么身份」，AI 不会透露第 900 章的答案，只会基于已读内容回答或说明「涉及未读章节」
 - **PWA 可安装** — 一键「安装到桌面」像普通软件一样使用（含 iOS 添加到主屏幕指引），离线可读已缓存内容与本地书籍；移动端专项打磨：刘海屏安全区适配（standalone 全屏不贴边）、iOS 地址栏收起/展开时布局自适应、输入框 16px 起（聚焦不放大页面）、去点击灰闪与双击缩放延迟
-- **Android App（Capacitor）** — 同一套代码打包原生 Android 应用：**文件管理器「用轻阅打开」TXT / EPUB 直接导入**与**系统分享文件到轻阅**（现代 Android `content://` intent → 原生 ContentResolver 读取真实文件名/MIME/内容 → 自动导入）、**系统返回键**按「关面板 → 后退 → 退出」逐级处理、**edge-to-edge SystemBars** 图标随深浅主题切换、**每日阅读提醒**（设置面板开启时间点，本地通知每天到点提醒，文案结合当天阅读时长；Web 端自动忽略）；已完成 Debug APK 与 API 35 模拟器验证。工程由 Capacitor 8 管理（`npm run android:sync` 同步 Web 产物，Android Studio 或 `./gradlew assembleDebug` 构建 APK）
+- **Android App（Capacitor）** — 同一套代码打包原生 Android 应用：**文件管理器「用轻阅打开」TXT / EPUB 直接导入**与**系统分享文件到轻阅**（现代 Android `content://` intent → 原生 ContentResolver 读取真实文件名/MIME/内容 → 自动导入）、**系统返回键**按「关面板 → 后退 → 退出」逐级处理、**edge-to-edge SystemBars** 图标随深浅主题切换、**每日阅读提醒**（设置面板开启时间点，本地通知每天到点提醒，文案结合当天阅读时长；Web 端自动忽略）、**单书分享导出**（书架卡片菜单 → 系统分享面板发送 `.qingyue` 单书文件，Web 端为浏览器下载）；已完成 Debug APK 与 API 35 模拟器验证。工程由 Capacitor 8 管理（`npm run android:sync` 同步 Web 产物，Android Studio 或 `./gradlew assembleDebug` 构建 APK）
 - **智能章节切分** — 自动识别「第X章 / 第X回 / 序章 / 楔子 / 番外 / 终章」等章节标题，书名作者自动提取；无章节标记的整本单章兜底
 - **书架管理** —
   - 自定义分组（新建 / 删除分组，书籍一键归类）；卡片菜单可一键「重置阅读进度」重读；分组删除按钮常驻可见（触屏无需 hover）
@@ -93,7 +93,7 @@ npm run android:open  # 用 Android Studio 打开 Android 工程
 ```bash
 npm run lint       # ESLint 代码检查
 npm run type-check # TypeScript 类型检查
-npm run test       # 单元测试（Vitest，185 用例：编码检测/EPUB 与 CSS 解析/知识库算法/书源引擎/AI 客户端与任务/数据库/Store/组件/备份/导出/搜索/点按分区/intent URI/阅读提醒）
+npm run test       # 单元测试（Vitest，187 用例：编码检测/EPUB 与 CSS 解析/知识库算法/书源引擎/AI 客户端与任务/数据库/Store/组件/备份/导出/搜索/点按分区/intent URI/阅读提醒）
 npm run e2e        # 端到端测试（Playwright 48 用例 = Chromium 41 + WebKit/iOS 视口 7，首次需 npx playwright install chromium webkit）
 ```
 
@@ -157,7 +157,7 @@ node proxy/server.mjs   # 默认 8787 端口
 
 - [x] ~~AI 核心~~（阅读助手九任务 + 防剧透 + 阅读浮层 + 人物时间线 + 自动摘要 + 每日回顾 + 多模型策略，已完成）
 - [x] ~~移动端体验~~（PWA 打磨 / 触屏手势 / 窄屏适配 / safe-area，已完成）
-- [ ] Android App（Capacitor 工程已集成：文件打开 / 返回键 / 状态栏桥接 / 每日阅读提醒，APK 构建与上架进行中，**真机验收待设备接入**）
+- [ ] Android App（Capacitor 工程已集成：文件打开 / 返回键 / 状态栏桥接 / 每日阅读提醒 / 单书分享导出，APK 构建与上架进行中，**真机验收待设备接入**）
 - [ ] 多设备同步（阅读进度与书库跨设备同步）
 - [ ] 语义级事件提取（「三年之约」类剧情事件）——需 LLM，远期
 - [ ] 书源规则分享社区 / 规则包市场（当前已支持链接分享与批量导入）——远期

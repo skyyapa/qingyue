@@ -667,10 +667,25 @@ src/
   点击通知打开 App、精确闹钟授权（SCHEDULE_EXACT_ALARM）需真机确认；
   验收通过后仍按原计划发布 v1.3.0-beta.1
 
+**迭代 36 —— Android 单书分享导出（@capacitor/share 接入）（已提交）**
+- 新增 `blobToBase64`（utils/intent-uri.ts）：Blob → 纯 base64（剥 data: 前缀），
+  供原生 Filesystem.writeFile（原生端只认 base64，Blob 仅 Web）
+- `src/capacitor.ts` 新增 `shareBookFile(blob, filename)`：原生端 Blob → base64 →
+  写应用缓存目录（recursive）→ getUri → `Share.share({ files: [uri], dialogTitle })`；
+  Web 端返回 false 让调用方走浏览器下载；失败也返回 false 回退
+- BookshelfView.exportBook 分支：原生端系统分享面板，Web 端 downloadBlob
+- BookCard 菜单平台感知：原生端「分享本书」（title 提示导出并经系统分享发送），
+  Web 端保持「导出本书」——Web e2e 的「导出本书」定位器不受影响
+- 单测 +2（187）：blobToBase64 UTF-8 往返（剥前缀）、空 Blob 空串
+- e2e 48 / type-check / lint / build 全绿；`cap sync` + JDK 21 `assembleDebug`
+  （含 share 插件）构建成功
+- **阻塞项**：真机验收仍未执行——分享面板弹出、目标应用收到 `.qingyue` 文件、
+  再次导入恢复（含进度/知识库）需真机确认
+
 ## 未完成任务
 
 - [ ] Android App（TWA / Capacitor 打包）——Capacitor 已集成；真机验收 + 发布仍阻塞
-- [ ] Android 分享导出（导出 .qingyue 单书经系统分享发送，@capacitor/share 已装待接入）
+- [ ] Android 多设备同步（阅读进度与书库跨设备，需自建后端或第三方服务，超出纯前端约束）
 - [ ] 多设备同步（阅读进度与书库跨设备同步）
 - [ ] 语义级事件提取（三年之约）——需 LLM，v1 用章节实体快照替代，远期
 - [ ] 书源规则分享社区 / 规则包市场（分享链接与批量导入已支持，缺集中式分发渠道）——远期
@@ -880,6 +895,15 @@ src/
 57. **watch 监听提醒配置不要挂 stats.todaySeconds**：阅读计时每 10s tick 更新，
     若 watchEffect 依赖当天阅读秒数会每次 tick 重调度本地通知（取消+重排）——
     只 deep watch readingReminder 配置对象即可（文案在调度瞬间取当前值）
+
+### Android 分享（迭代 36 新增）
+58. **Capacitor Share 的 files 只认 URI**：`Share.share({ files })` 需传
+    `file://` 或 `content://` URI（Web 端用 navigator.share 时才是 Blob）——
+    Android 上先把 Blob 经 base64 写入应用缓存目录再取 `Filesystem.getUri`
+59. **原生 Filesystem.writeFile 只收 base64**：Blob 仅 Web 端支持；分享文件
+    （如 .qingyue JSON）需先 `blobToBase64` 剥掉 data: 前缀再写
+60. **平台感知文案用 isNative 常量**：BookCard「导出本书/分享本书」按
+    `isNative` 切换——Web 端必须保持原文案，否则 e2e 的按钮定位器失效
 
 ## 测试方法备忘
 
