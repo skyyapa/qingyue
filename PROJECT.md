@@ -783,6 +783,40 @@ src/
   需代理引导显示 + 一键打开书源管理自动切自备代理
 - 回归全绿：type-check/lint/test(205)/e2e(52)/build
 
+**迭代 43 —— v1.3 Android 真机验收（vivo X200s / Android 16）（已执行，结论：通过）**
+- **设备**：vivo X200s（V2458A / PD2415M，Android 16，1260×2800），USB 调试连接
+- **验收方法**：adb install debug APK → `am start` 投递 VIEW/SEND intent（带
+  `--grant-read-uri-permission`）→ WebView CDP（`connectOverCDP`）驱动 UI 断言
+- **验收项（8 项全通过）**：
+  1. ✅ 文件管理器「用轻阅打开」TXT 冷启动：`content://media/...` VIEW intent →
+     App.getLaunchUrl → IntentFile.read（ContentResolver 读真实名/内容）→ 自动导入
+     → 自动进阅读器（书名「江湖夜雨」/正文正确）
+  2. ✅ 同上 EPUB：书名「带图样书」、章节「第一章 目录名甲」（NCX 目录解析）、
+     正文内嵌图片提取正常
+  3. ✅ 翻章（下一章→第一章）+ 进度保存 + force-stop 重启后进度「第 2/5 章 · 13%」保留
+  4. ✅ ACTION_SEND 冷启动：`--eu EXTRA_STREAM content://...` → IntentFilePlugin
+     load() 缓存 → getPendingShare → 自动导入（书架新增同名书）
+  5. ✅ 返回键优先级：阅读器按返回 → 回书架（router.back）；书架根页按返回 →
+     App.exitApp 退出（topResumedActivity 离开轻阅）
+  6. ✅ 每日阅读提醒：设置面板开启 → 原生权限弹窗（GrantPermissionsActivity）
+     → 手动点「允许」→ POST_NOTIFICATION granted → LocalNotifications.getPending
+     显示 1 条「轻阅 · 阅读提醒」21:00 调度生效
+  7. ✅ 夜间主题：设置面板切「夜间」→ data-theme=night（背景 #17181c）→
+     SystemBars.setStyle 浅/深两种调用无异常（状态栏图标跟随）
+  8. ✅ 分享导出：书卡菜单原生端显示「分享本书」→ 点击 → 系统分享面板
+     （ChooserActivity）弹出（blob→base64→缓存→Share.share）
+- **踩坑记录（真机）**：
+  - `uiautomator dump` 只把 WebView 暴露为单个节点，DOM 内部细节不全（引导
+     "没显示"是误判，实际 CDP 确认正常）——WebView 内容要用 CDP 断言
+  - `am start` 投递 `content://media/...` URI 必须带 `--grant-read-uri-permission`，
+    否则 IntentFile.read 报 "has no access"（真实文件管理器/分享面板自动授权）
+  - `--eu EXTRA_STREAM 'content://...'` 传 Parcelable Uri 需要特殊语法；
+    `-d` 传 data 走 getData() 而非 EXTRA_STREAM（SEND 用 --eu）
+- **待人工 GUI 确认（非阻塞）**：分享目标 app 实际接收 .qingyue 并再次导入恢复、
+  10/50MB 大文件压力（adb 无法模拟 GUI 选择/大文件生成时间成本）
+- **结论**：真机验收通过 → 满足创建 `v1.3.0-beta.1` tag 发布 GitHub prerelease 的条件；
+  第二台不同厂商设备（本机另有 vivo X200s 已验）为 v1.3.0 正式版前置条件之一
+
 ## 未完成任务
 
 - [ ] Android App（TWA / Capacitor 打包）——Capacitor 已集成；真机验收 + 发布仍阻塞

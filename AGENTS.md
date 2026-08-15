@@ -3,10 +3,11 @@
 > 本文档给被压缩/新开的会话快速续接用。完整迭代史、踩坑与测试方法见 `PROJECT.md`、`README.md`。
 > **注意：每次迭代完成后需同步更新本文件「当前状态」与 PROJECT.md/README。**
 
-## 当前状态（截至迭代 42，v1.3.0-beta.1：Android 提醒/分享导出已实现，公共代理已修复，内置公共书源酷我 + JSON 引擎已实现，欢迎引导 + 需代理书源透明化已完成，真机验收仍阻塞）
+## 当前状态（截至迭代 43，v1.3.0-beta.1：Android 提醒/分享导出已实现，公共代理已修复，内置公共书源酷我 + JSON 引擎已实现，欢迎引导 + 需代理书源透明化已完成，**真机验收通过（vivo X200s / Android 16，8 项全过）**）
 
 - **版本**：`1.3.0-beta.1`（package.json 与 Android versionCode 2 / versionName 1.3.0-beta.1；GitHub Latest 仍为 v1.2.0，Beta 未发布）
 - **测试基线**：单测 **205**（25 套件）/ e2e **52**（chromium 45 + webkit-ios 7）/ type-check / lint / build 全绿；Android `assembleRelease` + `bundleRelease` 签名构建全绿；`assembleDebug`（含 local-notifications + share 插件）全绿
+- **真机验收**：vivo X200s（Android 16）8 项全过——TXT/EPUB 文件管理器打开（冷启动）、ACTION_SEND、翻章+进度持久化、返回键优先级、每日提醒（权限+调度）、夜间主题+状态栏、分享导出面板
 - **签名**：本机 release keystore（`%LOCALAPPDATA%\QingYue\keystore\qingyue-release.jks`，仓库外）；`android/key.properties` 不入库；证书 SHA-256 `5f9b67e549639ea9fb3e51242c20136511eccb91746e16c1ba8a21d45943b1a7`
 - **工作区**：main 与 origin/main 同步
 - **最近迭代**：
@@ -19,6 +20,7 @@
   - 40：内置公共书源酷我小说 + JSON 书源引擎 —— BookSource.format='json'（JSONPath 列表/字段/正文）、jsonPath/jsonField/renderJsonTemplate、BUILTIN_SOURCES（demo+kuwo，覆盖规则保留 enabled）、搜索整体 8s 限时、自备代理部署引导；单测 +9（203）；**关键约束：浏览器 fetch 酷我 API 被 CORS 拦截，必须配代理才能用**
   - 41：欢迎引导 —— 新增 WelcomeGuide.vue（全屏功能速览 + 「以后不再显示」勾选记忆，localStorage qingyue:welcome-dismissed，未勾选每次打开都弹）、App.vue 全局挂载、e2e storageState 预置跳过 + welcome.spec 3 用例；e2e 48→51
   - 42：需代理书源透明化 —— sourceNeedsProxy（baseUrl 非空即需代理）、书源列表「需代理」标记、搜索前置引导（未配自备代理时提示 + 一键查看部署教程，openGuide prop 自动切 custom）、欢迎页 Android 文案改「Beta 即将发布」；单测 +2（205）、e2e +1（52）
+  - 43：v1.3 Android 真机验收 —— vivo X200s / Android 16，8 项全过（TXT/EPUB 文件管理器打开、ACTION_SEND、翻章+进度持久化、返回键、每日提醒、夜间主题+状态栏、分享导出）；方法：adb intent + WebView CDP 断言；待人工 GUI 确认项（分享目标接收、大文件压力）非阻塞
 
 ## 核心架构速查
 
@@ -37,10 +39,9 @@
 
 ## 下一步候选（用户路线图：移动端体验 ✅ → Android（Capacitor）→ 多设备同步）
 
-- **v1.3 Android 真机验收（阻塞中）**：等待至少一台 Android 真机接入（USB 调试）——
-  TXT/EPUB 文件管理器打开、冷/热启动、ACTION_SEND、中文/空格/特殊文件名、
-  10MB/50MB/大文件压力、夜间主题 + 手势导航 + 刘海/挖孔、返回键优先级；
-  验收通过后再创建 `v1.3.0-beta.1` tag 发布 GitHub prerelease（签名 APK/AAB + SHA-256）。
+- **v1.3.0-beta.1 发布（就绪）**：真机验收已通过（vivo X200s / Android 16，8 项全过）——
+  创建 `v1.3.0-beta.1` tag 发布 GitHub prerelease（签名 APK/AAB + SHA-256）。
+  待人工 GUI 确认（非阻塞）：分享目标实际接收 .qingyue、10/50MB 大文件压力。
   第二台不同厂商设备是 v1.3.0 正式版的发布前置条件
 - **Android 后续能力**：本地通知已完成（每日阅读提醒）、分享导出已完成；ACTION_SEND 已完成
 - **公共书源/代理**：JSON 引擎 + 酷我书源已完成；真实书源必须配代理，推荐自备
