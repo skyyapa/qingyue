@@ -10,7 +10,7 @@ export const DEMO_SOURCE: BookSource = {
   baseUrl: '',
   enabled: true,
   search: {
-    url: '/demo-source/index.html',
+    url: 'demo-source/index.html',
     list: '.result li',
     title: 'h3 a@text',
     author: '.author@text',

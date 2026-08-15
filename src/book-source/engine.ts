@@ -28,10 +28,10 @@ export function resolveUrl(href: string, baseUrl: string): string {
   return baseUrl.replace(/\/+$/, '') + '/' + h.replace(/^\/+/, '')
 }
 
-/** 转绝对地址（new URL 的 base 必须是绝对地址；相对页面 URL 挂到当前站点根） */
+/** 转绝对地址（new URL 的 base 必须是绝对地址；相对页面 URL 挂到当前文档 baseURI——兼容 GitHub Pages 子目录/离线版） */
 function toAbsoluteUrl(url: string): string {
   try {
-    return new URL(url, location.origin).href
+    return new URL(url, document.baseURI).href
   } catch {
     return url
   }

@@ -697,6 +697,17 @@ src/
   lint / test(192) / e2e(48) / build 全绿
 - 说明：公共代理本身不稳定（免费公共 CORS 服务普遍限流/需 key），自备代理仍是推荐通道
 
+**迭代 38 —— 演示书源 404 修复（部署路径：前导斜杠 → 相对路径）（已提交）**
+- 问题：用户线上报「全部书源请求失败: HTTP 404」——演示书源 `search.url` 用
+  `/demo-source/index.html`（前导斜杠=站点根），GitHub Pages 部署在 `/qingyue/`
+  子目录时解析到根路径 404（本地 dev root 即 public 未暴露；离线版 file:// 同错）
+- 修复：`DEMO_SOURCE.search.url` 改相对 `demo-source/index.html`；`toAbsoluteUrl`
+  base 改 `document.baseURI`（兼容子目录/离线版，origin 不含子目录路径）
+- 验证：curl 实测 `/qingyue/demo-source/index.html` 200 vs 根路径 404；
+  e2e online-source 6 用例 + 全量 48 用例全绿
+- 说明：本问题与公共代理无关——演示书源走同源直连；用户报的「没有启用的书源」
+  需检查 localStorage（演示书源可能被停用），「书架是空的」为初始正常状态
+
 ## 未完成任务
 
 - [ ] Android App（TWA / Capacitor 打包）——Capacitor 已集成；真机验收 + 发布仍阻塞
@@ -931,6 +942,16 @@ src/
 63. **agent 测试 mock 要适配代理 JSON 响应**：跨源测试 URL（https://localhost/...）
     会走 public 代理路径，fetch mock 需对 `api.allorigins.win/get` 返回
     `{contents: html}` 而非裸 HTML，否则 `resp.json()` 解析失败
+
+### 部署路径（迭代 38 新增）
+64. **public 子目录资源不能用前导斜杠**：`/demo-source/index.html` 是站点根绝对路径
+    ——本地 dev（root 即 public）正常，但 GitHub Pages 部署到 `/qingyue/` 子目录、
+    离线版 `file://` 下解析到错误根路径 → 404。演示书源 URL 一律用相对路径
+    `demo-source/index.html`（浏览器按当前文档 baseURI 解析，适配任意部署）；
+    `toAbsoluteUrl` 的 base 从 `location.origin` 改为 `document.baseURI`
+    （origin 不含子目录路径）。根因排查链：用户报「书架是空的 → 没有启用的书源
+    → 全部书源请求失败 HTTP 404」→ curl 对比 `/qingyue/demo-source/`（200）
+    与根 `/demo-source/`（404）确认
 
 ## 测试方法备忘
 

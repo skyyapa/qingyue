@@ -14,6 +14,7 @@
   - 35：Android 每日阅读提醒 —— 新增 @capacitor/local-notifications 插件、settings 加 readingReminder（enabled/hour/minute，sanitize 校验）、utils/reminder.ts 纯函数（文案+每日重复调度）、capacitor.ts syncReadingReminder（权限申请/调度/取消）、App.vue watch 重调度、设置面板时间选择器 + 提示（Web 忽略）；单测 +6（185）；**真机未连接，验收仍为阻塞项**
   - 36：Android 单书分享导出 —— @capacitor/share 接入：utils/intent-uri.ts 加 blobToBase64（剥 data: 前缀）、capacitor.ts shareBookFile（Blob→base64→写缓存目录→Share.share，Web/失败回退下载）、BookshelfView 分支、BookCard 平台感知文案（原生「分享本书」/Web「导出本书」）；单测 +2（187）；**真机未连接，验收仍为阻塞项**
   - 37：公共代理失效修复 —— allorigins /raw（常 520）改 /get（JSON contents 解析）、移除需 key 的 corsproxy.io、通道统一带超时函数、testProxy 改收 ProxyConfig（public 实测公共通道而非空 customUrl）、BookSourceDialog public 模式加「测试公共代理」按钮；单测 +5（192，新增 requester.test.ts）
+  - 38：演示书源 404 修复 —— search.url 前导斜杠 `/demo-source/...` 在 GitHub Pages 子目录 `/qingyue/` 与离线版下解析到根路径 404 → 改相对路径 + toAbsoluteUrl 以 document.baseURI 为 base；curl 实测线上 `/qingyue/demo-source/` 200 / 根 404 确认
 
 ## 核心架构速查
 
@@ -40,6 +41,8 @@
 - **Android 后续能力**：本地通知已完成（每日阅读提醒）、分享导出已完成；ACTION_SEND 已完成
 - **公共代理**：内置走 allorigins /get（稳定端点，JSON contents 解析）；免费公共 CORS 服务
   大多失效/限流/需 key，自备 Cloudflare Worker 仍是推荐通道
+- **演示书源 404 踩坑**：public 子目录资源不能用前导斜杠（`/demo-source/...` 在
+  `/qingyue/` 子目录/离线版下 404）→ 用相对路径 + toAbsoluteUrl 以 document.baseURI 为 base
 - **多设备同步**：阅读进度与书库跨设备（需自建后端或第三方服务，超出纯前端约束）
 - 远期（AI 不再堆新功能，用户明确）：语义级事件提取、书源规则分享社区、README 演示 GIF
 
