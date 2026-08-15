@@ -824,6 +824,20 @@ src/
   **注意**：GitHub 的 Latest 徽章只指向最新非 prerelease——prerelease 存在但 Latest
   仍是 v1.2.0 是正常行为，勿误判为发布失败
 
+**迭代 44 —— 实时引导（欢迎卡 → 书架 spotlight 分步高亮）（已提交）**
+- 用户反馈：一次性全屏功能卡「引导力弱」→ 改为**实时引导**
+- 欢迎卡：首次打开轻量居中（logo + 一句简介 + 「开始引导 / 直接使用」），
+  不再全屏遮住书架内容
+- 步骤引导：书架页对四个关键入口逐个 spotlight 高亮（遮罩挖洞 box-shadow）+
+  气泡提示 + 「下一步/完成/跳过」——导入书籍 → 在线搜索 → 书源管理 → AI 助手；
+  切书架页/每步推进后 nextTick 测量目标 getBoundingClientRect 定位；resize 重新定位
+- 记忆：完成全部步骤 → `qingyue:welcome-dismissed=1` 不再弹；「直接使用」跳过
+  不记忆（下次仍弹）；「跳过」同「直接使用」
+- 非书架路由（分享导入直达）仍先展示欢迎卡，可手动开始
+- e2e welcome 3→4：开始引导走完四步、完成刷新不弹、直接使用不记忆仍弹、
+  已记忆跳过；`.guide-bubble` 作用域限定气泡文案（避免「导入书籍」命中书架按钮）
+- 回归全绿：type-check/lint/test(205)/e2e(53)/build
+
 ## 未完成任务
 
 - [x] ~~Android App（Capacitor 打包）~~（v1.3.0-beta.1 prerelease 已发布，vivo X200s / Android 16 真机验收通过；v1.3.0 正式版需第二台不同厂商设备 + 分享/大文件人工确认）

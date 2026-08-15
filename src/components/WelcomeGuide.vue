@@ -1,81 +1,166 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 
-/** 欢迎引导（全屏）：每次打开应用弹出，用户可勾选「以后不再显示」记忆选择 */
+/**
+ * 实时引导：欢迎卡 → 书架页逐个高亮关键入口（导入/搜索/书源/AI），
+ * 气泡提示 + 下一步推进；全部完成或跳过则记忆不再显示。
+ */
 
 const DISMISS_KEY = 'qingyue:welcome-dismissed'
 
+interface GuideStep {
+  /** 目标元素 CSS 选择器（仅书架页存在） */
+  selector: string
+  title: string
+  text: string
+  /** 气泡相对目标的方位 */
+  placement: 'top' | 'bottom' | 'right'
+}
+
+const STEPS: GuideStep[] = [
+  { selector: '.shelf-top .btn-primary', title: '导入书籍', text: '支持 TXT / EPUB，可拖拽或选择文件，导入即读。', placement: 'bottom' },
+  { selector: '.search-input', title: '在线搜索', text: '输入书名可搜索在线书源，一键加入书架。', placement: 'bottom' },
+  { selector: 'button[title="书源管理"]', title: '书源管理', text: '管理代理与书源，配置代理后可搜真实小说站。', placement: 'bottom' },
+  { selector: 'button[title^="AI"]', title: 'AI 阅读助手', text: '可选接入 AI（支持本地模型），防剧透问答与摘要。', placement: 'bottom' },
+]
+
+const route = useRoute()
 const show = ref(false)
-const neverAgain = ref(false)
+const phase = ref<'card' | 'guide' | 'done'>('card')
+const stepIndex = ref(0)
+
+// 目标元素位置（spotlight 高亮框 + 气泡锚点）
+const targetRect = ref<DOMRect | null>(null)
+const targetEl = ref<HTMLElement | null>(null)
+const viewportWidth = ref(window.innerWidth)
+
+const currentStep = computed(() => STEPS[stepIndex.value])
+
+/** 是否在书架页（引导步骤只在书架页有意义） */
+const onShelf = computed(() => route.path === '/')
+
+function resetScroll(): void {
+  window.scrollTo({ top: 0 })
+}
+
+/** 定位当前步骤目标：切到书架页后等 DOM 就绪再测量 */
+async function locateTarget(): Promise<void> {
+  await nextTick()
+  const el = document.querySelector<HTMLElement>(currentStep.value.selector)
+  targetEl.value = el ?? null
+  targetRect.value = el ? el.getBoundingClientRect() : null
+}
+
+watch(
+  () => [onShelf.value, stepIndex.value],
+  async () => {
+    if (phase.value !== 'guide' || !onShelf.value) {
+      targetEl.value = null
+      targetRect.value = null
+      return
+    }
+    await locateTarget()
+  }
+)
+
+function onResize(): void {
+  viewportWidth.value = window.innerWidth
+  if (phase.value === 'guide' && onShelf.value) void locateTarget()
+}
 
 onMounted(() => {
-  // 未选择「不再显示」时每次打开都弹出
+  // 已选择「不再显示」则不打扰
   show.value = localStorage.getItem(DISMISS_KEY) !== '1'
+  window.addEventListener('resize', onResize)
+  if (route.path !== '/') {
+    // 非书架页（如分享导入直达）：先展示欢迎卡，仍可手动开始
+    phase.value = 'card'
+  }
 })
 
-const router = useRouter()
+onBeforeUnmount(() => window.removeEventListener('resize', onResize))
 
-function close(): void {
-  if (neverAgain.value) localStorage.setItem(DISMISS_KEY, '1')
+/** 开始实时引导（回到书架 + 第 0 步） */
+async function startGuide(): Promise<void> {
+  phase.value = 'guide'
+  stepIndex.value = 0
+  resetScroll()
+  await locateTarget()
+}
+
+function finish(): void {
+  localStorage.setItem(DISMISS_KEY, '1')
+  phase.value = 'done'
   show.value = false
 }
 
-function goImport(): void {
-  close()
-  router.push('/')
+/** 跳过引导（不再记忆，下次还会提示） */
+function skip(): void {
+  phase.value = 'done'
+  show.value = false
+}
+
+async function next(): Promise<void> {
+  if (stepIndex.value < STEPS.length - 1) {
+    stepIndex.value++
+    resetScroll()
+    await locateTarget()
+  } else {
+    finish()
+  }
 }
 </script>
 
 <template>
+  <!-- 欢迎卡（首次打开，轻量居中，不遮内容） -->
   <Teleport to="body">
-    <div v-if="show" class="welcome-mask">
+    <div v-if="show && phase === 'card'" class="welcome-mask">
       <div class="welcome-card">
         <header class="welcome-head">
           <span class="welcome-logo">阅</span>
-          <div class="welcome-brand">
+          <div>
             <h1 class="welcome-title">欢迎使用轻阅</h1>
             <p class="welcome-sub">纯本地 · 开源 · 无广告的小说阅读器</p>
           </div>
         </header>
-
-        <div class="welcome-features">
-          <div class="feature">
-            <span class="feature-icon">📖</span>
-            <div class="feature-text">
-              <b>导入即读</b>
-              <span>拖入 TXT / EPUB 立刻开读，书籍与进度只存本机</span>
-            </div>
-          </div>
-          <div class="feature">
-            <span class="feature-icon">🔍</span>
-            <div class="feature-text">
-              <b>在线书源</b>
-              <span>内置演示与酷我书源；自备代理后可直接搜书（免费 Worker）</span>
-            </div>
-          </div>
-          <div class="feature">
-            <span class="feature-icon">✨</span>
-            <div class="feature-text">
-              <b>AI 阅读助手</b>
-              <span>防剧透问答、自动摘要、人物时间线（可选接入，支持本地模型）</span>
-            </div>
-          </div>
-          <div class="feature">
-            <span class="feature-icon">📱</span>
-            <div class="feature-text">
-              <b>随身阅读</b>
-              <span>安装到桌面 / Android App Beta 已发布</span>
-            </div>
-          </div>
+        <p class="welcome-brief">导入 TXT / EPUB 即开即读，数据只存本机；可选接入 AI 助手与在线书源。</p>
+        <div class="welcome-actions">
+          <button class="btn btn-primary" @click="startGuide">开始引导</button>
+          <button class="btn btn-ghost" @click="skip">直接使用</button>
         </div>
+      </div>
+    </div>
+  </Teleport>
 
-        <label class="welcome-never">
-          <input v-model="neverAgain" type="checkbox" />
-          <span>以后打开不再显示引导</span>
-        </label>
-
-        <button class="btn btn-primary welcome-start" @click="goImport">开始使用</button>
+  <!-- 实时引导：spotlight 高亮 + 气泡 -->
+  <Teleport to="body">
+    <div v-if="show && phase === 'guide' && onShelf && targetRect" class="guide-layer">
+      <!-- 遮罩挖洞（spotlight） -->
+      <div
+        class="guide-spot"
+        :style="{
+          left: `${targetRect.left - 6}px`,
+          top: `${targetRect.top - 6}px`,
+          width: `${targetRect.width + 12}px`,
+          height: `${targetRect.height + 12}px`,
+        }"
+      ></div>
+      <!-- 气泡 -->
+      <div
+        class="guide-bubble"
+        :style="{
+          left: `${Math.min(viewportWidth - 320, Math.max(16, targetRect.left))}px`,
+          top: `${targetRect.bottom + 14}px`,
+        }"
+      >
+        <div class="guide-num">{{ stepIndex + 1 }} / {{ STEPS.length }}</div>
+        <p class="guide-title">{{ currentStep.title }}</p>
+        <p class="guide-text">{{ currentStep.text }}</p>
+        <div class="guide-actions">
+          <button class="btn btn-ghost guide-skip" @click="skip">跳过</button>
+          <button class="btn btn-primary" @click="next">{{ stepIndex < STEPS.length - 1 ? '下一步' : '完成' }}</button>
+        </div>
       </div>
     </div>
   </Teleport>
@@ -85,29 +170,27 @@ function goImport(): void {
 .welcome-mask {
   position: fixed;
   inset: 0;
-  z-index: 100;
+  z-index: 80;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 20px;
-  background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(6px);
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(4px);
 }
 .welcome-card {
-  width: min(92vw, 420px);
-  max-height: 86vh;
-  overflow-y: auto;
-  padding: 24px;
+  width: min(88vw, 360px);
+  padding: 22px;
   background: var(--panel);
   border: 1px solid var(--panel-border);
-  border-radius: 18px;
+  border-radius: 16px;
   box-shadow: var(--shadow);
-  animation: welcome-in 0.25s ease;
+  animation: guide-in 0.25s ease;
 }
-@keyframes welcome-in {
+@keyframes guide-in {
   from {
     opacity: 0;
-    transform: translateY(14px) scale(0.98);
+    transform: translateY(10px) scale(0.98);
   }
   to {
     opacity: 1;
@@ -117,16 +200,16 @@ function goImport(): void {
 .welcome-head {
   display: flex;
   align-items: center;
-  gap: 14px;
-  margin-bottom: 18px;
+  gap: 12px;
+  margin-bottom: 12px;
 }
 .welcome-logo {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
+  width: 42px;
+  height: 42px;
+  border-radius: 11px;
   background: linear-gradient(135deg, #4f7cff, #7b5cff);
   color: #fff;
-  font-size: 24px;
+  font-size: 21px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -134,62 +217,75 @@ function goImport(): void {
 }
 .welcome-title {
   margin: 0;
-  font-size: 18px;
+  font-size: 17px;
   font-weight: 700;
 }
 .welcome-sub {
-  margin: 4px 0 0;
+  margin: 3px 0 0;
   font-size: 12px;
   color: var(--fg-weak);
 }
-.welcome-features {
+.welcome-brief {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: var(--fg);
+  line-height: 1.7;
+}
+.welcome-actions {
   display: flex;
-  flex-direction: column;
   gap: 10px;
-  margin-bottom: 16px;
 }
-.feature {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 10px 12px;
+.welcome-actions .btn {
+  flex: 1;
+}
+
+.guide-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  pointer-events: none;
+}
+.guide-spot {
+  position: absolute;
   border-radius: 12px;
-  background: var(--bg);
+  background: transparent;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+  transition: all 0.25s ease;
+}
+.guide-bubble {
+  position: absolute;
+  width: min(72vw, 300px);
+  padding: 14px 16px;
+  background: var(--panel);
   border: 1px solid var(--panel-border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  pointer-events: auto;
+  animation: guide-in 0.2s ease;
 }
-.feature-icon {
-  font-size: 20px;
-  line-height: 1.2;
-}
-.feature-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  font-size: 13px;
-}
-.feature-text b {
-  font-size: 14px;
-}
-.feature-text span {
+.guide-num {
+  font-size: 11px;
   color: var(--fg-weak);
+  margin-bottom: 4px;
+}
+.guide-title {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 700;
+}
+.guide-text {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--fg);
+  line-height: 1.6;
+}
+.guide-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+.guide-skip {
   font-size: 12px;
-  line-height: 1.5;
-}
-.welcome-never {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--fg-weak);
-  margin: 0 0 14px;
-  cursor: pointer;
-}
-.welcome-never input {
-  accent-color: var(--accent);
-  width: 16px;
-  height: 16px;
-}
-.welcome-start {
-  width: 100%;
 }
 </style>

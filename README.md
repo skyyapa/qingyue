@@ -73,7 +73,7 @@ npm run android:open  # 用 Android Studio 打开 Android 工程
 npm run lint       # ESLint 代码检查
 npm run type-check # TypeScript 类型检查
 npm run test       # 单元测试（Vitest 205 用例）
-npm run e2e        # 端到端测试（Playwright 52 用例）
+npm run e2e        # 端到端测试（Playwright 53 用例）
 ```
 
 GitHub Actions 自动运行 CI（lint + type-check + 单测 + 构建 + E2E）。
