@@ -5,10 +5,19 @@ import type { ProxyConfig } from './types'
 const PROXY_KEY = 'qingyue:proxy'
 const REQUEST_TIMEOUT = 15000
 
-/** 公共 CORS 代理（兜底通道，按顺序尝试） */
-const PUBLIC_PROXIES: ((url: string) => string)[] = [
-  (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
-  (u) => `https://corsproxy.io/?url=${encodeURIComponent(u)}`,
+/**
+ * 公共 CORS 代理（兜底通道，按顺序尝试）。
+ * 每个返回完整 HTML 文本；注意：
+ * - allorigins 的 /raw 端点常 520/断连，稳定的是 /get（JSON 包 contents 字段）→ 需解析
+ * - corsproxy.io 自 2023 起要求 API key，匿名 403 → 不再内置
+ */
+const PUBLIC_PROXIES: ((url: string) => Promise<string>)[] = [
+  async (u) => {
+    const resp = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(u)}`)
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+    const json = (await resp.json()) as { contents?: string }
+    return json.contents ?? ''
+  },
 ]
 
 export function loadProxyConfig(): ProxyConfig {
@@ -47,27 +56,38 @@ async function fetchText(url: string): Promise<string> {
   }
 }
 
+/** 统一按目标地址执行单个抓取通道（带超时），公共代理解析 JSON 也走这里 */
+async function runChannel(channel: (url: string) => Promise<string>, url: string): Promise<string> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT)
+  try {
+    return await channel(url)
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 /** 按代理配置抓取 HTML；失败依次尝试备用通道 */
 export async function fetchHtml(url: string, proxy?: ProxyConfig): Promise<string> {
   const cfg = proxy ?? loadProxyConfig()
   if (isSameOrigin(url)) {
     return fetchText(url)
   }
-  const attempts: string[] = []
-  if (cfg.mode === 'direct') attempts.push(url)
+  const attempts: ((u: string) => Promise<string>)[] = []
+  if (cfg.mode === 'direct') attempts.push(async (u) => fetchText(u))
   if (cfg.mode === 'custom' && cfg.customUrl) {
-    attempts.push(`${cfg.customUrl.replace(/\/+$/, '')}/?url=${encodeURIComponent(url)}`)
+    attempts.push(async (u) => fetchText(`${cfg.customUrl.replace(/\/+$/, '')}/?url=${encodeURIComponent(u)}`))
   }
   if (cfg.mode === 'public') {
-    for (const build of PUBLIC_PROXIES) attempts.push(build(url))
+    for (const build of PUBLIC_PROXIES) attempts.push(build)
   }
   if (attempts.length === 0) {
     throw new Error('未配置任何可用通道：请在「书源管理 → 代理设置」中选择代理模式')
   }
   let lastError = ''
-  for (const target of attempts) {
+  for (const channel of attempts) {
     try {
-      return await fetchText(target)
+      return await runChannel(channel, url)
     } catch (e) {
       lastError = e instanceof Error ? e.message : String(e)
     }
@@ -75,10 +95,10 @@ export async function fetchHtml(url: string, proxy?: ProxyConfig): Promise<strin
   throw new Error(`请求失败（已尝试 ${attempts.length} 个通道）: ${lastError}`)
 }
 
-/** 代理连通性测试 */
-export async function testProxy(url: string): Promise<string> {
+/** 代理连通性测试：custom 测自备代理，public 测公共代理通道（空 customUrl 时不再误测） */
+export async function testProxy(cfg: ProxyConfig): Promise<string> {
   try {
-    const html = await fetchHtml('https://example.com/', { mode: 'custom', customUrl: url })
+    const html = await fetchHtml('https://example.com/', cfg)
     return html.includes('Example Domain') ? '连接正常' : '连接成功（返回内容异常）'
   } catch (e) {
     throw new Error(e instanceof Error ? e.message : String(e), { cause: e })

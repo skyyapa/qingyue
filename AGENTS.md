@@ -3,16 +3,17 @@
 > 本文档给被压缩/新开的会话快速续接用。完整迭代史、踩坑与测试方法见 `PROJECT.md`、`README.md`。
 > **注意：每次迭代完成后需同步更新本文件「当前状态」与 PROJECT.md/README。**
 
-## 当前状态（截至迭代 36，v1.3.0-beta.1：Android 每日阅读提醒 + 单书分享导出已实现，真机验收仍阻塞）
+## 当前状态（截至迭代 37，v1.3.0-beta.1：Android 提醒/分享导出已实现，公共代理已修复，真机验收仍阻塞）
 
 - **版本**：`1.3.0-beta.1`（package.json 与 Android versionCode 2 / versionName 1.3.0-beta.1；GitHub Latest 仍为 v1.2.0，Beta 未发布）
-- **测试基线**：单测 **187**（24 套件）/ e2e **48**（chromium 41 + webkit-ios 7）/ type-check / lint / build 全绿；Android `assembleRelease` + `bundleRelease` 签名构建全绿；`assembleDebug`（含 local-notifications + share 插件）全绿
+- **测试基线**：单测 **192**（25 套件）/ e2e **48**（chromium 41 + webkit-ios 7）/ type-check / lint / build 全绿；Android `assembleRelease` + `bundleRelease` 签名构建全绿；`assembleDebug`（含 local-notifications + share 插件）全绿
 - **签名**：本机 release keystore（`%LOCALAPPDATA%\QingYue\keystore\qingyue-release.jks`，仓库外）；`android/key.properties` 不入库；证书 SHA-256 `5f9b67e549639ea9fb3e51242c20136511eccb91746e16c1ba8a21d45943b1a7`
 - **工作区**：main 与 origin/main 同步
 - **最近迭代**：
   - 34：v1.3 Android M2 准备（processedUris 失败可重试 + 成功短窗去重、MIME 无扩展名文件名标准化 +2 单测、safe-area 映射 Capacitor 注入变量、版本同步 1.3.0-beta.1、签名 keystore + signingConfig、签名 APK/AAB 构建）
   - 35：Android 每日阅读提醒 —— 新增 @capacitor/local-notifications 插件、settings 加 readingReminder（enabled/hour/minute，sanitize 校验）、utils/reminder.ts 纯函数（文案+每日重复调度）、capacitor.ts syncReadingReminder（权限申请/调度/取消）、App.vue watch 重调度、设置面板时间选择器 + 提示（Web 忽略）；单测 +6（185）；**真机未连接，验收仍为阻塞项**
   - 36：Android 单书分享导出 —— @capacitor/share 接入：utils/intent-uri.ts 加 blobToBase64（剥 data: 前缀）、capacitor.ts shareBookFile（Blob→base64→写缓存目录→Share.share，Web/失败回退下载）、BookshelfView 分支、BookCard 平台感知文案（原生「分享本书」/Web「导出本书」）；单测 +2（187）；**真机未连接，验收仍为阻塞项**
+  - 37：公共代理失效修复 —— allorigins /raw（常 520）改 /get（JSON contents 解析）、移除需 key 的 corsproxy.io、通道统一带超时函数、testProxy 改收 ProxyConfig（public 实测公共通道而非空 customUrl）、BookSourceDialog public 模式加「测试公共代理」按钮；单测 +5（192，新增 requester.test.ts）
 
 ## 核心架构速查
 
@@ -37,6 +38,8 @@
   验收通过后再创建 `v1.3.0-beta.1` tag 发布 GitHub prerelease（签名 APK/AAB + SHA-256）。
   第二台不同厂商设备是 v1.3.0 正式版的发布前置条件
 - **Android 后续能力**：本地通知已完成（每日阅读提醒）、分享导出已完成；ACTION_SEND 已完成
+- **公共代理**：内置走 allorigins /get（稳定端点，JSON contents 解析）；免费公共 CORS 服务
+  大多失效/限流/需 key，自备 Cloudflare Worker 仍是推荐通道
 - **多设备同步**：阅读进度与书库跨设备（需自建后端或第三方服务，超出纯前端约束）
 - 远期（AI 不再堆新功能，用户明确）：语义级事件提取、书源规则分享社区、README 演示 GIF
 

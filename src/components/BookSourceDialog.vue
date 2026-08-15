@@ -17,7 +17,7 @@ async function onTestProxy(): Promise<void> {
   proxyTesting.value = true
   proxyTestResult.value = ''
   try {
-    proxyTestResult.value = await testProxy(proxy.value.customUrl)
+    proxyTestResult.value = await testProxy(proxy.value)
   } catch (e) {
     proxyTestResult.value = `失败：${e instanceof Error ? e.message : String(e)}`
   } finally {
@@ -210,6 +210,9 @@ async function runSearchTest(index: number): Promise<void> {
           <input v-model="proxy.customUrl" type="text" placeholder="https://你的代理地址（如 xxx.workers.dev）" />
           <button class="btn" :disabled="proxyTesting" @click="onTestProxy">测试连接</button>
         </div>
+        <button v-if="proxy.mode === 'public'" class="btn" :disabled="proxyTesting" @click="onTestProxy">
+          {{ proxyTesting ? '测试中…' : '测试公共代理' }}
+        </button>
         <p v-if="proxyTestResult" class="proxy-result" :class="{ error: proxyTestResult.startsWith('失败') }">
           {{ proxyTestResult }}
         </p>

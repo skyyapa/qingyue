@@ -682,6 +682,21 @@ src/
 - **阻塞项**：真机验收仍未执行——分享面板弹出、目标应用收到 `.qingyue` 文件、
   再次导入恢复（含进度/知识库）需真机确认
 
+**迭代 37 —— 公共代理失效修复（allorigins /get + 测试按钮）（已提交）**
+- 问题：内置公共代理全部失效——`api.allorigins.win/raw` 端点常 520/断连、
+  `corsproxy.io` 自 2023 起要求 API key（匿名 403）→ 公共代理模式抓不到任何内容
+- 修复：`PUBLIC_PROXIES` 改用 allorigins 稳定端点 `/get`（JSON 包 `contents` 字段，
+  需 `resp.json()` 解析）；移除 corsproxy.io；通道改为统一带超时函数
+- `testProxy` 签名改为收整个 `ProxyConfig`：public 模式实测公共通道（之前误用
+  空的 customUrl 去拼 custom 代理 URL，public 下测试连接恒失败）；custom 模式测自备地址
+- BookSourceDialog：public 模式新增「测试公共代理」按钮（custom 模式保持「测试连接」）
+- 单测 +5（192，新增 requester.test.ts）：allorigins /get 解析、公共代理失败按通道数
+  报错、direct 直连、testProxy public/custom 两模式；engine 测试 mock 适配 allorigins
+  JSON 返回（跨源 URL 走公共代理路径）
+- 验证：curl 实测 allorigins /get 对 example.com 返回 200 + contents；type-check /
+  lint / test(192) / e2e(48) / build 全绿
+- 说明：公共代理本身不稳定（免费公共 CORS 服务普遍限流/需 key），自备代理仍是推荐通道
+
 ## 未完成任务
 
 - [ ] Android App（TWA / Capacitor 打包）——Capacitor 已集成；真机验收 + 发布仍阻塞
@@ -904,6 +919,18 @@ src/
     （如 .qingyue JSON）需先 `blobToBase64` 剥掉 data: 前缀再写
 60. **平台感知文案用 isNative 常量**：BookCard「导出本书/分享本书」按
     `isNative` 切换——Web 端必须保持原文案，否则 e2e 的按钮定位器失效
+
+### 公共代理（迭代 37 新增）
+61. **免费公共 CORS 代理大多已失效/收费**：`api.allorigins.win/raw` 常 520/断连但
+    `/get` 稳定（JSON 包 contents 需解析）；`corsproxy.io` 2023 起要求 API key
+    （匿名 403）；`cors.eu.org` 限流 429、`whateverorigin` 400——内置公共代理
+    需定期实测替换，且永远作为兜底（推荐自备 Cloudflare Worker）
+62. **testProxy 必须收整个 ProxyConfig**：原实现 `testProxy(customUrl)` 在 public
+    模式下用空的 customUrl 拼 custom 代理 URL → 测试连接恒失败且报错信息误导；
+    按 mode 分支实测对应通道才是真连通性测试
+63. **agent 测试 mock 要适配代理 JSON 响应**：跨源测试 URL（https://localhost/...）
+    会走 public 代理路径，fetch mock 需对 `api.allorigins.win/get` 返回
+    `{contents: html}` 而非裸 HTML，否则 `resp.json()` 解析失败
 
 ## 测试方法备忘
 

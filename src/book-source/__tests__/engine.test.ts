@@ -3,25 +3,37 @@ import { extractField, fetchChapters, fetchContent, renderTemplate, resolveExtra
 import { DEMO_SOURCE } from '../store'
 import type { BookSource } from '../types'
 
-/** 模拟同源 fetch（返回 HTML 文本） */
+/** 模拟同源 fetch（返回 HTML 文本）；跨源走 allorigins /get 时返回 JSON 包装的 contents */
 function stubFetch(html: string) {
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () => new Response(html, { status: 200, headers: { 'content-type': 'text/html; charset=utf-8' } }))
+    vi.fn(async (input: string) => {
+      const isAllorigins = String(input).includes('api.allorigins.win/get')
+      const body = isAllorigins ? JSON.stringify({ contents: html }) : html
+      return new Response(body, {
+        status: 200,
+        headers: { 'content-type': isAllorigins ? 'application/json' : 'text/html; charset=utf-8' },
+      })
+    })
   )
 }
 
-/** 按目标 URL 分发响应的 fetch mock（兼容代理通道：从 ?url= 参数还原目标地址） */
+/** 按目标 URL 分发响应的 fetch mock（兼容代理通道：从 ?url= 参数还原目标地址；allorigins /get 返回 JSON contents） */
 function stubFetchMap(map: Record<string, string>) {
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: string) => {
       const raw = String(input)
+      const isAllorigins = raw.includes('api.allorigins.win/get')
       const q = raw.indexOf('?url=')
       const target = q >= 0 ? decodeURIComponent(raw.slice(q + 5)) : raw
       const html = map[target]
       if (html === undefined) return new Response('not found', { status: 404 })
-      return new Response(html, { status: 200, headers: { 'content-type': 'text/html; charset=utf-8' } })
+      const body = isAllorigins ? JSON.stringify({ contents: html }) : html
+      return new Response(body, {
+        status: 200,
+        headers: { 'content-type': isAllorigins ? 'application/json' : 'text/html; charset=utf-8' },
+      })
     })
   )
 }
