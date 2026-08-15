@@ -816,12 +816,18 @@ src/
   10/50MB 大文件压力（adb 无法模拟 GUI 选择/大文件生成时间成本）
 - **结论**：真机验收通过 → 满足创建 `v1.3.0-beta.1` tag 发布 GitHub prerelease 的条件；
   第二台不同厂商设备（本机另有 vivo X200s 已验）为 v1.3.0 正式版前置条件之一
+- **发布（2026-08-15）**：创建 `v1.3.0-beta.1` tag（触发 release-offline.yml 自动构建
+  离线版）→ `gh release upload` 附加签名 `app-release.apk`（SHA-256
+  `f0fe4522...9eea`）/ `app-release.aab`（`9006ce55...e002`）→ `gh release edit --prerelease`
+  标记 prerelease → 写入发布说明（Beta，仅 Android；已在 vivo X200s / Android 16 验证；
+  含 SHA-256 与证书指纹）；README 加 Android APK 下载入口。
+  **注意**：GitHub 的 Latest 徽章只指向最新非 prerelease——prerelease 存在但 Latest
+  仍是 v1.2.0 是正常行为，勿误判为发布失败
 
 ## 未完成任务
 
-- [ ] Android App（TWA / Capacitor 打包）——Capacitor 已集成；真机验收 + 发布仍阻塞
-- [ ] Android 多设备同步（阅读进度与书库跨设备，需自建后端或第三方服务，超出纯前端约束）
-- [ ] 多设备同步（阅读进度与书库跨设备同步）
+- [x] ~~Android App（Capacitor 打包）~~（v1.3.0-beta.1 prerelease 已发布，vivo X200s / Android 16 真机验收通过；v1.3.0 正式版需第二台不同厂商设备 + 分享/大文件人工确认）
+- [ ] 多设备同步（阅读进度与书库跨设备同步，需自建后端或第三方服务，超出纯前端约束）
 - [ ] 语义级事件提取（三年之约）——需 LLM，v1 用章节实体快照替代，远期
 - [ ] 书源规则分享社区 / 规则包市场（分享链接与批量导入已支持，缺集中式分发渠道）——远期
 - [ ] 测试覆盖扩展：备份往返、在线书知识库（缓存章节分析）——store 层（analysis）已补；
