@@ -1,14 +1,12 @@
 # 📖 轻阅 QingYue
 
-一个开源的**小说阅读器**（Web），纯本地运行：导入 TXT / EPUB，即开即读。
+一个开源的**小说阅读器**。纯本地运行：导入 TXT / EPUB，即开即读。
 
-> 书籍与进度只保存在你自己的浏览器（IndexedDB）里，不上传任何数据。
+> 🔒 书籍与进度只保存在你的浏览器（IndexedDB）里，不上传任何数据。
 
-> **v1.3.0-beta.1**：Android App（Capacitor）Beta 已发布（GitHub prerelease）——文件管理器「用轻阅打开」TXT/EPUB、系统分享导入、冷/热启动、返回键、edge-to-edge SystemBars、每日阅读提醒本地通知、单书分享导出；vivo X200s 真机验收通过。**v1.2.0**：AI 阅读助手正式版——OpenAI 兼容 Provider（官方/DeepSeek/Gemini/本地 Ollama/LM Studio/vLLM/中转站）、九大阅读任务、🔒 防剧透机制（AI 只读已读章节）；此前 v1.1.0 完成阅读助手打磨、EPUB 排版还原、全书搜索、单书导出、阅读日历等。
+> **v1.3.0-beta.1**（Android App Beta 已发布）：文件管理器「用轻阅打开」、系统分享导入、每日阅读提醒、单书分享导出。**v1.2.0**（AI 阅读助手）：OpenAI 兼容 Provider、九大阅读任务、防剧透机制。
 
-## 🚀 立即使用（不用下载）
-
-**轻阅是网页应用，不需要安装，打开链接就能用：**
+## 🚀 立即使用
 
 <p align="center">
   <a href="https://skyyapa.github.io/qingyue/"><img src="https://img.shields.io/badge/🚀-在线打开轻阅-4f7cff?style=for-the-badge" alt="在线打开" /></a>
@@ -16,63 +14,40 @@
   <a href="https://github.com/skyyapa/qingyue/releases/tag/v1.3.0-beta.1"><img src="https://img.shields.io/badge/🤖-Android APK（Beta）-1b6b93?style=for-the-badge" alt="下载 Android APK" /></a>
 </p>
 
-**几种用法，选一个：**
-
-| 方式 | 适合谁 | 怎么做 |
-| --- | --- | --- |
-| 🌐 **在线使用** | 大多数人 | 点上方「在线打开轻阅」，浏览器直接用，数据存本机 |
-| 📱 **装到桌面** | 想像普通 App 一样用 | 打开在线版后，点页面底部「安装」按钮（手机 iOS 用 Safari「分享 → 添加到主屏幕」） |
-| ⬇️ **下载离线版** | 想真正"下载"到电脑 | 下载上方「离线版」zip → 解压 → **双击 index.html** 就能用，断网也能读本地书 |
-| 🤖 **Android App（Beta）** | 安卓手机用户 | 下载上方「Android APK」→ 安装即用（支持文件管理器「用轻阅打开」、系统分享导入、每日阅读提醒） |
+| 方式 | 怎么做 |
+| --- | --- |
+| 🌐 **在线使用** | 点上方按钮，浏览器直接用，数据存本机 |
+| 📱 **装到桌面** | 打开在线版 → 点页面底部「安装」（iOS 用 Safari「分享 → 添加到主屏幕」） |
+| ⬇️ **下载离线版** | 下载 zip → 解压 → 双击 index.html，断网也能读 |
+| 🤖 **Android App（Beta）** | 下载 APK → 安装即用，支持文件管理器「用轻阅打开」 |
 
 ## ✨ 功能特性
 
-- **本地导入阅读** — 支持 TXT / EPUB 格式，点击选择或直接拖拽，可多选批量导入；超大文件带进度条，单文件上限 200MB
-- **中文编码自动识别** — UTF-8 / GB18030（兼容 GBK）/ Big5 / UTF-16（含无 BOM）自动判别，识别不了时可手动指定编码
-- **EPUB 支持** — NCX / EPUB3 nav 目录解析（章节标题更准确）、正文内嵌图片显示、章节内小标题保留；**排版还原**：内嵌 CSS 段落样式（首行缩进 / 对齐 / 行距 / 字号 / 颜色 / 粗斜体 / 下划线）+ @font-face 内嵌字体；自动跳过损坏章节与图片/样式类条目，对扫描版等无正文电子书给出友好提示
-- **数据备份** — 一键导出全部书籍 / 章节 / 分组 / 阅读统计为单个文件（大文件自动 gzip），支持合并式恢复；**单书导出**：书架卡片菜单可把一本书（正文 + 进度 + 知识库）导出为 `.qingyue` 文件，迁移设备或分享，导入对话框直接恢复
-- **阅读助手（本地知识库）** —
-  - 无 AI 成本：基于上下文规则的实体识别（如「X说」→ 人物、「在X」→ 地点、「使出X」→ 技能、「突破X / X境」→ 境界），覆盖**人物 / 地点 / 势力 / 技能 / 物品 / 境界**六类，建立全书章节索引；规则识别**可能误判**，所有实体都支持人工修正
-  - **事件时间线**：章节事件句（「A 对 B 说」）跨章自动聚合，按时间线浏览全书事件，点击直达原文
-  - 人物关系图（段落共现加权）、章节摘要（登场人物 / 地点 / 事件句）、前情回顾（时间线可点击跳章）
-  - **正文内定位**：例句一键「定位」跳回原文、出现章节点击直达该章实体首次出现处（锚点高亮）
-  - 人物 / 设定 / 章节列表支持搜索过滤；重分析时**别名自动参与匹配**（合并过的实体知识不丢失），不再出现的实体自动清理
-  - 选中正文文字一键查角色，未识别的可「加入知识库」
-  - 实体卡片：出现章节跳转、共现关系、例句；支持改名 / 合并 / 删除 / 备注（人工修正兜底）
-  - AI 能力已接入（见下方「AI 阅读助手」）
-- **在线书源引擎** —
-  - legado 风格书源规则（搜索 / 目录 / 正文 CSS 选择器 + 模板变量 + 管道处理）
-  - **分页目录 / 正文分页**：规则声明「下一页」链接选择器，自动跨页抓取（防循环 + 页数上限）
-  - **规则分享**：单书源一键生成分享链接（打开即进入导入页）或复制 JSON；支持批量导入（粘贴 / JSON 文件，可选覆盖同 ID 书源）
-  - 书架搜索框直接在线搜书，一键加入书架；正文按需抓取并缓存，离线可续读；**在线书同样支持知识库分析**（基于已缓存章节）
-  - 跨域三通道：项目自带代理（Cloudflare Worker / Node 双版本）/ 自备代理 / 公共代理兜底（allorigins /get，不稳定但开箱即用）
-  - 书源管理：编辑 JSON、启停、搜索测试、导入导出；内置「轻阅演示」书源开箱即用（含分页目录与分页正文示例）、内置「酷我小说」公共书源（官方 JSON API，正版；配代理后可用）
-  - **需代理书源引导**：需要代理的书源旁显示「需代理」标记；搜索时若未配置自备代理，直接提示「一键查看部署教程」，不再等请求失败让用户猜
-  - **JSON 书源**：支持返回 JSON 的书源接口（格式标记 `json`，字段用 JSONPath 如 `$.data` / `$.author_name`），适配酷我小说等官方 API
-- **AI 阅读助手（可选接入，零成本方案）** — 书架顶栏「AI」统一配置 Provider：**OpenAI 兼容协议**下直接可用 **OpenAI 官方 / DeepSeek / Gemini（Gateway）/ 本地 Ollama / LM Studio / vLLM / 任意中转站**（Base URL + API Key + Model + 一键测试连接），项目本身不承担任何 AI 成本。**多模型策略**：可分别为「简单问答 / 摘要」配置更便宜的模型降本，复杂剧情分析走主模型。配置后：**私人小说管家**（不剧透 / 跟随阅读进度 / 优先引用已发生剧情 / 不确定就说不知道），支持**这是谁 / 前情回顾 / 剧情解释 / 人物关系 / 世界观解释 / 事件时间线 / 伏笔回顾 / 章节摘要 / 今日回顾 / 自由提问**；**阅读页 ⚡ 浮层一键解释/总结/问人物/看伏笔**，选中正文一键「✨ AI」带入提问，翻章自动生成章节摘要（可关闭），实体卡片含**经历时间线**与「AI 梳理经历」。<br>⚠️ 说明：API Key 为**明文**保存在浏览器本机 localStorage（未加密，请勿在公用设备配置）；中转站需允许浏览器跨域（CORS）请求
-- **🔒 防剧透机制** — AI 默认只能使用**已读章节**（第 1～当前章）的数据：读到第 327 章时问「林凡是什么身份」，AI 不会透露第 900 章的答案，只会基于已读内容回答或说明「涉及未读章节」
-- **PWA 可安装** — 一键「安装到桌面」像普通软件一样使用（含 iOS 添加到主屏幕指引），离线可读已缓存内容与本地书籍；移动端专项打磨：刘海屏安全区适配（standalone 全屏不贴边）、iOS 地址栏收起/展开时布局自适应、输入框 16px 起（聚焦不放大页面）、去点击灰闪与双击缩放延迟
-- **Android App（Capacitor）** — 同一套代码打包原生 Android 应用：**文件管理器「用轻阅打开」TXT / EPUB 直接导入**与**系统分享文件到轻阅**（现代 Android `content://` intent → 原生 ContentResolver 读取真实文件名/MIME/内容 → 自动导入）、**系统返回键**按「关面板 → 后退 → 退出」逐级处理、**edge-to-edge SystemBars** 图标随深浅主题切换、**每日阅读提醒**（设置面板开启时间点，本地通知每天到点提醒，文案结合当天阅读时长；Web 端自动忽略）、**单书分享导出**（书架卡片菜单 → 系统分享面板发送 `.qingyue` 单书文件，Web 端为浏览器下载）；已完成 Debug APK 与 API 35 模拟器验证。工程由 Capacitor 8 管理（`npm run android:sync` 同步 Web 产物，Android Studio 或 `./gradlew assembleDebug` 构建 APK）
-- **智能章节切分** — 自动识别「第X章 / 第X回 / 序章 / 楔子 / 番外 / 终章」等章节标题，书名作者自动提取；无章节标记的整本单章兜底
-- **书架管理** —
-  - 自定义分组（新建 / 删除分组，书籍一键归类）；卡片菜单可一键「重置阅读进度」重读；分组删除按钮常驻可见（触屏无需 hover）
-  - 排序：最近阅读 / 最近导入 / 书名 / 手动拖拽排序
-  - 按书名 / 作者即时搜索过滤
-  - 生成式封面、一键删除（应用内确认对话框）
-- **阅读占比** — 全书已读百分比按字数加权计算，书架卡片与阅读器底部实时显示
-- **阅读统计** — 今日阅读时长、连续阅读天数、累计时长（仅保存在本机；挂机 60 秒无操作自动停止计时）；**阅读日历**：📊 查看月度阅读热力图（颜色越深读得越久）
-- **沉浸阅读体验** —
-  - 字号 / 行距 / 字体（系统·宋体·黑体·楷体·衬线）自由调节；阅读器底栏 **A− / A+ 快捷调字号**，设置面板可一键恢复默认
-  - 十套主题皮肤：默认 / 极简白 / 羊皮纸 / 青瓷 / 护眼 / 樱花粉 / 夜间 / 深蓝 / 墨绿 / 石墨
-  - 拟真书页效果：正文渲染成带纸张质感与书页阴影的「纸页」（可一键关闭）
-  - 两种翻页方式：连续滚动 / 翻页（分栏排版）；翻页模式支持**方向键翻页（到页尾自动翻章）**、**触屏左右滑动翻页**、章末「下一章」入口与「全书完」标记
-  - **触屏点按**（手机阅读 App 式交互）：左/右区域点按翻页（滚动模式按屏滚动），**中央点按呼出/隐藏工具栏**（沉浸阅读，含 AI 浮层联动）
-  - **阅读位置记忆**：上一章 / 下一章 / 目录往返自动回到之前的位置，不再总从头开始
-  - **正文搜索**：`Ctrl+F`（或顶栏 🔍）支持「本章」逐处高亮跳转（↑/↓ 或 Enter 切换）和「本书」跨章节搜索；在线书搜索已缓存章节并明确显示扫描范围，点击结果直达原文高亮处
-  - 目录抽屉，点击任意章节跳转（打开即定位到当前章）
-- **进度自动保存** — 阅读位置防抖写入 IndexedDB，刷新 / 重开浏览器无缝续读；页面被强杀前也会兜底保存
-- **欢迎引导** — 首次打开弹出全屏引导（功能速览），勾选「以后打开不再显示」后记住选择（不勾选则每次打开都显示）；Android App Beta 即将发布
-- **快捷键** — `←` / `→` 翻页或翻章，`Ctrl+F` 章节内搜索，`Esc` 关闭所有面板（目录 / 设置 / 助手 / 搜索）
+### 📚 阅读体验
+
+- 导入 TXT / EPUB，可批量；中文编码自动识别（UTF-8 / GB18030 / Big5 / UTF-16）
+- EPUB 排版还原：内嵌 CSS 样式 + @font-face 字体 + 正文图片 + 目录解析
+- 字号 / 行距 / 字体 / 十套主题 / 拟真书页效果 / 滚动·翻页双模式
+- 触屏点按翻页（手机 App 式交互）、阅读位置记忆、正文搜索（本章 / 本书）
+- 进度自动保存、阅读统计（今日时长 / 连续天数 / 月度热力图日历）
+- 智能章节切分（第X章 / 序章 / 楔子 / 番外…）
+
+### 🧠 阅读助手与 AI
+
+- **本地知识库**（零成本）：自动识别人物 / 地点 / 势力 / 技能 / 物品 / 境界，事件时间线、人物关系图、章节摘要、正文内定位；支持人工修正
+- **AI 阅读助手**（可选接入）：兼容 OpenAI / DeepSeek / Gemini / 本地 Ollama / LM Studio / vLLM；九大任务（前情回顾 / 剧情解释 / 人物关系 / 伏笔回顾 / 章节摘要…）
+- **🔒 防剧透**：AI 只读已读章节，问「林夜的真实身份」不会剧透第 900 章答案
+
+### 🌐 在线书源
+
+- legado 风格书源规则（CSS 选择器 + 模板变量 + 管道），支持分页目录 / 正文分页 / 规则分享
+- **JSON 书源**：支持 JSON 接口（JSONPath 字段），内置酷我小说正版书源
+- 跨域三通道：自备代理（Cloudflare Worker 免费）/ 公共代理 / 直连；需代理书源自动标记并引导配置
+
+### 📱 平台
+
+- **PWA**：一键安装到桌面，离线可读
+- **Android App**（Beta）：文件管理器「用轻阅打开」、系统分享导入、系统返回键、edge-to-edge 状态栏、每日阅读提醒、单书分享导出
 
 ## 🖼️ 截图
 
@@ -84,88 +59,78 @@
 
 ```bash
 npm install        # 安装依赖
-npm run dev        # 启动开发服务器（http://localhost:5173）
-npm run build      # 类型检查 + 生产构建（输出 dist/）
-npm run preview    # 预览构建产物
-npm run android:sync  # 构建 Web 并同步进 Android 工程（Capacitor）
+npm run dev        # 开发服务器（http://localhost:5173）
+npm run build      # 类型检查 + 生产构建
+npm run android:sync  # 构建 Web 并同步进 Android 工程
 npm run android:open  # 用 Android Studio 打开 Android 工程
 ```
 
-**Android App 构建**：需安装 [Android Studio](https://developer.android.com/studio)（含 SDK 与 JDK）——`npm run android:sync` 后，用 `npm run android:open` 打开工程点 Run，或命令行 `cd android && ./gradlew assembleDebug` 产出 `android/app/build/outputs/apk/debug/` 下的 APK。安装后即可在文件管理器里对 TXT / EPUB 选「用轻阅打开」。
+**构建 Android APK**：需安装 [Android Studio](https://developer.android.com/studio)（含 SDK 与 JDK）。`npm run android:sync` 后，用 `npm run android:open` 打开工程点 Run，或命令行 `cd android && ./gradlew assembleDebug`。
 
 ## ✅ 质量保障
 
 ```bash
 npm run lint       # ESLint 代码检查
 npm run type-check # TypeScript 类型检查
-npm run test       # 单元测试（Vitest，205 用例：编码检测/EPUB 与 CSS 解析/知识库算法/书源引擎含 JSONPath/AI 客户端与任务/数据库/Store/组件/备份/导出/搜索/点按分区/intent URI/阅读提醒/公共代理）
-npm run e2e        # 端到端测试（Playwright 52 用例 = Chromium 45 + WebKit/iOS 视口 7，首次需 npx playwright install chromium webkit）
+npm run test       # 单元测试（Vitest 205 用例）
+npm run e2e        # 端到端测试（Playwright 52 用例）
 ```
 
-GitHub Actions 自动运行：推送到 `main` 或发起 PR 时执行 CI（lint + type-check + 单测 + 构建 + E2E），部署前自动验证。
+GitHub Actions 自动运行 CI（lint + type-check + 单测 + 构建 + E2E）。
 
 [![CI](https://github.com/skyyapa/qingyue/actions/workflows/ci.yml/badge.svg)](https://github.com/skyyapa/qingyue/actions/workflows/ci.yml)
 
 ## 🛠️ 技术栈
 
-- **Vue 3**（`<script setup>`）+ **TypeScript** + **Vite**
-- **vue-router** / **Pinia** 状态管理
-- **IndexedDB**（原生封装，零依赖）存储书籍与进度
-- **jszip** 解析 EPUB；手写 CSS 变量主题系统，无 UI 组件库
+- **Vue 3** + **TypeScript** + **Vite** + **vue-router** + **Pinia**
+- **IndexedDB**（原生封装）存储书籍与进度；**jszip** 解析 EPUB
+- 手写 CSS 变量主题系统，无 UI 组件库
 
 ## 📁 项目结构
 
 ```
 src/
-├── db/          # IndexedDB 封装（books/chapters/entities/chapterIndex/relations/bookFonts 六 store）
-├── parsers/     # TXT（编码检测+章节切分）与 EPUB 解析器（含 CSS 子集排版解析）
+├── parsers/     # TXT（编码检测+章节切分）与 EPUB 解析器（含 CSS 子集排版）
 ├── analyze/     # 无 AI 知识库管线（新词发现 / 上下文分类 / 事件提取）
 ├── book-source/ # 在线书源引擎（规则模板 / 抓取 / 代理 / 分享导入）
-├── stores/      # Pinia：书架 / 阅读设置 / 阅读统计 / 阅读器 / 知识库操作
-├── ai/          # AI Provider 预设/OpenAI 兼容客户端/进度感知任务（已接入）
-├── utils/       # 阅读占比、时长格式化、备份等工具
-├── views/       # BookshelfView 书架、ReaderView 阅读器
-├── components/  # 导入对话框、目录/设置/助手面板、实体卡片、关系图等
+├── ai/          # AI Provider 预设 / OpenAI 兼容客户端 / 进度感知任务
+├── stores/      # Pinia：书架 / 设置 / 统计 / 阅读器 / 知识库
+├── views/       # 书架、阅读器
+├── components/  # 导入 / 目录 / 设置 / 助手面板、实体卡片、关系图等
 └── styles/      # 全局样式与十套主题变量
 ```
 
-## 🚢 部署到 GitHub Pages
+## 🚢 部署
 
-使用 hash 路由（`#/reader/xxx`），在任何静态托管下刷新深链接都不会 404。
+使用 hash 路由（`#/reader/xxx`），任何静态托管刷新深链接都不 404。仓库内置 GitHub Actions 工作流，推送 `main` 自动构建部署到 [GitHub Pages](https://skyyapa.github.io/qingyue/)。
 
-仓库已内置 GitHub Actions 工作流（`.github/workflows/deploy-pages.yml`）：推送到 `main` 分支后自动构建并部署。
-
-首次部署需在仓库 **Settings → Pages** 中把 Source 设为 **GitHub Actions**。若仓库改名，记得同步修改工作流里的 `--base=/qingyue/` 为 `--base=/新仓库名/`。
-
-线上地址：<https://skyyapa.github.io/qingyue/>
+首次部署需在仓库 **Settings → Pages** 把 Source 设为 **GitHub Actions**。若仓库改名，同步修改工作流里的 `--base=/qingyue/`。
 
 ## 🔌 部署书源代理
 
-小说网站通常禁止浏览器跨域访问，在线书源需要代理转发（「书源管理 → 代理设置」中配置）：
+小说网站禁止浏览器跨域访问，在线书源需要代理转发（书源管理 → 代理设置）：
 
 **Cloudflare Workers（推荐，免费）**
 1. 打开 <https://dash.cloudflare.com> → Workers & Pages → 创建 Worker
 2. 粘贴 [proxy/worker.js](proxy/worker.js) 的内容 → 部署
-3. 把生成的 `https://xxx.workers.dev/` 填入「自备代理」地址
+3. 把生成的 `https://xxx.workers.dev/` 填入「自备代理」
 
 **Node（本地 / 自建服务器）**
+
 ```bash
 node proxy/server.mjs   # 默认 8787 端口
-# 把 http://你的地址:8787/ 填入「自备代理」地址
 ```
 
-也可直接使用内置「公共代理」模式（基于 allorigins /get，稳定性不保证，建议优先自备代理）。
+也可直接用内置「公共代理」模式（不稳定，建议自备代理）。
 
 ## 🗺️ 路线图
 
-**当前方向：AI 核心已完成 ✅，接下来走「移动端 → Android → 多设备」：**
-
-- [x] ~~AI 核心~~（阅读助手九任务 + 防剧透 + 阅读浮层 + 人物时间线 + 自动摘要 + 每日回顾 + 多模型策略，已完成）
-- [x] ~~移动端体验~~（PWA 打磨 / 触屏手势 / 窄屏适配 / safe-area，已完成）
-- [x] ~~Android App（Capacitor）~~（文件打开 / 返回键 / 状态栏 / 每日阅读提醒 / 单书分享导出，**v1.3.0-beta.1 prerelease 已发布，vivo X200s / Android 16 真机验收通过**）
-- [ ] 多设备同步（阅读进度与书库跨设备同步）
-- [ ] 语义级事件提取（「三年之约」类剧情事件）——需 LLM，远期
-- [ ] 书源规则分享社区 / 规则包市场（当前已支持链接分享与批量导入）——远期
+- [x] ~~AI 核心~~（九任务 + 防剧透 + 阅读浮层 + 人物时间线 + 自动摘要 + 多模型）
+- [x] ~~移动端体验~~（PWA 打磨 / 触屏手势 / 窄屏适配 / safe-area）
+- [x] ~~Android App~~（v1.3.0-beta.1 已发布，vivo X200s / Android 16 真机验收通过）
+- [ ] 多设备同步（阅读进度与书库跨设备）
+- [ ] 语义级事件提取 —— 远期
+- [ ] 书源规则分享社区 —— 远期
 - [ ] 演示 GIF
 
 ## 🤝 贡献
