@@ -1,18 +1,31 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { loadSources, saveSources, addSource, updateSource, removeSource, importSources, exportSources, shareSourceUrl, BUILTIN_SOURCES } from '@/book-source/store'
+import { computed, ref, watch } from 'vue'
+import { loadSources, saveSources, addSource, updateSource, removeSource, importSources, exportSources, shareSourceUrl, BUILTIN_SOURCES, sourceNeedsProxy } from '@/book-source/store'
 import { loadProxyConfig, saveProxyConfig, testProxy } from '@/book-source/requester'
 import { searchSource, validateSource, sourceTemplate } from '@/book-source/engine'
 import { downloadBlob } from '@/utils/file'
 import type { BookSource, ProxyConfig, SearchResult } from '@/book-source/types'
 
 const emit = defineEmits<{ close: [] }>()
+const props = defineProps<{ openGuide?: boolean }>()
 
 // ---------- 代理设置 ----------
 const proxy = ref<ProxyConfig>(loadProxyConfig())
 const proxyTestResult = ref('')
 const proxyTesting = ref(false)
 const showWorkerGuide = ref(false)
+
+// 搜索引导「一键查看部署教程」：打开时自动切到自备代理模式并展开教程
+watch(
+  () => props.openGuide,
+  (open) => {
+    if (open) {
+      proxy.value.mode = 'custom'
+      showWorkerGuide.value = true
+    }
+  },
+  { immediate: true }
+)
 
 async function onTestProxy(): Promise<void> {
   proxyTesting.value = true
@@ -244,6 +257,7 @@ async function runSearchTest(index: number): Promise<void> {
             </label>
             <span class="source-name" :class="{ disabled: !s.enabled }">{{ s.name }}</span>
             <span class="source-id">{{ s.id }}</span>
+            <span v-if="sourceNeedsProxy(s)" class="source-proxy" title="该书源为外部站点，浏览器跨域请求会被拦截，需配置代理后才能搜索">需代理</span>
             <button class="btn-small" @click="startEdit(i)">编辑</button>
             <button class="btn-small" @click="openTestPanel(i)">搜索测试</button>
             <button class="btn-small" @click="openShare(i)">分享</button>
@@ -463,6 +477,15 @@ async function runSearchTest(index: number): Promise<void> {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.source-proxy {
+  flex-shrink: 0;
+  padding: 2px 7px;
+  border-radius: 10px;
+  background: #fff3cd;
+  color: #8a6d1a;
+  font-size: 10px;
+  border: 1px solid #f0df9f;
 }
 .btn-small {
   padding: 4px 10px;

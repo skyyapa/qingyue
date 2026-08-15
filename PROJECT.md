@@ -766,6 +766,23 @@ src/
   清除」
 - e2e 48→51；单测 203 不变；type-check/lint/build 全绿
 
+**迭代 42 —— 需代理书源透明化（书源旁标记 + 搜索引导 + 欢迎页文案修正）（已提交）**
+- 用户反馈：内置酷我书源会让用户误以为安装即可搜；公共代理不可用时失败后要
+  用户自己猜。三个改进：
+- `sourceNeedsProxy(source)`（store.ts）：baseUrl 非空（外部站点）→ 需要代理；
+  BookSourceDialog 书源行显示「需代理」黄色标记（demo 无、kuwo 有）
+- 搜索引导（BookshelfView）：启用源含需代理书源且未配置自备代理（custom+空
+  URL）时，搜索下拉显示引导条「××需要配置代理才能搜索（浏览器会拦截跨域请求）」
+  +「一键查看部署教程」按钮——仍继续尝试（direct/public 碰运气），失败文案追加
+  「若书源为外部站点，需配置代理后重试」
+- 「一键查看部署教程」：openSourcesGuide → BookSourceDialog `openGuide` prop →
+  自动切 custom 模式 + 展开 worker 部署教程（免用户自己找）
+- 欢迎页文案修正：随 Android APK 未公开发布，「安装到桌面 / Android App，离线
+  也能读」→「安装到桌面 / Android App Beta 即将发布」（Beta 发布后改回）
+- 单测 +2（205）：sourceNeedsProxy 外部站/同源两分支；e2e +1（52）：
+  需代理引导显示 + 一键打开书源管理自动切自备代理
+- 回归全绿：type-check/lint/test(205)/e2e(52)/build
+
 ## 未完成任务
 
 - [ ] Android App（TWA / Capacitor 打包）——Capacitor 已集成；真机验收 + 发布仍阻塞
@@ -1037,6 +1054,14 @@ src/
 71. **全屏引导会遮挡既有 e2e**：新增的全局弹层会让所有既有测试的 UI 操作被遮罩
     拦截——用 Playwright `use.storageState` 预置「已关闭」键，既有测试零改动；
     引导自身的测试再单独清除该键验证弹层逻辑
+
+### 需代理书源引导（迭代 42 新增）
+72. **内置真实书源要主动标识「需代理」**：用户看到书源列表不会知道外部站点会被
+    CORS 拦截——baseUrl 非空即需要代理，列表行加「需代理」标记 + 搜索前置引导，
+    避免「搜不到→猜原因」的坏体验
+73. **跨组件传「打开即展开」状态用 prop watch**：搜索引导「一键查看部署教程」
+    需要打开书源管理时自动切 custom 模式并展开教程——用 `openGuide` prop +
+    watch immediate 处理，比全局事件总线/状态约定更简单直接
 
 ## 测试方法备忘
 

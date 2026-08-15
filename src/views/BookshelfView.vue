@@ -17,7 +17,8 @@ import InstallPrompt from '@/components/InstallPrompt.vue'
 import { useAnalysisStore } from '@/stores/analysis'
 import { shareBookFile } from '@/capacitor'
 import { searchSource } from '@/book-source/engine'
-import { getEnabledSources, getSource } from '@/book-source/store'
+import { getEnabledSources, getSource, sourceNeedsProxy } from '@/book-source/store'
+import { loadProxyConfig } from '@/book-source/requester'
 import type { SearchResult } from '@/book-source/types'
 import type { BookMeta } from '@/types'
 
@@ -29,6 +30,8 @@ const router = useRouter()
 const showImport = ref(false)
 const showBackup = ref(false)
 const showSources = ref(false)
+/** 打开书源管理时是否自动展开代理部署教程（来自搜索引导「一键查看部署教程」） */
+const sourcesOpenGuide = ref(false)
 const showStats = ref(false)
 const showAI = ref(false)
 const dragging = ref(false)
@@ -69,9 +72,17 @@ const searchFocused = ref(false)
 const searching = ref(false)
 const searchError = ref('')
 const onlineResults = ref<SearchResult[]>([])
+/** 需要代理但未配置自备代理时的引导（书源名列表） */
+const proxyGuide = ref<string[] | null>(null)
 
 function onSearchBlur(): void {
   window.setTimeout(() => (searchFocused.value = false), 200)
+}
+
+/** 是否已配置可靠的自备代理（custom 且填了地址）——需代理书源没有它时给出引导提示 */
+function hasReliableProxy(): boolean {
+  const cfg = loadProxyConfig()
+  return cfg.mode === 'custom' && !!cfg.customUrl
 }
 
 async function doOnlineSearch(): Promise<void> {
@@ -82,6 +93,13 @@ async function doOnlineSearch(): Promise<void> {
     searchError.value = '没有启用的书源，请先在「书源管理」中添加'
     return
   }
+  // 需代理书源但未配置自备代理：先给引导提示（仍继续尝试，公共代理/direct 可能碰运气）
+  const proxyNeededSources = sources.filter(sourceNeedsProxy)
+  if (proxyNeededSources.length > 0 && !hasReliableProxy()) {
+    proxyGuide.value = proxyNeededSources.map((s) => s.name)
+  } else {
+    proxyGuide.value = null
+  }
   searching.value = true
   searchError.value = ''
   onlineResults.value = []
@@ -89,9 +107,12 @@ async function doOnlineSearch(): Promise<void> {
   const { results, failures } = await searchWithTimeout(sources, q, 8000)
   onlineResults.value = results.slice(0, 30)
   if (results.length === 0) {
+    const proxyFailed = failures.some((f) => f.includes('代理') || f.includes('CORS'))
     searchError.value =
       failures.length === sources.length && failures.length > 0
-        ? `全部书源请求失败：${failures[0] ?? '未知错误'}`
+        ? proxyFailed
+          ? `请求失败（${failures[0] ?? '未知错误'}）——若书源为外部站点，需配置代理后重试`
+          : `全部书源请求失败：${failures[0] ?? '未知错误'}`
         : '没有匹配的书籍'
   }
   searching.value = false
@@ -149,6 +170,12 @@ function openBook(id: string): void {
 function onImported(id: string | null): void {
   showImport.value = false
   if (id) openBook(id)
+}
+
+/** 搜索引导「一键查看部署教程」→ 打开书源管理并自动切到自备代理 + 展开教程 */
+function openSourcesGuide(): void {
+  sourcesOpenGuide.value = true
+  showSources.value = true
 }
 
 // 拖拽导入
@@ -319,6 +346,12 @@ const emptyText = computed(() => {
           </div>
           <p v-if="books.importing" class="online-tip">正在获取目录并加入书架…</p>
           <p v-if="books.importError" class="online-error">{{ books.importError }}</p>
+          <div v-if="proxyGuide && proxyGuide.length" class="proxy-guide">
+            <p class="proxy-guide-text">
+              {{ proxyGuide.join('、') }} 需要配置代理才能搜索（浏览器会拦截跨域请求）
+            </p>
+            <button class="btn btn-primary proxy-guide-btn" @mousedown.prevent="openSourcesGuide">一键查看部署教程</button>
+          </div>
           <p v-if="searchError" class="online-error">{{ searchError }}</p>
         </div>
       </div>
@@ -380,7 +413,7 @@ const emptyText = computed(() => {
       @imported="onImported"
     />
     <BackupDialog v-if="showBackup" @close="showBackup = false" @imported="books.refresh" />
-    <BookSourceDialog v-if="showSources" @close="showSources = false" />
+    <BookSourceDialog v-if="showSources" :open-guide="sourcesOpenGuide" @close="showSources = false; sourcesOpenGuide = false" />
     <StatsPanel v-if="showStats" @close="showStats = false" />
     <AIProviderDialog v-if="showAI" @close="showAI = false" />
     <InstallPrompt />
@@ -565,6 +598,27 @@ const emptyText = computed(() => {
   font-size: 12px;
   color: var(--danger);
   line-height: 1.6;
+}
+.proxy-guide {
+  margin: 6px 4px 2px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #fff8e1;
+  border: 1px solid #f0df9f;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.proxy-guide-text {
+  margin: 0;
+  font-size: 12px;
+  color: #8a6d1a;
+  line-height: 1.6;
+}
+.proxy-guide-btn {
+  align-self: flex-start;
+  padding: 6px 12px;
+  font-size: 12px;
 }
 .btn-ghost-icon {
   padding: 7px 12px;

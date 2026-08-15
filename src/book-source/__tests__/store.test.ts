@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach } from 'vitest'
-import { DEMO_SOURCE, KUWO_SOURCE, importSources, loadSources, removeSource, encodeSourcePayload, decodeSourcePayload, shareSourceUrl } from '../store'
+import { DEMO_SOURCE, KUWO_SOURCE, importSources, loadSources, removeSource, encodeSourcePayload, decodeSourcePayload, shareSourceUrl, sourceNeedsProxy } from '../store'
 import type { BookSource } from '../types'
 
 describe('importSources 批量导入', () => {
@@ -77,8 +77,7 @@ describe('importSources 批量导入', () => {
   })
 })
 
-describe('分享 payload 编解码', () => {
-  it('编码 → 解码往返一致，且 payload 为 URL 安全字符', () => {
+describe('分享 payload 编解码', () => {  it('编码 → 解码往返一致，且 payload 为 URL 安全字符', () => {
     const payload = encodeSourcePayload(DEMO_SOURCE)
     expect(payload).not.toContain('+')
     expect(payload).not.toContain('/')
@@ -99,5 +98,16 @@ describe('分享 payload 编解码', () => {
     expect(url).toContain(marker)
     const payload = url.slice(url.indexOf(marker) + marker.length)
     expect(decodeSourcePayload(payload)[0].id).toBe(DEMO_SOURCE.id)
+  })
+})
+
+describe('sourceNeedsProxy 代理判断', () => {
+  it('baseUrl 非空（外部站点）→ 需要代理', () => {
+    expect(sourceNeedsProxy(KUWO_SOURCE)).toBe(true)
+  })
+
+  it('baseUrl 为空（同源直连）→ 不需要代理', () => {
+    expect(sourceNeedsProxy(DEMO_SOURCE)).toBe(false)
+    expect(sourceNeedsProxy({ id: 'x', name: 'x', baseUrl: '', enabled: true })).toBe(false)
   })
 })

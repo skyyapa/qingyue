@@ -65,7 +65,7 @@ function goImport(): void {
             <span class="feature-icon">📱</span>
             <div class="feature-text">
               <b>随身阅读</b>
-              <span>安装到桌面 / Android App，离线也能读</span>
+              <span>安装到桌面 / Android App Beta 即将发布</span>
             </div>
           </div>
         </div>

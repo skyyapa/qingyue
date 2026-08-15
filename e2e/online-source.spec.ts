@@ -108,3 +108,32 @@ test.describe('在线书源', () => {
     await expect(page.locator('.share-input')).toHaveValue(/#\/source-import\//)
   })
 })
+
+test.describe('需代理书源引导', () => {
+  test.beforeEach(async ({ page }) => {
+    // 启用酷我书源 + 未配置自备代理（默认 public/direct 无 customUrl）
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        'qingyue:sources',
+        JSON.stringify([
+          { id: 'demo', name: '轻阅演示', baseUrl: '', enabled: true },
+          { id: 'kuwo', name: '酷我小说', baseUrl: 'http://appi.kuwo.cn', enabled: true, format: 'json' },
+        ])
+      )
+      localStorage.setItem('qingyue:proxy', JSON.stringify({ mode: 'direct', customUrl: '' }))
+    })
+  })
+
+  test('搜索时对需代理书源显示引导，一键打开部署教程', async ({ page }) => {
+    await page.goto('/')
+    await page.locator('.search-input').fill('三体')
+    await page.getByRole('button', { name: /在线搜索/ }).click()
+    // 引导提示出现
+    await expect(page.getByText('需要配置代理才能搜索')).toBeVisible()
+    await page.getByRole('button', { name: '一键查看部署教程' }).click()
+    // 书源管理打开且自备代理输入框可见（已自动切到 custom 模式）
+    await expect(page.getByRole('heading', { name: '书源管理' })).toBeVisible()
+    await expect(page.getByPlaceholder(/你的代理地址/)).toBeVisible()
+    await expect(page.getByText(/免费方案（Cloudflare Workers/)).toBeVisible()
+  })
+})

@@ -3,6 +3,11 @@ import type { BookSource } from './types'
 
 const SOURCES_KEY = 'qingyue:sources'
 
+/** 书源是否需要代理：baseUrl 非空（外部站点）→ 浏览器跨域 fetch 会被 CORS 拦截，需代理转发 */
+export function sourceNeedsProxy(source: BookSource): boolean {
+  return !!source.baseUrl
+}
+
 /** 内置演示书源：抓取自托管的演示内容（同源直连，开箱即用，无版权风险） */
 export const DEMO_SOURCE: BookSource = {
   id: 'demo',
