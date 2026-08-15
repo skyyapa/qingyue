@@ -62,4 +62,15 @@ test.describe('欢迎引导', () => {
     await page.goto('/')
     await expect(page.getByText('欢迎使用轻阅')).toBeHidden()
   })
+
+  test('非书架路由点「开始引导」会跳回书架并显示引导', async ({ page }) => {
+    await clearOnce(page)
+    // 模拟分享导入直达：进一个非书架路由
+    await page.goto('/#/source-import/xxx')
+    await expect(page.getByText('欢迎使用轻阅')).toBeVisible()
+    await page.getByRole('button', { name: '开始引导' }).click()
+    // 应回到书架页并显示第 1 步高亮
+    await expect(page.locator('.guide-bubble').getByText('1 / 4')).toBeVisible()
+    await expect(page.locator('.shelf')).toBeVisible()
+  })
 })

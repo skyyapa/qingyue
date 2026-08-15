@@ -838,6 +838,20 @@ src/
   已记忆跳过；`.guide-bubble` 作用域限定气泡文案（避免「导入书籍」命中书架按钮）
 - 回归全绿：type-check/lint/test(205)/e2e(53)/build
 
+**迭代 45 —— 实时引导修复（非书架路由断点 + placement 生效 + 气泡视口钳制）（已提交）**
+- 用户代码审查抓到三个真实问题：
+  1. **非书架路由启动引导断点**：`startGuide()` 只改 phase 不跳回书架，但引导层
+     要求 onShelf===true 才渲染——分享导入直达时点「开始引导」欢迎卡消失、引导
+     也不显示。修复：`route.path !== '/'` 时先 `router.push('/')` + nextTick 再定位
+  2. **placement 未生效**：GuideStep.placement 定义了但气泡恒用
+     targetRect.bottom+14px。修复：bubbleStyle computed 按 placement 算锚点
+     （top/bottom/right）+ 视口钳制
+  3. **气泡 top 无视口限制**：left 有钳制、top 没有——修复：bottom/top/left
+     全维度钳制（min 12px 留边，超出视口回缩）
+- 顺带把 switch 初始赋值改为 anchor 对象返回，消除 eslint no-useless-assignment 误报
+- e2e welcome 4→5：新增「非书架路由开始引导跳回书架」用例；回归全绿
+  type-check/lint/test(205)/e2e(54)/build
+
 ## 未完成任务
 
 - [x] ~~Android App（Capacitor 打包）~~（v1.3.0-beta.1 prerelease 已发布，vivo X200s / Android 16 真机验收通过；v1.3.0 正式版需第二台不同厂商设备 + 分享/大文件人工确认）

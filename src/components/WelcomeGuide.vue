@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 
 /**
  * 实时引导：欢迎卡 → 书架页逐个高亮关键入口（导入/搜索/书源/AI），
@@ -26,6 +26,7 @@ const STEPS: GuideStep[] = [
 ]
 
 const route = useRoute()
+const router = useRouter()
 const show = ref(false)
 const phase = ref<'card' | 'guide' | 'done'>('card')
 const stepIndex = ref(0)
@@ -36,6 +37,27 @@ const targetEl = ref<HTMLElement | null>(null)
 const viewportWidth = ref(window.innerWidth)
 
 const currentStep = computed(() => STEPS[stepIndex.value])
+
+/** 当前步骤气泡的像素位置：按 placement 相对目标锚点，左右/上下均做视口钳制 */
+const bubbleStyle = computed(() => {
+  const r = targetRect.value
+  if (!r) return null
+  const BUBBLE_W = Math.min(viewportWidth.value - 32, 300)
+  const BUBBLE_H = 170
+  const pad = 14
+  const placement = currentStep.value.placement
+  // 按方位取初始锚点（left/top 随后统一钳制）
+  const anchor =
+    placement === 'top'
+      ? { left: r.left, top: r.top - pad - BUBBLE_H }
+      : placement === 'right'
+        ? { left: r.right + pad, top: r.top }
+        : { left: r.left, top: r.bottom + pad }
+  // 视口钳制：不超出屏幕（左右缘 + 上下缘，最小值留边）
+  const left = Math.min(Math.max(12, anchor.left), viewportWidth.value - BUBBLE_W - 12)
+  const top = Math.min(Math.max(12, anchor.top), window.innerHeight - BUBBLE_H - 12)
+  return { left: `${left}px`, top: `${top}px` }
+})
 
 /** 是否在书架页（引导步骤只在书架页有意义） */
 const onShelf = computed(() => route.path === '/')
@@ -81,10 +103,14 @@ onMounted(() => {
 
 onBeforeUnmount(() => window.removeEventListener('resize', onResize))
 
-/** 开始实时引导（回到书架 + 第 0 步） */
+/** 开始实时引导：回到书架页 + 第 0 步（非书架路由时先跳转，否则引导层因 onShelf=false 不渲染） */
 async function startGuide(): Promise<void> {
   phase.value = 'guide'
   stepIndex.value = 0
+  if (route.path !== '/') {
+    await router.push('/')
+    await nextTick()
+  }
   resetScroll()
   await locateTarget()
 }
@@ -147,13 +173,7 @@ async function next(): Promise<void> {
         }"
       ></div>
       <!-- 气泡 -->
-      <div
-        class="guide-bubble"
-        :style="{
-          left: `${Math.min(viewportWidth - 320, Math.max(16, targetRect.left))}px`,
-          top: `${targetRect.bottom + 14}px`,
-        }"
-      >
+      <div class="guide-bubble" :style="bubbleStyle">
         <div class="guide-num">{{ stepIndex + 1 }} / {{ STEPS.length }}</div>
         <p class="guide-title">{{ currentStep.title }}</p>
         <p class="guide-text">{{ currentStep.text }}</p>
