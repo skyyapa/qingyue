@@ -68,6 +68,7 @@
   - **正文搜索**：`Ctrl+F`（或顶栏 🔍）支持「本章」逐处高亮跳转（↑/↓ 或 Enter 切换）和「本书」跨章节搜索；在线书搜索已缓存章节并明确显示扫描范围，点击结果直达原文高亮处
   - 目录抽屉，点击任意章节跳转（打开即定位到当前章）
 - **进度自动保存** — 阅读位置防抖写入 IndexedDB，刷新 / 重开浏览器无缝续读；页面被强杀前也会兜底保存
+- **欢迎引导** — 首次打开弹出全屏引导（功能速览），勾选「以后打开不再显示」后记住选择（不勾选则每次打开都显示）
 - **快捷键** — `←` / `→` 翻页或翻章，`Ctrl+F` 章节内搜索，`Esc` 关闭所有面板（目录 / 设置 / 助手 / 搜索）
 
 ## 🖼️ 截图
@@ -95,7 +96,7 @@ npm run android:open  # 用 Android Studio 打开 Android 工程
 npm run lint       # ESLint 代码检查
 npm run type-check # TypeScript 类型检查
 npm run test       # 单元测试（Vitest，203 用例：编码检测/EPUB 与 CSS 解析/知识库算法/书源引擎含 JSONPath/AI 客户端与任务/数据库/Store/组件/备份/导出/搜索/点按分区/intent URI/阅读提醒/公共代理）
-npm run e2e        # 端到端测试（Playwright 48 用例 = Chromium 41 + WebKit/iOS 视口 7，首次需 npx playwright install chromium webkit）
+npm run e2e        # 端到端测试（Playwright 51 用例 = Chromium 44 + WebKit/iOS 视口 7，首次需 npx playwright install chromium webkit）
 ```
 
 GitHub Actions 自动运行：推送到 `main` 或发起 PR 时执行 CI（lint + type-check + 单测 + 构建 + E2E），部署前自动验证。

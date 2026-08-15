@@ -750,6 +750,22 @@ src/
   （Cloudflare Worker）才能搜到书
 - 回归全绿：type-check/lint/test(203)/e2e(48)/build
 
+**迭代 41 —— 欢迎引导（全屏首次引导 + 「不再显示」记忆）（已提交）**
+- 新增 `WelcomeGuide.vue`：全屏引导弹层（功能速览四卡：导入即读 / 在线书源 /
+  AI 阅读助手 / 随身阅读）+「以后打开不再显示」勾选框 + 开始使用按钮；
+  挂 App.vue 全局（Teleport body，z-index 100，blur 遮罩）
+- 记忆逻辑：localStorage `qingyue:welcome-dismissed`——未写则**每次打开都弹出**；
+  勾选后点开始使用写入 '1'，之后不再弹；不勾选则每次弹（符合需求「每次打开
+  会弹出，用户可选后续是否显示」）
+- e2e 适配：playwright.config 加 `storageState: e2e/storage-state.json`
+  （预置 qingyue:welcome-dismissed=1）——全屏引导默认不遮挡既有测试；
+  新增 `welcome.spec.ts` 3 用例（首次弹出可关闭 / 勾选不再显示后刷新不弹 /
+  已记忆直接跳过）
+- 踩坑：addInitScript 每次导航（含 reload）都会执行——用 window 标记在刷新后
+  丢失导致 dismiss 又被删除；改用 sessionStorage 标记（跨导航保留）实现「仅首次
+  清除」
+- e2e 48→51；单测 203 不变；type-check/lint/build 全绿
+
 ## 未完成任务
 
 - [ ] Android App（TWA / Capacitor 打包）——Capacitor 已集成；真机验收 + 发布仍阻塞
@@ -1012,6 +1028,15 @@ src/
     会把用户停用状态重置；改为规则字段覆盖 + `enabled` 用已有值
 69. **搜索并行请求会等最慢源**：`Promise.allSettled` 等所有源（含 15s 超时），
     一个失效代理拖慢全部——用 `Promise.race` 给整体加 8s 上限，超时源结果丢弃
+
+### 欢迎引导（迭代 41 新增）
+70. **addInitScript 每次导航都执行**：Playwright 的 `page.addInitScript` 在每次
+    导航（含 `page.reload()`）前运行——若用它「首次清除某 localStorage 键」，
+    刷新时又删一次，导致持久化失效。需要跨导航的标记（如 sessionStorage，
+    reload 保留）判断「仅首次」，不能用 window 属性（每次导航新 window 丢失）
+71. **全屏引导会遮挡既有 e2e**：新增的全局弹层会让所有既有测试的 UI 操作被遮罩
+    拦截——用 Playwright `use.storageState` 预置「已关闭」键，既有测试零改动；
+    引导自身的测试再单独清除该键验证弹层逻辑
 
 ## 测试方法备忘
 

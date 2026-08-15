@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useSettingsStore } from '@/stores/settings'
 import { useStatsStore } from '@/stores/stats'
 import { emitOpenFiles, setupNativeBridge, syncReadingReminder, syncStatusBarTheme } from '@/capacitor'
+import WelcomeGuide from '@/components/WelcomeGuide.vue'
 import { App } from '@capacitor/app'
 
 const settings = useSettingsStore()
@@ -61,4 +62,5 @@ setupNativeBridge({
 
 <template>
   <router-view />
+  <WelcomeGuide />
 </template>

@@ -3,10 +3,10 @@
 > 本文档给被压缩/新开的会话快速续接用。完整迭代史、踩坑与测试方法见 `PROJECT.md`、`README.md`。
 > **注意：每次迭代完成后需同步更新本文件「当前状态」与 PROJECT.md/README。**
 
-## 当前状态（截至迭代 40，v1.3.0-beta.1：Android 提醒/分享导出已实现，公共代理已修复，内置公共书源酷我 + JSON 引擎已实现，真机验收仍阻塞）
+## 当前状态（截至迭代 41，v1.3.0-beta.1：Android 提醒/分享导出已实现，公共代理已修复，内置公共书源酷我 + JSON 引擎已实现，欢迎引导已加入，真机验收仍阻塞）
 
 - **版本**：`1.3.0-beta.1`（package.json 与 Android versionCode 2 / versionName 1.3.0-beta.1；GitHub Latest 仍为 v1.2.0，Beta 未发布）
-- **测试基线**：单测 **203**（25 套件）/ e2e **48**（chromium 41 + webkit-ios 7）/ type-check / lint / build 全绿；Android `assembleRelease` + `bundleRelease` 签名构建全绿；`assembleDebug`（含 local-notifications + share 插件）全绿
+- **测试基线**：单测 **203**（25 套件）/ e2e **51**（chromium 44 + webkit-ios 7）/ type-check / lint / build 全绿；Android `assembleRelease` + `bundleRelease` 签名构建全绿；`assembleDebug`（含 local-notifications + share 插件）全绿
 - **签名**：本机 release keystore（`%LOCALAPPDATA%\QingYue\keystore\qingyue-release.jks`，仓库外）；`android/key.properties` 不入库；证书 SHA-256 `5f9b67e549639ea9fb3e51242c20136511eccb91746e16c1ba8a21d45943b1a7`
 - **工作区**：main 与 origin/main 同步
 - **最近迭代**：
@@ -17,6 +17,7 @@
   - 38：演示书源 404 修复 —— search.url 前导斜杠 `/demo-source/...` 在 GitHub Pages 子目录 `/qingyue/` 与离线版下解析到根路径 404 → 改相对路径 + toAbsoluteUrl 以 document.baseURI 为 base；curl 实测线上 `/qingyue/demo-source/` 200 / 根 404 确认
   - 39：演示书源 404 修复补丁 —— loadSources 对 localStorage 残留的旧版 demo（前导斜杠 URL）强制用内置定义覆盖（存量用户线上新代码失效的根因）；单测 +2（194）；真实浏览器线上实测搜「数据」返回「数据之海」
   - 40：内置公共书源酷我小说 + JSON 书源引擎 —— BookSource.format='json'（JSONPath 列表/字段/正文）、jsonPath/jsonField/renderJsonTemplate、BUILTIN_SOURCES（demo+kuwo，覆盖规则保留 enabled）、搜索整体 8s 限时、自备代理部署引导；单测 +9（203）；**关键约束：浏览器 fetch 酷我 API 被 CORS 拦截，必须配代理才能用**
+  - 41：欢迎引导 —— 新增 WelcomeGuide.vue（全屏功能速览 + 「以后不再显示」勾选记忆，localStorage qingyue:welcome-dismissed，未勾选每次打开都弹）、App.vue 全局挂载、e2e storageState 预置跳过 + welcome.spec 3 用例；e2e 48→51
 
 ## 核心架构速查
 
@@ -63,3 +64,5 @@
 - Capacitor：`eslint .` 会扫 android/ 生成代码（需 ignore）；readFile 原生端返回
   base64 字符串（Blob 仅 Web）；content URI 文件名要剥 `primary:` 卷前缀（详见 PROJECT.md 52-53）
 - 面板打开时 ⚡ 浮层要隐藏（避免遮挡抽屉）
+- Playwright addInitScript 每次导航都执行（含 reload）：「仅首次清 localStorage」用
+  sessionStorage 标记而非 window 属性（刷新丢）；全屏弹层用 storageState 预置跳过不挡既有测试

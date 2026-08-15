@@ -8,6 +8,8 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:5173',
     trace: 'on-first-retry',
+    // 预置「已关闭欢迎引导」：全屏引导默认不遮挡既有测试；welcome.spec 单独清除验证
+    storageState: 'e2e/storage-state.json',
   },
   projects: [
     {
