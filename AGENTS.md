@@ -3,9 +3,9 @@
 > 本文档给被压缩/新开的会话快速续接用。完整迭代史、踩坑与测试方法见 `PROJECT.md`、`README.md`。
 > **注意：每次迭代完成后需同步更新本文件「当前状态」与 PROJECT.md/README。**
 
-## 当前状态（截至迭代 43，v1.3.0-beta.1：Android 提醒/分享导出已实现，公共代理已修复，内置公共书源酷我 + JSON 引擎已实现，欢迎引导 + 需代理书源透明化已完成，**真机验收通过（vivo X200s / Android 16，8 项全过）**）
+## 当前状态（截至迭代 43，v1.3.0-beta.1 已发布 GitHub prerelease，真机验收通过）
 
-- **版本**：`1.3.0-beta.1`（package.json 与 Android versionCode 2 / versionName 1.3.0-beta.1；GitHub Latest 仍为 v1.2.0，Beta 未发布）
+- **版本**：`1.3.0-beta.1`（package.json 与 Android versionCode 2 / versionName 1.3.0-beta.1；**已发布 GitHub prerelease**：https://github.com/skyyapa/qingyue/releases/tag/v1.3.0-beta.1 —— 签名 APK/AAB + 离线版 zip + SHA-256）
 - **测试基线**：单测 **205**（25 套件）/ e2e **52**（chromium 45 + webkit-ios 7）/ type-check / lint / build 全绿；Android `assembleRelease` + `bundleRelease` 签名构建全绿；`assembleDebug`（含 local-notifications + share 插件）全绿
 - **真机验收**：vivo X200s（Android 16）8 项全过——TXT/EPUB 文件管理器打开（冷启动）、ACTION_SEND、翻章+进度持久化、返回键优先级、每日提醒（权限+调度）、夜间主题+状态栏、分享导出面板
 - **签名**：本机 release keystore（`%LOCALAPPDATA%\QingYue\keystore\qingyue-release.jks`，仓库外）；`android/key.properties` 不入库；证书 SHA-256 `5f9b67e549639ea9fb3e51242c20136511eccb91746e16c1ba8a21d45943b1a7`
@@ -39,10 +39,9 @@
 
 ## 下一步候选（用户路线图：移动端体验 ✅ → Android（Capacitor）→ 多设备同步）
 
-- **v1.3.0-beta.1 发布（就绪）**：真机验收已通过（vivo X200s / Android 16，8 项全过）——
-  创建 `v1.3.0-beta.1` tag 发布 GitHub prerelease（签名 APK/AAB + SHA-256）。
-  待人工 GUI 确认（非阻塞）：分享目标实际接收 .qingyue、10/50MB 大文件压力。
-  第二台不同厂商设备是 v1.3.0 正式版的发布前置条件
+- **v1.3.0 正式版前置**：第二台不同厂商设备真机验收；待人工 GUI 确认（非阻塞）：
+  分享目标实际接收 .qingyue、10/50MB 大文件压力。通过后发 v1.3.0 正式版（tag 不
+  带 -beta，APK/AAB 同签名重发）
 - **Android 后续能力**：本地通知已完成（每日阅读提醒）、分享导出已完成；ACTION_SEND 已完成
 - **公共书源/代理**：JSON 引擎 + 酷我书源已完成；真实书源必须配代理，推荐自备
   Cloudflare Worker（免费 10 万次/天，书源管理内置部署引导）
