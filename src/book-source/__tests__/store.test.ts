@@ -32,6 +32,26 @@ describe('importSources 批量导入', () => {
     expect(loadSources().find((s) => s.id === DEMO_SOURCE.id)!.name).toBe(DEMO_SOURCE.name)
   })
 
+  it('localStorage 残留的旧版 demo 书源被内置定义覆盖（防前导斜杠旧路径）', () => {
+    // 模拟用户 localStorage 里存了旧版 demo（search.url 为过时的前导斜杠绝对路径）
+    localStorage.setItem(
+      'qingyue:sources',
+      JSON.stringify([{ ...DEMO_SOURCE, search: { ...DEMO_SOURCE.search!, url: '/demo-source/index.html' } }, makeSource('a', 'A源')])
+    )
+    const list = loadSources()
+    const demo = list.find((s) => s.id === DEMO_SOURCE.id)!
+    expect(demo.search!.url).toBe(DEMO_SOURCE.search!.url) // 覆盖为内置定义（相对路径）
+    expect(demo.search!.url).not.toContain('/demo-source')
+    expect(list.some((s) => s.id === 'a')).toBe(true) // 其他书源不受影响
+  })
+
+  it('localStorage 无 demo 时补入内置演示书源', () => {
+    localStorage.setItem('qingyue:sources', JSON.stringify([makeSource('a', 'A源')]))
+    const list = loadSources()
+    expect(list.some((s) => s.id === DEMO_SOURCE.id)).toBe(true)
+    expect(list.find((s) => s.id === DEMO_SOURCE.id)!.search!.url).toBe(DEMO_SOURCE.search!.url)
+  })
+
   it('格式无效条目跳过', () => {
     const r = importSources(JSON.stringify([{ id: 'x' }, { name: 'y' }, null]))
     expect(r).toEqual({ added: 0, updated: 0, skipped: 3 })

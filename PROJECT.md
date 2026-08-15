@@ -708,6 +708,20 @@ src/
 - 说明：本问题与公共代理无关——演示书源走同源直连；用户报的「没有启用的书源」
   需检查 localStorage（演示书源可能被停用），「书架是空的」为初始正常状态
 
+**迭代 39 —— 演示书源 404 修复补丁：localStorage 旧版 demo 书源强制覆盖（已提交）**
+- 问题：迭代 38 修复后用户硬刷新仍 404——`loadSources()` 发现 localStorage 已有
+  `id='demo'` 条目就**原样返回**，不会用修复后的内置定义覆盖。用户浏览器里残留
+  旧版 demo（search.url 仍是前导斜杠 `/demo-source/index.html`），线上新代码
+  形同未生效（真实浏览器无痕访问实测可搜到，用户环境 404）
+- 修复：`loadSources()` 中已存在的 demo 书源一律 `{...DEMO_SOURCE}` 覆盖（旧数据
+  自动迁移到相对路径），不存在则补入；其他书源不受影响
+- 单测 +2（194）：残留旧版 demo 被覆盖为内置定义（search.url 相对路径 + 不误伤
+  其他书源）、localStorage 无 demo 时补入
+- 验证：真实浏览器访问线上搜「数据」返回「数据之海」；e2e 48 / 单测 194 /
+  type-check / lint / build 全绿
+- 教训：演示书源定义以代码为准，localStorage 持久化条目必须做「用内置定义覆盖
+  id=demo」的迁移，否则线上修复对存量用户不生效
+
 ## 未完成任务
 
 - [ ] Android App（TWA / Capacitor 打包）——Capacitor 已集成；真机验收 + 发布仍阻塞
@@ -952,6 +966,11 @@ src/
     （origin 不含子目录路径）。根因排查链：用户报「书架是空的 → 没有启用的书源
     → 全部书源请求失败 HTTP 404」→ curl 对比 `/qingyue/demo-source/`（200）
     与根 `/demo-source/`（404）确认
+65. **线上修复对存量用户不生效 → 查 localStorage 持久化条目**：改完代码线上新访问
+    正常，但用户仍 404——`loadSources()` 对已存在 `id='demo'` 的书源原样返回，
+    localStorage 里残留的旧版 demo（前导斜杠 URL）盖过内置定义。内置演示书源
+    必须以代码定义为准，loadSources 对 id=demo 强制覆盖迁移；真实浏览器无痕
+    访问（无旧 localStorage）验证线上，能区分「部署没生效」vs「用户数据残留」
 
 ## 测试方法备忘
 

@@ -38,9 +38,11 @@ export function loadSources(): BookSource[] {
     if (raw) {
       const list = JSON.parse(raw)
       if (Array.isArray(list)) {
-        // 确保内置演示书源存在且不被删除
+        // 内置演示书源：存在则强制用当前定义覆盖（旧数据可能残留过时 search.url，
+        // 例如前导斜杠 /demo-source/... 在子目录部署下 404），不存在则补上
         const hasDemo = list.some((s) => s?.id === DEMO_SOURCE.id)
-        return hasDemo ? list : [DEMO_SOURCE, ...list]
+        const withFreshDemo = hasDemo ? list.map((s) => (s?.id === DEMO_SOURCE.id ? { ...DEMO_SOURCE } : s)) : [DEMO_SOURCE, ...list]
+        return withFreshDemo
       }
     }
   } catch {
