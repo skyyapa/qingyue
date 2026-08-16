@@ -3,7 +3,7 @@
 > 本文档给被压缩/新开的会话快速续接用。完整迭代史、踩坑与测试方法见 `PROJECT.md`、`README.md`。
 > **注意：每次迭代完成后需同步更新本文件「当前状态」与 PROJECT.md/README。**
 
-## 当前状态（迭代 48，v1.3.0 正式版已发布 🎉）
+## 当前状态（迭代 50，v1.3.0 正式版已发布 🎉）
 
 - **版本**：`1.3.0`（正式版，package.json + Android versionCode 4 / versionName "1.3.0"；**已发布 GitHub release**：https://github.com/skyyapa/qingyue/releases/tag/v1.3.0 —— Latest，签名 APK/AAB + 离线版 zip + SHA-256；旧 beta.1 保持 Pre-release）
 - **测试基线**：单测 **225**（27 套件）/ e2e **58**（54 原 + 2 大文件压力 + 1 短章进度回归 + 1 推荐界面）/ type-check / lint / build 全绿；Android `assembleRelease` + `bundleRelease` 签名构建全绿

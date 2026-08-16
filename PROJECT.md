@@ -16,33 +16,44 @@
 ## 当前架构
 
 ```
-技术栈：Vue 3（<script setup>）+ TypeScript + Vite 8 + vue-router（hash）+ Pinia
-运行时依赖：jszip（EPUB 解压）—— 唯一非 Vue 生态依赖
+技术栈：Vue 3（<script setup>）+ TypeScript + Vite 8 + vue-router（hash）+ Pinia + Capacitor 8（Android）
+运行时依赖：jszip（EPUB 解压）；@capacitor/{app,filesystem,local-notifications,share}（Android 原生能力）
+远程调用依赖：无保留——OpenAI 兼容 AI 客户端走用户自配 Provider（见 ai/）
 存储：
-  IndexedDB  qingyue 库：books（元数据/进度/分组/字数） + chapters（正文，key=`${bookId}:${index}`）
+  IndexedDB「qingyue」v3（6 store）：
+    books（元数据/进度/分组/字数/知识库分析状态）
+    chapters（正文，key=`${bookId}:${index}`）
+    entities（知识库实体）、chapterIndex（每章词频/摘要/事件）、relations（共现边，含 chapterWeights）
+    bookFonts（EPUB 内嵌字体，以 bookId 为 key）
   localStorage：qingyue:settings（阅读设置）| qingyue:groups / qingyue:order / qingyue:sort（书架）
-              | qingyue:stats（阅读统计）
-路由：createWebHashHistory —— 任何静态托管刷新深链接不 404（GitHub Pages 无服务端重写）
-部署：.github/workflows/deploy-pages.yml，push main 自动构建（--base=/qingyue/）并部署
+              | qingyue:stats（阅读统计）| qingyue:aiProviders（AI Provider）| qingyue:proxy（代理）
+路由：createWebHashHistory —— 静态托管刷新深链接不 404；按路由懒加载（views 动态 import，书架为唯一首屏）
+部署：.github/workflows/deploy-pages.yml，push main 自动构建（--base=/qingyue/）并部署；Android APK/AAB 本机构建
 ```
 
 ```
 src/
-├── db/          # IndexedDB 原生封装（books/chapters/entities/chapterIndex/relations 五 store）
 ├── parsers/     # txt.ts 编码检测+章节切分；epub.ts 解压+spine 提取（容错）；index.ts 统一入口
 ├── analyze/     # 无 AI 知识库管线：segment（新词发现）+ classify（上下文分类）+ index（编排）
-├── ai/          # AI Provider 接口契约与注册表（v1 预留，未实现远程调用）
-├── stores/      # Pinia：books（书架/分组/排序/导入）、settings、reader、stats、analysis（分析+实体操作）
-├── utils/       # progress（占比）、file（读取/下载）、backup（备份）、id
-├── views/       # BookshelfView（书架）、ReaderView（阅读器）
+├── ai/          # AI 体系（已实现）：presets.ts（7 预设 OpenAI 兼容）| client.ts（chat/completions）
+│                # | assistant.ts（11 任务+防剧透+tier 路由+按需检索）| stores/ai.ts
+├── book-source/ # 在线书源引擎：types/store（书源管理）、engine（规则模板/抓取/JSON）、requester（代理通道）
+├── db/          # IndexedDB 原生封装（v3，6 store：见上）
+├── stores/      # Pinia：books、settings、reader、stats、analysis（实体操作）、ai
+├── utils/       # progress、file、backup、id、export、book-search、stats-calendar、reading-days、
+│                # tap-zones、intent-uri、reminder、recommend（题材分类+同类型推荐）
+├── views/       # BookshelfView（书架）、ReaderView（阅读器）、RecommendView（推荐）、SourceImportView
 ├── components/  # ImportDialog、BackupDialog、AppDialog、BookCard、TocPanel、SettingsPanel、
-│                # AssistantPanel（助手抽屉）、EntityCard、RelationGraph（SVG）、TextSelectionBar
-└── styles/      # main.css：四套主题 CSS 变量 + 全局组件样式
+│                # AssistantPanel、EntityCard、RelationGraph（SVG）、TextSelectionBar、AIProviderDialog、
+│                # BookSourceDialog、StatsPanel、WelcomeGuide、InstallPrompt
+├── router/      # createWebHashHistory + 路由懒加载
+├── capacitor.ts # Android 原生桥接：文件打开/ACTION_SEND/分享导出/本地通知/状态栏
+└── styles/      # main.css：十套主题 CSS 变量 + 全局组件样式（default/pure/paper/celadon/eye/pink/night/ocean/pine/graphite）
 ```
 
-存储（IndexedDB v2）：
-- books（元数据/进度/分组/字数/分析状态）、chapters（正文）
-- entities（知识库实体：人物/地点/技能/物品，可人工锁定）、chapterIndex（每章实体词频+摘要）、relations（共现边）
+主题：**十套**（默认/极简白/羊皮纸/青瓷/护眼/樱花粉/夜间/深蓝/墨绿/石墨）。
+
+Android（Capacitor 8）：文件管理器「用轻阅打开」、系统分享导入、edge-to-edge 状态栏、每日阅读提醒（本地通知）、单书分享导出；v1.3.0 正式版（versionCode 4 / 签名 keystore `5f9b67e5…43b1a7`）已发布到 GitHub release，双真机验收通过。
 
 ## 已经完成
 
