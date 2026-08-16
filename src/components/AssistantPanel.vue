@@ -881,12 +881,13 @@ defineExpose({ openEntity, openAI })
   gap: 6px;
 }
 .ai-chips .chip:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: default;
 }
 .ai-input-row {
   display: flex;
   gap: 6px;
+  align-items: center;
 }
 .ai-input-row input {
   flex: 1;
@@ -897,6 +898,7 @@ defineExpose({ openEntity, openAI })
   background: var(--bg);
   color: var(--fg);
   font-size: 13px;
+  line-height: 1.4;
   outline: none;
 }
 .ai-input-row input:focus {
