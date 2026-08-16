@@ -421,18 +421,20 @@ const pageMode = computed(() => settings.settings.pageMode)
 
 // ---------- 滚动位置换算 ----------
 
-/** 读取当前章内阅读位置（0-1），滚动/翻页模式统一口径 */
+/** 读取当前章内阅读位置（0-1），滚动/翻页模式统一口径
+ *  内容不足以滚动（max<=0，整章一屏/一列内已全部可见）时视为"已读到章末"，返回 1——
+ *  否则 bookReadPercent 把这类短章的字数按 0% 处理，全书占比被低估（读完全书也只显示非 100%） */
 function readRatio(): number {
   if (pageMode.value === 'scroll') {
     const el = scrollArea.value
     if (!el) return 0
     const max = el.scrollHeight - el.clientHeight
-    return max > 0 ? Math.min(1, Math.max(0, el.scrollTop / max)) : 0
+    return max > 0 ? Math.min(1, Math.max(0, el.scrollTop / max)) : 1
   }
   const el = pagedArea.value
   if (!el) return 0
   const max = el.scrollWidth - el.clientWidth
-  return max > 0 ? Math.min(1, Math.max(0, el.scrollLeft / max)) : 0
+  return max > 0 ? Math.min(1, Math.max(0, el.scrollLeft / max)) : 1
 }
 
 /** 恢复到指定位置（章节切换、设置变更、窗口缩放后调用） */
@@ -733,6 +735,17 @@ watch(
     recordTodayChapter(bookId.value, reader.chapterIndex) // 每日阅读回顾数据
     await nextTick()
     if (pageMode.value === 'paged') updatePagePos()
+    // 短章自动视为读完：一章内容不足可滚动（整章一屏/一列内全部可见）时，
+    // 用户一打开即已看完整章，主动保存该章进度（readRatio 对 max<=0 返回 1），
+    // 否则进度停在该章 0%，整本的「读完」占比被大幅低估（读完全书仍显示低百分比）
+    {
+      const el = pageMode.value === 'scroll' ? scrollArea.value : pagedArea.value
+      if (el) {
+        const max =
+          pageMode.value === 'scroll' ? el.scrollHeight - el.clientHeight : el.scrollWidth - el.clientWidth
+        if (max <= 0) scheduleSave()
+      }
+    }
     reapplySearch()
     if (settings.settings.aiChapterSummary && ai.activeProvider) {
       generateChapterSummary(reader.chapterIndex)

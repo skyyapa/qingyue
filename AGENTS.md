@@ -6,7 +6,7 @@
 ## 当前状态（迭代 48，v1.3.0-beta.2 已构建签名 APK/AAB，真机验收进行中）
 
 - **版本**：代码已同步 `1.3.0-beta.2`（package.json + Android versionCode 3 / versionName "1.3.0-beta.2"）；**beta.2 签名 APK（3.32MB）+ AAB（3.18MB）已构建**（证书 SHA-256 同 beta.1：`5f9b67e5...43b1a7`），**尚未发 GitHub prerelease**；v1.3.0 正式版待真机验收通过后发（versionCode 再+1）
-- **测试基线**：单测 **216**（26 套件）/ e2e **56**（54 原 + 2 大文件压力）/ type-check / lint / build 全绿；Android `assembleRelease` + `bundleRelease` 签名构建全绿
+- **测试基线**：单测 **216**（26 套件）/ e2e **57**（54 原 + 2 大文件压力 + 1 短章进度回归）/ type-check / lint / build 全绿；Android `assembleRelease` + `bundleRelease` 签名构建全绿
 - **大文件压力**：e2e `stress.spec.ts` 10MB/50MB TXT 导入至阅读器、正文渲染全过（Playwright 传 buffer 上限 50MB，50MB 需写临时文件传路径）
 - **真机验收（进行中）**：vivo X200s（Android 16）8 项已过（迭代 43）；**beta.2 已装到 second 台 vivo V2166BA（Android 13 / SDK 33）并冷启动成功**；剩余 GUI 交互项（文件管理器打开/ACTION_SEND/翻章持久化/返回键/每日提醒/夜间主题/分享导出）待设备上人工操作确认
 - **签名**：本机 release keystore（`%LOCALAPPDATA%\QingYue\keystore\qingyue-release.jks`，仓库外）；证书 SHA-256 `5f9b67e549639ea9fb3e51242c20136511eccb91746e16c1ba8a21d45943b1a7`
@@ -28,6 +28,7 @@
   - 47：健壮性加固 —— capacitor 原生插件 promise 链补 .catch（防未处理拒绝）、assistant 档位模型失败自动回退主模型重试一次（callWithModelFallback）、例句防剧透加固（sampleChapters 短于 samples 时无出处例句用 ?? Infinity 丢弃）；单测 +3（213）、e2e 54
   - 48：全面优化（性能/健壮性/UX/架构）—— **路由懒加载**（views 动态 import，主 chunk 368KB→50KB+Bookshelf36KB，首屏 JS −58%，ReaderView/analysis 独立懒加载）；**全书搜索分批异步**（searchBookChaptersBatched + token 竞态保护，大书不再阻塞主线程；正则提层）；**analyze 实体章节倒排索引**（O(名字×章节)→O(n)）+ filterWindows 首尾预筛等价优化；**onResize rAF 节流** + 卸载清理 bookSearchTimer/tapTimer；**异步竞态加固**（TextSelectionBar token、AssistantPanel alive 守卫、loadFloatPersons try/catch）；**ImportDialog 并发导入守卫**；**UX**（BookCard 触屏封面按钮常驻 @media(hover:none)、AppDialog Esc+初始焦点、BookshelfView Esc 关面板、AI Enter busy 拦截）；单测 +3（216）、e2e 54
   - 48（补充审查修复）：**EntityCard 写库 try/catch + busy 重复点击锁**（保存/删除/合并防未处理拒绝与双击半删）；**StatsPanel 跨零点刷新**（now 改 ref + visibilitychange/定时更新今日数据）；**AIProviderDialog 本地表单缓存**（编辑只写 form，点启用才一次提交 store，杜绝"输入即写穿 localStorage"）；**stores/ai.updateConfig 补 easyModel/summaryModel**（原遗漏致多模型配置丢失）；**BookCard 拖拽 .dragging class 真正绑定**（视觉反馈）。**踩坑：给已有可见符号文本的按钮（✕/←/⚙/助等）加 aria-label 会覆盖其可访问名，破坏 Playwright name 匹配（getByRole strict mode），此类按钮不加 aria-label**
+  - 48（真机验收进度 bug 修复）：**翻页/滚动模式「读完占比非 100%」**——`readRatio` 对内容不足一屏/一列（`max<=0`）的章一度返回 0，且短章无处滚动、章节切换不触发 scroll 事件 → 该章字数按 0% 计入，含大量短章的书「看完了仍显示低占比（本轮用户报 57%）」。修复：① `readRatio` 对 `max<=0` 返回 1（整章一屏可见即视为已读到末尾）；② 章节切换 watch 检测短章（max<=0）主动 `scheduleSave()` 补存进度。新增 `e2e/progress-paged.spec.ts` + `e2e/fixtures/短章书.txt` 回归（短章书读完=100%，修复前=0%）；e2e 56→ **57**
 
 ## 核心架构速查
 
