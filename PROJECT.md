@@ -886,6 +886,25 @@ src/
 - 本轮**未动**（有回归风险，留待专项）：txt 裸词类章节标题误切分、analyze 第 3 遍
   chapterWalks 全量驻留内存重构
 
+**迭代 48 —— v1.3.0-beta.2 全面优化 + 发布准备（49f34b6 / 6048389）**
+- **性能·路由懒加载**：views 改动态 import，主 chunk 368KB → 50KB（+Bookshelf 36KB 独立），
+  首屏 JS −58%；ReaderView/analysis 拆为独立懒加载 chunk；`index.html` 首屏更快
+- **性能·全书搜索分批异步**：新增 `searchBookChaptersBatched`（分片 setTimeout 让出主线程 +
+  token 防竞态、编辑停止即取消），大书（几百章×万字）不再同步阻塞；正则提层到模块级
+- **性能·analyze 倒排索引**：实体→出现章节 O(名字×章节)→O(n)；`filterWindows` 首尾字符预筛
+  （等价、无行为变化）
+- **健壮性·异步竞态加固**：`onResize` rAF 节流 + 卸载清理 timer；TextSelectionBar 选中查询 token
+  （陈旧结果丢弃）；AssistantPanel alive 守卫（抽屉关闭后不写已卸载 ref）+ AI Enter busy 拦截；
+  loadFloatPersons try/catch；ImportDialog 并发导入守卫
+- **UX·触屏与键盘**：BookCard 触屏封面按钮常驻（@media hover:none，原触屏点不到）；拖拽 .dragging
+  高亮绑定；AppDialog Esc+初始焦点+role=dialog；BookshelfView Esc 关面板
+- **健壮性·审查补充**：EntityCard 写库（保存/删除/合并）try/catch + busy 重复点击锁、
+  StatsPanel 跨零点自动刷新（now 改 ref + visibility/定时）、AIProviderDialog 本地表单缓存
+  （编辑不写穿 store，点启用才一次性提交）、ai.updateConfig 补 easyModel/summaryModel
+- 单测 +3（216）；e2e 54 保持
+- **踩坑**：给已有可见符号文本的按钮（✕/←/⚙/助等）加 aria-label 会覆盖其可访问名，
+  Playwright `getByRole('button',{name})` 命中变严格（2 个匹配器报错）→ 此类按钮不加 aria-label
+
 ## 未完成任务
 
 - [x] ~~Android App（Capacitor 打包）~~（v1.3.0-beta.1 prerelease 已发布，vivo X200s / Android 16 真机验收通过；v1.3.0 正式版需第二台不同厂商设备 + 分享/大文件人工确认）

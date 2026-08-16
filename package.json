@@ -1,6 +1,6 @@
 {
   "name": "qingyue",
-  "version": "1.3.0-beta.1",
+  "version": "1.3.0-beta.2",
   "private": true,
   "type": "module",
   "description": "轻阅 QingYue —— 一个开源的小说阅读器（Web）",
