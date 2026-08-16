@@ -6,7 +6,7 @@
 ## 当前状态（迭代 48，v1.3.0 正式版已发布 🎉）
 
 - **版本**：`1.3.0`（正式版，package.json + Android versionCode 4 / versionName "1.3.0"；**已发布 GitHub release**：https://github.com/skyyapa/qingyue/releases/tag/v1.3.0 —— Latest，签名 APK/AAB + 离线版 zip + SHA-256；旧 beta.1 保持 Pre-release）
-- **测试基线**：单测 **216**（26 套件）/ e2e **57**（54 原 + 2 大文件压力 + 1 短章进度回归）/ type-check / lint / build 全绿；Android `assembleRelease` + `bundleRelease` 签名构建全绿
+- **测试基线**：单测 **225**（27 套件）/ e2e **58**（54 原 + 2 大文件压力 + 1 短章进度回归 + 1 推荐界面）/ type-check / lint / build 全绿；Android `assembleRelease` + `bundleRelease` 签名构建全绿
 - **大文件压力**：e2e `stress.spec.ts` 10MB/50MB TXT 导入至阅读器、正文渲染全过（Playwright 传 buffer 上限 50MB，50MB 需写临时文件传路径）
 - **真机验收**：✅ **v1.3.0 正式版全部验收通过**——vivo X200s（Android 16）8 项（迭代 43）+ **vivo V2458A（Android 16）复验通过**（含真机发现并修复的"短章读完占比到不了100%"进度 bug）；10MB/50MB 大文件压测通过；用户确认无严重问题后发布 v1.3.0 正式版
 - **签名**：本机 release keystore（`%LOCALAPPDATA%\QingYue\keystore\qingyue-release.jks`，仓库外）；证书 SHA-256 `5f9b67e549639ea9fb3e51242c20136511eccb91746e16c1ba8a21d45943b1a7`
@@ -29,6 +29,8 @@
   - 48：全面优化（性能/健壮性/UX/架构）—— **路由懒加载**（views 动态 import，主 chunk 368KB→50KB+Bookshelf36KB，首屏 JS −58%，ReaderView/analysis 独立懒加载）；**全书搜索分批异步**（searchBookChaptersBatched + token 竞态保护，大书不再阻塞主线程；正则提层）；**analyze 实体章节倒排索引**（O(名字×章节)→O(n)）+ filterWindows 首尾预筛等价优化；**onResize rAF 节流** + 卸载清理 bookSearchTimer/tapTimer；**异步竞态加固**（TextSelectionBar token、AssistantPanel alive 守卫、loadFloatPersons try/catch）；**ImportDialog 并发导入守卫**；**UX**（BookCard 触屏封面按钮常驻 @media(hover:none)、AppDialog Esc+初始焦点、BookshelfView Esc 关面板、AI Enter busy 拦截）；单测 +3（216）、e2e 54
   - 48（补充审查修复）：**EntityCard 写库 try/catch + busy 重复点击锁**（保存/删除/合并防未处理拒绝与双击半删）；**StatsPanel 跨零点刷新**（now 改 ref + visibilitychange/定时更新今日数据）；**AIProviderDialog 本地表单缓存**（编辑只写 form，点启用才一次提交 store，杜绝"输入即写穿 localStorage"）；**stores/ai.updateConfig 补 easyModel/summaryModel**（原遗漏致多模型配置丢失）；**BookCard 拖拽 .dragging class 真正绑定**（视觉反馈）。**踩坑：给已有可见符号文本的按钮（✕/←/⚙/助等）加 aria-label 会覆盖其可访问名，破坏 Playwright name 匹配（getByRole strict mode），此类按钮不加 aria-label**
   - 48（真机验收进度 bug 修复）：**翻页/滚动模式「读完占比非 100%」**——`readRatio` 对内容不足一屏/一列（`max<=0`）的章一度返回 0，且短章无处滚动、章节切换不触发 scroll 事件 → 该章字数按 0% 计入，含大量短章的书「看完了仍显示低占比（本轮用户报 57%）」。修复：① `readRatio` 对 `max<=0` 返回 1（整章一屏可见即视为已读到末尾）；② 章节切换 watch 检测短章（max<=0）主动 `scheduleSave()` 补存进度。新增 `e2e/progress-paged.spec.ts` + `e2e/fixtures/短章书.txt` 回归（短章书读完=100%，修复前=0%）；e2e 56→ **57**
+  - 49：**v1.3.0 正式版发布**（e9318b3/…）：版本 1.3.0（Android versionCode 4）+ 签名 APK/AAB（同 keystore）+ `gh release v1.3.0`（Latest，离线 zip+校验和）+ 双真机验收通过；e2e 57/单测 216 全绿
+  - 50：**公共代理 + 同类型推荐** —— ① `requester.ts` PUBLIC_PROXIES 新增 `api.codetabs.com/v1/proxy`（allorigins 失败时的第二公共通道；测试适配超时/通道数）；② 新增 `utils/recommend.ts`（题材分类器 + 书库内同类型推荐）+ `views/RecommendView.vue`（路由 `/recommend`：题材画像/选择参考书/同题材同作者推荐，书架「✨ 推荐」入口）；单测 +9（225）、e2e +1（58）
 
 ## 核心架构速查
 

@@ -918,6 +918,19 @@ src/
   SHA-256；真机复验通过（vivo V2458A / Android 16）
 - 回归全绿：type-check/lint/test(216)/e2e(57，含 10/50MB 压测)/build；签名 release 构建全绿
 
+**迭代 50 —— 公共代理 + 同类型推荐**
+- **公共代理增强**：`requester.ts` PUBLIC_PROXIES 新增 `api.codetabs.com/v1/proxy?quest=`（免费
+  匿名、直接返回 HTML）作为 allorigins 失败时的第二公共通道；现有串行兜底机制自动按序尝试。
+  `requester.test.ts` 适配：公共代理失败报告改为「已尝试 2 个通道」、超时测试推进 31s 覆盖两通道
+- **同类型推荐（新功能）**：新增 `utils/recommend.ts`——纯函数题材分类器（关键词启发式，10 类：
+  玄幻/仙侠/都市/武侠/科幻/历史/言情/悬疑/游戏/末世 + unknown）+ `recommendBooks`（书库内同题材
+  优先、同作者加分）+ `genreProfile`（题材画像）；新增 `views/RecommendView.vue`（路由
+  `/recommend`，书架「✨ 推荐」入口）：题材画像标签云 / 选择参考书（已读优先）/ 按题材过滤 /
+  同题材同作者推荐卡片（可打开）
+- 单测 +9（225，recommend.test.ts）；e2e +1（58，recommend.spec.ts：导入 2 本玄幻书 → 推荐页
+  显示「玄幻」画像与同题材推荐）
+- 回归全绿：type-check/lint/test(225)/e2e(58)/build
+
 ## 未完成任务
 
 - [x] ~~Android App（Capacitor 打包）~~（**v1.3.0 正式版已发布**：https://github.com/skyyapa/qingyue/releases/tag/v1.3.0 —— 双真机验收通过：vivo X200s / V2458A（均 Android 16）+ 10/50MB 压测 + 进度 bug 修复）

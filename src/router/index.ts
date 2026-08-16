@@ -8,6 +8,8 @@ export const router = createRouter({
   routes: [
     { path: '/', name: 'bookshelf', component: () => import('@/views/BookshelfView.vue') },
     { path: '/reader/:id', name: 'reader', component: () => import('@/views/ReaderView.vue') },
+    // 根据已读/书架书籍推荐同类型书
+    { path: '/recommend', name: 'recommend', component: () => import('@/views/RecommendView.vue') },
     // 书源分享链接：#/source-import/<base64url>
     { path: '/source-import/:payload', name: 'source-import', component: () => import('@/views/SourceImportView.vue') },
     { path: '/:pathMatch(.*)*', redirect: '/' },

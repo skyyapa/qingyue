@@ -12,11 +12,18 @@ const REQUEST_TIMEOUT = 15000
  * - corsproxy.io 自 2023 起要求 API key，匿名 403 → 不再内置
  */
 const PUBLIC_PROXIES: ((url: string, signal: AbortSignal) => Promise<string>)[] = [
+  // allorigins：/get 端返回 JSON 包（contents 字段），需解析；/raw 常 520
   async (u, signal) => {
     const resp = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(u)}`, { signal })
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
     const json = (await resp.json()) as { contents?: string }
     return json.contents ?? ''
+  },
+  // codetabs：免费匿名 CORS 代理，直接返回目标 HTML；作为 allorigins 失败时的第二公共通道
+  async (u, signal) => {
+    const resp = await fetch(`https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`, { signal })
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+    return await resp.text()
   },
 ]
 

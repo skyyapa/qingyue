@@ -35,10 +35,10 @@ describe('公共代理通道（allorigins /get）', () => {
     expect(html).toContain('Example Domain')
   })
 
-  it('公共代理失败时按通道数报告', async () => {
+  it('公共代理全部失败时按通道数报告', async () => {
     stubFetchMap({})
     await expect(fetchHtml('https://target.site/index.html', { mode: 'public', customUrl: '' })).rejects.toThrow(
-      /请求失败（已尝试 1 个通道）/
+      /请求失败（已尝试 2 个通道）/
     )
   })
 
@@ -67,7 +67,8 @@ describe('公共代理通道（allorigins /get）', () => {
     const p = fetchHtml('https://target.site/index.html', { mode: 'public', customUrl: '' })
     // 先挂上断言语柄，避免 p 在 advance 期间 reject 时成为未处理拒绝
     const assertion = expect(p).rejects.toThrow(/请求失败/)
-    await vi.advanceTimersByTimeAsync(16_000) // 超过 15s 超时
+    // 2 个公共通道串行各 15s 超时 → 覆盖全部需推进约 30s（略多）
+    await vi.advanceTimersByTimeAsync(31_000)
     await assertion
     expect(abortSeen).toBe(true)
     vi.useRealTimers()

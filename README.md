@@ -42,7 +42,8 @@
 
 - legado 风格书源规则（CSS 选择器 + 模板变量 + 管道），支持分页目录 / 正文分页 / 规则分享
 - **JSON 书源**：支持 JSON 接口（JSONPath 字段），内置酷我小说正版书源
-- 跨域三通道：自备代理（Cloudflare Worker 免费）/ 公共代理 / 直连；需代理书源自动标记并引导配置
+- 跨域三通道：自备代理（Cloudflare Worker 免费）/ 公共代理（allorigins + codetabs 自动切换）/ 直连；需代理书源自动标记并引导配置
+- **同类型推荐**：根据已读与书架书籍自动推断题材（玄幻/仙侠/都市/武侠/科幻…），推荐同题材、同作者的书，支持题材画像与按题材浏览
 
 ### 📱 平台
 
@@ -72,8 +73,8 @@ npm run android:open  # 用 Android Studio 打开 Android 工程
 ```bash
 npm run lint       # ESLint 代码检查
 npm run type-check # TypeScript 类型检查
-npm run test       # 单元测试（Vitest 216 用例）
-npm run e2e        # 端到端测试（Playwright 57 用例，含 10/50MB 大文件压测）
+npm run test       # 单元测试（Vitest 225 用例）
+npm run e2e        # 端到端测试（Playwright 58 用例，含 10/50MB 大文件压测）
 ```
 
 GitHub Actions 自动运行 CI（lint + type-check + 单测 + 构建 + E2E）。

@@ -373,6 +373,7 @@ const emptyText = computed(() => {
       <button class="btn btn-ghost-icon" title="书源管理" @click="showSources = true">源</button>
       <button class="btn btn-ghost-icon" title="数据备份（导出/导入）" @click="showBackup = true">⇅</button>
       <button class="btn btn-ghost-icon" title="AI Provider（Base URL / Key / Model）" @click="showAI = true">AI</button>
+      <button class="btn btn-ghost-icon" title="同类型推荐（根据已读书籍）" @click="router.push('/recommend')">✨ 推荐</button>
       <button class="btn btn-primary" @click="showImport = true">＋ 导入书籍</button>
     </header>
 
