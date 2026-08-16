@@ -3,10 +3,10 @@
 > 本文档给被压缩/新开的会话快速续接用。完整迭代史、踩坑与测试方法见 `PROJECT.md`、`README.md`。
 > **注意：每次迭代完成后需同步更新本文件「当前状态」与 PROJECT.md/README。**
 
-## 当前状态（截至迭代 46，v1.3.0-beta.1 已发布 GitHub prerelease，真机验收通过，实时引导已上线）
+## 当前状态（截至迭代 47，v1.3.0-beta.1 已发布 GitHub prerelease，真机验收通过，实时引导已上线）
 
 - **版本**：`1.3.0-beta.1`（package.json 与 Android versionCode 2 / versionName 1.3.0-beta.1；**已发布 GitHub prerelease**：https://github.com/skyyapa/qingyue/releases/tag/v1.3.0-beta.1 —— 签名 APK/AAB + 离线版 zip + SHA-256）
-- **测试基线**：单测 **210**（26 套件）/ e2e **54**（chromium 47 + webkit-ios 7）/ type-check / lint / build 全绿；Android `assembleRelease` + `bundleRelease` 签名构建全绿；`assembleDebug`（含 local-notifications + share 插件）全绿
+- **测试基线**：单测 **213**（26 套件）/ e2e **54**（chromium 47 + webkit-ios 7）/ type-check / lint / build 全绿；Android `assembleRelease` + `bundleRelease` 签名构建全绿；`assembleDebug`（含 local-notifications + share 插件）全绿
 - **真机验收**：vivo X200s（Android 16）8 项全过——TXT/EPUB 文件管理器打开（冷启动）、ACTION_SEND、翻章+进度持久化、返回键优先级、每日提醒（权限+调度）、夜间主题+状态栏、分享导出面板
 - **签名**：本机 release keystore（`%LOCALAPPDATA%\QingYue\keystore\qingyue-release.jks`，仓库外）；`android/key.properties` 不入库；证书 SHA-256 `5f9b67e549639ea9fb3e51242c20136511eccb91746e16c1ba8a21d45943b1a7`
 - **工作区**：main 与 origin/main 同步
@@ -24,6 +24,7 @@
   - 44：实时引导 —— 欢迎卡（轻量居中）→ 书架 spotlight 分步高亮四入口（导入/搜索/书源/AI，遮罩挖洞+气泡+下一步/完成/跳过）；完成记忆、直接使用不记忆仍弹；e2e welcome 3→4
   - 45：实时引导修复 —— 非书架路由「开始引导」跳回书架（原断点）、placement（top/bottom/right）真正生效 + 气泡上下视口钳制；e2e welcome 4→5
   - 46：代码审查修复 4 bug —— 公共代理超时失效（runChannel signal 未接 fetch，15s 超时形同虚设）、AI 实体写库 DataCloneError（AssistantPanel 深层 reactive 数组 → putEntity 剥 Proxy）、全量备份 .json 误路由 + 批量导入不中断、db req()/listByBook 缺 onabort 挂起；单测 +5（210）、e2e 54
+  - 47：健壮性加固 —— capacitor 原生插件 promise 链补 .catch（防未处理拒绝）、assistant 档位模型失败自动回退主模型重试一次（callWithModelFallback）、例句防剧透加固（sampleChapters 短于 samples 时无出处例句用 ?? Infinity 丢弃）；单测 +3（213）、e2e 54
 
 ## 核心架构速查
 

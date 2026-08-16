@@ -872,6 +872,20 @@ src/
   putEntity 剥离 reactive Proxy 往返、备份 .json 走恢复 / 非法 .json 报错 / 坏文件不中断
 - 回归全绿：type-check/lint/test(210)/e2e(54)/build
 
+**迭代 47 —— 健壮性加固（AI 档位回退 + 例句防剧透 + 原生桥接防未处理拒绝）**
+- capacitor：三条原生插件 promise 链（getLaunchUrl / getPendingShare / addListener）
+  补 `.catch`，插件在 native 端 reject 不再产生未处理 promise rejection
+- assistant 档位模型失败回退：新增 `callWithModelFallback`——easy/summary 档位模型
+  配了但运行时失败（模型名错/端点不接收）自动用主模型 `cfg.model` 重试一次；
+  主模型自身失败原样抛出、不重复调用
+- assistant 例句防剧透加固：`sampleChapters` 比 `samples` 短时，无出处的多余例句
+  用 `?? Infinity` 兜底（原 `?? 0` 会把未读章节例句当第 0 章误判为已读泄漏）
+- 单测 +3（213）：档位失败回退主模型（先档位后主模型）、主模型失败不重复、
+  sampleChapters 短于 samples 时无出处例句被丢弃
+- 回归全绿：type-check/lint/test(213)/e2e(54)/build
+- 本轮**未动**（有回归风险，留待专项）：txt 裸词类章节标题误切分、analyze 第 3 遍
+  chapterWalks 全量驻留内存重构
+
 ## 未完成任务
 
 - [x] ~~Android App（Capacitor 打包）~~（v1.3.0-beta.1 prerelease 已发布，vivo X200s / Android 16 真机验收通过；v1.3.0 正式版需第二台不同厂商设备 + 分享/大文件人工确认）

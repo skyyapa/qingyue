@@ -70,20 +70,24 @@ async function importUri(uri: string): Promise<File | null> {
 export function setupNativeBridge(opts: NativeBridgeOptions): void {
   if (!isNative) return
   App.addListener('appUrlOpen', ({ url }) => {
-    void importUri(url).then((file) => file && opts.onOpenFile(file))
+    void importUri(url).then((file) => { if (file) opts.onOpenFile(file) }).catch(() => {})
   })
   App.addListener('backButton', () => opts.onBack())
   // 冷启动：App 被文件 intent 拉起时 WebView 尚未加载 JS，listener 会错过 → 主动取启动 URL
-  void App.getLaunchUrl().then((launch) => {
-    if (launch?.url) void importUri(launch.url).then((file) => file && opts.onOpenFile(file))
-  })
+  void App.getLaunchUrl()
+    .then((launch) => {
+      if (launch?.url) void importUri(launch.url).then((file) => { if (file) opts.onOpenFile(file) }).catch(() => {})
+    })
+    .catch(() => {})
   // 系统分享（ACTION_SEND）：原生插件在冷启动缓存 URI、热启动推送 shareFile 事件；复用同一导入链路
-  void IntentFile.getPendingShare().then(({ uri }) => {
-    if (uri) void importUri(uri).then((file) => file && opts.onOpenFile(file))
-  })
+  void IntentFile.getPendingShare()
+    .then(({ uri }) => {
+      if (uri) void importUri(uri).then((file) => { if (file) opts.onOpenFile(file) }).catch(() => {})
+    })
+    .catch(() => {})
   void IntentFile.addListener('shareFile', ({ uri }) => {
-    void importUri(uri).then((file) => file && opts.onOpenFile(file))
-  })
+    void importUri(uri).then((file) => { if (file) opts.onOpenFile(file) }).catch(() => {})
+  }).catch(() => {})
   syncStatusBarTheme(document.documentElement.dataset.theme ?? 'default')
 }
 

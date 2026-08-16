@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as db from '@/db'
-import { buildTaskMessages, findSnippet, loadKnowledge, pickAnchor, planChapterLoads, runAITask, taskTier, type KnowledgeSnapshot } from '@/ai/assistant'
+import { buildTaskMessages, callWithModelFallback, findSnippet, loadKnowledge, pickAnchor, planChapterLoads, runAITask, taskTier, type KnowledgeSnapshot } from '@/ai/assistant'
 import { defaultProviderConfig } from '@/ai/presets'
 import type { BookMeta, ChapterIndex, Entity, Relation } from '@/types'
 
@@ -222,6 +222,24 @@ describe('loadKnowledge 防剧透截断', () => {
     expect(msgs[1].content).toContain('林夜身世揭晓') // 命中第 2 章索引（非数组下标 2 处）
   })
 
+  it('sampleChapters 比 samples 短时：无出处的多余例句被丢弃（不默认第 0 章）', async () => {
+    // 实体 2 个例句、sampleChapters 只有 1 个 → 第 2 个例句无出处（本应来自未读章节）
+    await db.putEntity({
+      ...makeEntity('pe9', '路人甲', 'person'),
+      bookId: 'sp',
+      chapters: [1],
+      samples: ['第二章例句A', '未读章节的例句'],
+      sampleChapters: [1],
+    })
+    // 读到第 1 章：路人甲只在第 2 章出现 → 被剔除（防未来实体泄漏）
+    const k = await loadKnowledge('sp', { upTo: 0 })
+    expect(k.entities.find((e) => e.name === '路人甲')).toBeUndefined()
+    // 读到第 2 章：第 1 个例句（第 2 章，已读）保留；无出处的第 2 个例句被丢弃
+    const k2 = await loadKnowledge('sp', { upTo: 1 })
+    const ren = k2.entities.find((e) => e.name === '路人甲')!
+    expect(ren.samples).toEqual(['第二章例句A'])
+  })
+
   it('findSnippet：锚点定位截取而非章节开头', () => {
     const text = '开头无关内容。'.repeat(30) + '林夜在此处出现，后续内容。'
     const snippet = findSnippet(text, '林夜在此处出现')
@@ -322,6 +340,44 @@ describe('runAITask 端到端', () => {
     const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))
     expect(body.messages[0].content).toContain('测试书')
     expect(body.messages[1].content).toContain('林夜')
+    vi.unstubAllGlobals()
+  })
+})
+
+describe('callWithModelFallback 档位失败回退主模型', () => {
+  it('档位模型失败 → 用主模型重试一次并返回结果', async () => {
+    const calls: string[] = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_input: string, init?: RequestInit) => {
+        const body = JSON.parse(String(init?.body)) as { model: string }
+        calls.push(body.model)
+        if (body.model === 'bad-tier') throw new Error('model not found')
+        return { ok: true, json: async () => ({ choices: [{ message: { content: '来自主模型' } }] }) } as Response
+      })
+    )
+    const cfg = defaultProviderConfig('deepseek')
+    cfg.apiKey = 'k'
+    const effective = { ...cfg, model: 'bad-tier' }
+    const reply = await callWithModelFallback(cfg, effective, [{ role: 'user', content: 'hi' }])
+    expect(reply).toBe('来自主模型')
+    expect(calls).toEqual(['bad-tier', cfg.model]) // 先档位后主模型
+    vi.unstubAllGlobals()
+  })
+
+  it('主模型自身失败 → 原样抛出（不重复调用）', async () => {
+    let n = 0
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        n++
+        throw new Error('boom')
+      })
+    )
+    const cfg = defaultProviderConfig('deepseek')
+    cfg.apiKey = 'k'
+    await expect(callWithModelFallback(cfg, cfg, [{ role: 'user', content: 'hi' }])).rejects.toThrow(/无法连接 AI 服务|boom/)
+    expect(n).toBe(1) // 主模型失败不重复调用
     vi.unstubAllGlobals()
   })
 })

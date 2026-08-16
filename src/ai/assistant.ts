@@ -114,7 +114,9 @@ export async function loadKnowledge(
     .map((e) => {
       let samples = e.samples
       if (e.sampleChapters) {
-        samples = e.samples.filter((_, i) => (e.sampleChapters?.[i] ?? 0) <= readUpTo)
+        // 只保留「有出处且出处章节 ≤ 已读边界」的例句；sampleChapters 比 samples 短时，
+        // 多出的无出处例句用 Infinity 兜底（不默认第 0 章），避免未读章节例句泄漏
+        samples = e.samples.filter((_, i) => (e.sampleChapters?.[i] ?? Infinity) <= readUpTo)
       } else if (e.samples.length > 0) {
         samples = [] // 旧数据例句无出处 → 舍弃，避免泄漏未读章节内容
         staleData = true
@@ -460,6 +462,23 @@ export function buildTaskMessages(
   }
 }
 
+/** 档位模型调用 + 失败回退主模型：档位模型（easy/summary，多为便宜模型）配置了但
+ *  运行时失败（模型名错误 / 端点不接收该模型）时，自动用主模型重试；主模型本身失败则原样抛出 */
+export async function callWithModelFallback(
+  cfg: AIProviderConfig,
+  effective: AIProviderConfig,
+  messages: ChatMessage[]
+): Promise<string> {
+  try {
+    return await chatCompletion(effective, messages)
+  } catch (err) {
+    if (effective.model !== cfg.model) {
+      return chatCompletion(cfg, messages)
+    }
+    throw err
+  }
+}
+
 /** 执行 AI 任务：进度感知知识库上下文（防剧透）→ 按需加载相关章节正文 →
  *  按任务档位选择模型（多模型策略）→ chat 请求 */
 export async function runAITask(
@@ -479,9 +498,9 @@ export async function runAITask(
     })
   )
   const messages = buildTaskMessages(knowledge, task, params, chapterTexts)
-  // 多模型策略：简单/摘要任务使用对应档位模型（未配置则回退主模型）
+  // 多模型策略：简单/摘要任务使用对应档位模型（未配置则回退主模型；配了但失败也回退主模型）
   const tier = taskTier(task)
   const tierModel = tier === 'summary' ? cfg.summaryModel : tier === 'easy' ? cfg.easyModel : undefined
   const effective = tierModel?.trim() ? { ...cfg, model: tierModel.trim() } : cfg
-  return chatCompletion(effective, messages)
+  return callWithModelFallback(cfg, effective, messages)
 }
