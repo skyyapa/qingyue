@@ -3,12 +3,12 @@
 > 本文档给被压缩/新开的会话快速续接用。完整迭代史、踩坑与测试方法见 `PROJECT.md`、`README.md`。
 > **注意：每次迭代完成后需同步更新本文件「当前状态」与 PROJECT.md/README。**
 
-## 当前状态（迭代 48，v1.3.0-beta.2 已构建签名 APK/AAB，真机验收进行中）
+## 当前状态（迭代 48，v1.3.0 正式版已发布 🎉）
 
-- **版本**：代码已同步 `1.3.0-beta.2`（package.json + Android versionCode 3 / versionName "1.3.0-beta.2"）；**beta.2 签名 APK（3.32MB）+ AAB（3.18MB）已构建**（证书 SHA-256 同 beta.1：`5f9b67e5...43b1a7`），**尚未发 GitHub prerelease**；v1.3.0 正式版待真机验收通过后发（versionCode 再+1）
+- **版本**：`1.3.0`（正式版，package.json + Android versionCode 4 / versionName "1.3.0"；**已发布 GitHub release**：https://github.com/skyyapa/qingyue/releases/tag/v1.3.0 —— Latest，签名 APK/AAB + 离线版 zip + SHA-256；旧 beta.1 保持 Pre-release）
 - **测试基线**：单测 **216**（26 套件）/ e2e **57**（54 原 + 2 大文件压力 + 1 短章进度回归）/ type-check / lint / build 全绿；Android `assembleRelease` + `bundleRelease` 签名构建全绿
 - **大文件压力**：e2e `stress.spec.ts` 10MB/50MB TXT 导入至阅读器、正文渲染全过（Playwright 传 buffer 上限 50MB，50MB 需写临时文件传路径）
-- **真机验收（进行中）**：vivo X200s（Android 16）8 项已过（迭代 43）；**beta.2 已装到 second 台 vivo V2166BA（Android 13 / SDK 33）并冷启动成功**；剩余 GUI 交互项（文件管理器打开/ACTION_SEND/翻章持久化/返回键/每日提醒/夜间主题/分享导出）待设备上人工操作确认
+- **真机验收**：✅ **v1.3.0 正式版全部验收通过**——vivo X200s（Android 16）8 项（迭代 43）+ **vivo V2458A（Android 16）复验通过**（含真机发现并修复的"短章读完占比到不了100%"进度 bug）；10MB/50MB 大文件压测通过；用户确认无严重问题后发布 v1.3.0 正式版
 - **签名**：本机 release keystore（`%LOCALAPPDATA%\QingYue\keystore\qingyue-release.jks`，仓库外）；证书 SHA-256 `5f9b67e549639ea9fb3e51242c20136511eccb91746e16c1ba8a21d45943b1a7`
 - **工作区**：main 与 origin/main 同步；构建 Android 需 **JDK 21**（已装 Amazon Corretto 21，`C:\Program Files\Amazon Corretto\jdk21.0.12_8`，gradle 需 `$env:JAVA_HOME` 指向它；系统默认 JDK 17 / AS JBR 25 均不满足 AGP toolchain 21）
 - **最近迭代**：
@@ -45,11 +45,9 @@
 4. 测试全绿才提交：`npm run type-check && npm run lint && npm test && npm run e2e && npm run build`
 5. 防剧透是产品核心卖点，任何 AI 上下文改动不得破坏
 
-## 下一步候选（用户路线图：移动端体验 ✅ → Android（Capacitor）→ 多设备同步）
+## 下一步候选（用户路线图：移动端体验 ✅ → Android ✅ → 多设备同步）
 
-- **v1.3.0 正式版前置**：第二台不同厂商设备真机验收；待人工 GUI 确认（非阻塞）：
-  分享目标实际接收 .qingyue、10/50MB 大文件压力。通过后发 v1.3.0 正式版（tag 不
-  带 -beta，APK/AAB 同签名重发）
+- **✅ v1.3.0 正式版已发布**（vivo X200s / V2458A 双真机验收通过、10/50MB 压测通过、进度 bug 修复，用户确认无严重问题）—— Android 阶段完成
 - **Android 后续能力**：本地通知已完成（每日阅读提醒）、分享导出已完成；ACTION_SEND 已完成
 - **公共书源/代理**：JSON 引擎 + 酷我书源已完成；真实书源必须配代理，推荐自备
   Cloudflare Worker（免费 10 万次/天，书源管理内置部署引导）

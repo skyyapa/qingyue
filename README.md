@@ -4,14 +4,14 @@
 
 > 🔒 书籍与进度只保存在你的浏览器（IndexedDB）里，不上传任何数据。
 
-> **v1.3.0-beta.1**（Android App Beta 已发布）：文件管理器「用轻阅打开」、系统分享导入、每日阅读提醒、单书分享导出。**v1.2.0**（AI 阅读助手）：OpenAI 兼容 Provider、九大阅读任务、防剧透机制。
+> **v1.3.0**（正式版，Android App 发布）：文件管理器「用轻阅打开」、系统分享导入、每日阅读提醒、单书分享导出，双真机验收通过。**v1.2.0**（AI 阅读助手）：OpenAI 兼容 Provider、九大阅读任务、防剧透机制。
 
 ## 🚀 立即使用
 
 <p align="center">
   <a href="https://skyyapa.github.io/qingyue/"><img src="https://img.shields.io/badge/🚀-在线打开轻阅-4f7cff?style=for-the-badge" alt="在线打开" /></a>
   <a href="https://github.com/skyyapa/qingyue/releases/latest"><img src="https://img.shields.io/badge/⬇️-下载离线版-2ea44f?style=for-the-badge" alt="下载离线版" /></a>
-  <a href="https://github.com/skyyapa/qingyue/releases/tag/v1.3.0-beta.1"><img src="https://img.shields.io/badge/🤖-Android APK（Beta）-1b6b93?style=for-the-badge" alt="下载 Android APK" /></a>
+  <a href="https://github.com/skyyapa/qingyue/releases/latest"><img src="https://img.shields.io/badge/🤖-Android APK-1b6b93?style=for-the-badge" alt="下载 Android APK" /></a>
 </p>
 
 | 方式 | 怎么做 |
@@ -19,7 +19,7 @@
 | 🌐 **在线使用** | 点上方按钮，浏览器直接用，数据存本机 |
 | 📱 **装到桌面** | 打开在线版 → 点页面底部「安装」（iOS 用 Safari「分享 → 添加到主屏幕」） |
 | ⬇️ **下载离线版** | 下载 zip → 解压 → 双击 index.html，断网也能读 |
-| 🤖 **Android App（Beta）** | 下载 APK → 安装即用，支持文件管理器「用轻阅打开」 |
+| 🤖 **Android App** | 下载 APK → 安装即用，支持文件管理器「用轻阅打开」 |
 
 ## ✨ 功能特性
 
@@ -47,7 +47,7 @@
 ### 📱 平台
 
 - **PWA**：一键安装到桌面，离线可读
-- **Android App**（Beta）：文件管理器「用轻阅打开」、系统分享导入、系统返回键、edge-to-edge 状态栏、每日阅读提醒、单书分享导出
+- **Android App**：文件管理器「用轻阅打开」、系统分享导入、系统返回键、edge-to-edge 状态栏、每日阅读提醒、单书分享导出（v1.3.0 正式版双真机验收通过）
 
 ## 🖼️ 截图
 
@@ -73,7 +73,7 @@ npm run android:open  # 用 Android Studio 打开 Android 工程
 npm run lint       # ESLint 代码检查
 npm run type-check # TypeScript 类型检查
 npm run test       # 单元测试（Vitest 216 用例）
-npm run e2e        # 端到端测试（Playwright 54 用例）
+npm run e2e        # 端到端测试（Playwright 57 用例，含 10/50MB 大文件压测）
 ```
 
 GitHub Actions 自动运行 CI（lint + type-check + 单测 + 构建 + E2E）。
@@ -128,7 +128,7 @@ node proxy/server.mjs   # 默认 8787 端口
 
 - [x] ~~AI 核心~~（九任务 + 防剧透 + 阅读浮层 + 人物时间线 + 自动摘要 + 多模型）
 - [x] ~~移动端体验~~（PWA 打磨 / 触屏手势 / 窄屏适配 / safe-area）
-- [x] ~~Android App~~（v1.3.0-beta.1 已发布，vivo X200s / Android 16 真机验收通过）
+- [x] ~~Android App~~（**v1.3.0 正式版已发布**，vivo X200s / V2458A 双真机验收通过）
 - [ ] 多设备同步（阅读进度与书库跨设备）
 - [ ] 语义级事件提取 —— 远期
 - [ ] 书源规则分享社区 —— 远期

@@ -905,9 +905,22 @@ src/
 - **踩坑**：给已有可见符号文本的按钮（✕/←/⚙/助等）加 aria-label 会覆盖其可访问名，
   Playwright `getByRole('button',{name})` 命中变严格（2 个匹配器报错）→ 此类按钮不加 aria-label
 
+**迭代 49 —— v1.3.0 正式版发布（e9318b3，含进度 bug 修复）**
+- **真机验收通过的进度 bug 修复**：翻页/滚动模式「短章读完占比到不了 100%」——内容不足
+  一屏/一列的短章（`max<=0`）时 `readRatio` 一度返回 0，且短章无处滚动、章节切换不触发
+  scroll 事件 → 该章字数按 0% 计入，含短章的书「看完了仍显示低占比（用户报 57%）」。
+  修复：① `readRatio` 对 `max<=0` 返回 1（整章一屏可见即视为已读到末尾）；② 章节切换
+  watch 检测短章（max<=0）主动 `scheduleSave()` 补存进度。新增 `e2e/progress-paged.spec.ts`
+  + `e2e/fixtures/短章书.txt` 回归（短章书读完 100%，修复前 0%）；e2e 56→57
+- **正式版 v1.3.0 发布**：package.json + Android 版本改为 `1.3.0`（versionCode 4，可覆盖
+  已装 beta.2 versionCode 3）；同 keystore 重签 APK（3.32MB）/ AAB（3.18MB）；`gh release
+  create v1.3.0`（正式版非 prerelease，Latest 自动转到它），上传离线版 zip + APK + AAB 含
+  SHA-256；真机复验通过（vivo V2458A / Android 16）
+- 回归全绿：type-check/lint/test(216)/e2e(57，含 10/50MB 压测)/build；签名 release 构建全绿
+
 ## 未完成任务
 
-- [x] ~~Android App（Capacitor 打包）~~（v1.3.0-beta.1 prerelease 已发布，vivo X200s / Android 16 真机验收通过；v1.3.0 正式版需第二台不同厂商设备 + 分享/大文件人工确认）
+- [x] ~~Android App（Capacitor 打包）~~（**v1.3.0 正式版已发布**：https://github.com/skyyapa/qingyue/releases/tag/v1.3.0 —— 双真机验收通过：vivo X200s / V2458A（均 Android 16）+ 10/50MB 压测 + 进度 bug 修复）
 - [ ] 多设备同步（阅读进度与书库跨设备同步，需自建后端或第三方服务，超出纯前端约束）
 - [ ] 语义级事件提取（三年之约）——需 LLM，v1 用章节实体快照替代，远期
 - [ ] 书源规则分享社区 / 规则包市场（分享链接与批量导入已支持，缺集中式分发渠道）——远期
