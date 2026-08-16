@@ -35,10 +35,13 @@ describe('公共代理通道（allorigins /get）', () => {
     expect(html).toContain('Example Domain')
   })
 
-  it('公共代理全部失败时按通道数报告', async () => {
+  it('公共代理全部失败时汇总各候选原因', async () => {
     stubFetchMap({})
     await expect(fetchHtml('https://target.site/index.html', { mode: 'public', customUrl: '' })).rejects.toThrow(
-      /请求失败（已尝试 2 个通道）/
+      /公共代理全部失败：/
+    )
+    await expect(fetchHtml('https://target.site/index.html', { mode: 'public', customUrl: '' })).rejects.toThrow(
+      /公共代理#1/
     )
   })
 
@@ -52,12 +55,12 @@ describe('公共代理通道（allorigins /get）', () => {
 
   it('公共代理超时会真正中止挂起的 fetch（signal 接到请求）', async () => {
     vi.useFakeTimers()
-    let abortSeen = false
+    let abortSeen = 0
     vi.stubGlobal(
       'fetch',
       vi.fn((_input: string, init?: RequestInit) => {
         const signal = init?.signal
-        if (signal) signal.addEventListener('abort', () => (abortSeen = true))
+        if (signal) signal.addEventListener('abort', () => abortSeen++)
         // 永不 resolve：只有超时 abort 才能结束挂起请求
         return new Promise((_resolve, reject) => {
           signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
@@ -66,22 +69,22 @@ describe('公共代理通道（allorigins /get）', () => {
     )
     const p = fetchHtml('https://target.site/index.html', { mode: 'public', customUrl: '' })
     // 先挂上断言语柄，避免 p 在 advance 期间 reject 时成为未处理拒绝
-    const assertion = expect(p).rejects.toThrow(/请求失败/)
-    // 2 个公共通道串行各 15s 超时 → 覆盖全部需推进约 30s（略多）
-    await vi.advanceTimersByTimeAsync(31_000)
+    const assertion = expect(p).rejects.toThrow(/公共代理全部失败/)
+    // 并发所有通道同一时刻开始，各自 15s 超时 → 覆盖全部需推进约 16s
+    await vi.advanceTimersByTimeAsync(16_000)
     await assertion
-    expect(abortSeen).toBe(true)
+    expect(abortSeen).toBeGreaterThan(0)
     vi.useRealTimers()
   })
 })
 
 describe('testProxy 连通性测试', () => {
-  it('public 模式测公共代理通道（不再误用空 customUrl）', async () => {
+  it('public 模式测公共代理：回报可用/不可用候选诊断', async () => {
     stubFetchMap({
       'https://example.com/': '<html><body><h1>Example Domain</h1></body></html>',
     })
     const result = await testProxy({ mode: 'public', customUrl: '' })
-    expect(result).toBe('连接正常')
+    expect(result).toContain('公共代理可用')
   })
 
   it('custom 模式测自备代理地址', async () => {
