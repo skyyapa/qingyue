@@ -227,12 +227,13 @@ async function next(): Promise<void> {
   width: 42px;
   height: 42px;
   border-radius: 11px;
-  background: linear-gradient(135deg, #4f7cff, #7b5cff);
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 60%, #000));
   color: #fff;
   font-size: 21px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  box-shadow: 0 3px 10px var(--accent-weak);
   flex-shrink: 0;
 }
 .welcome-title {

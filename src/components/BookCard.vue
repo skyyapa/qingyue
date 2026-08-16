@@ -125,10 +125,10 @@ function onMove(group: string): void {
 <style scoped>
 .book-card {
   cursor: pointer;
-  transition: transform 0.15s ease;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.15s;
 }
 .book-card:hover {
-  transform: translateY(-3px);
+  transform: translateY(-4px);
 }
 .book-card.dragging {
   opacity: 0.4;
@@ -136,19 +136,41 @@ function onMove(group: string): void {
 .cover {
   position: relative;
   aspect-ratio: 3 / 4;
-  border-radius: 10px;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.16), 0 1px 3px rgba(0, 0, 0, 0.12);
   overflow: visible;
   user-select: none;
+}
+/* 封面顶部高光（模拟书封光泽）：伪元素装饰，不参与交互/布局 */
+.cover::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0) 38%);
+  pointer-events: none;
+  z-index: 1;
+}
+/* 封面底部微渐变，增强立体（不遮挡 cover-char/cover-btn） */
+.cover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.22) 0%, rgba(0, 0, 0, 0) 30%);
+  pointer-events: none;
+  z-index: 1;
 }
 .cover-char {
   font-size: 52px;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.92);
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  color: rgba(255, 255, 255, 0.95);
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+  position: relative;
+  z-index: 2;
 }
 .cover-actions {
   position: absolute;
@@ -156,7 +178,7 @@ function onMove(group: string): void {
   right: 6px;
   display: flex;
   gap: 4px;
-  z-index: 2;
+  z-index: 3;
 }
 .cover-btn {
   width: 24px;

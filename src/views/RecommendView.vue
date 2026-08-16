@@ -271,7 +271,7 @@ onMounted(async () => {
   justify-content: center;
   font-size: 20px;
   color: #fff;
-  background: linear-gradient(135deg, var(--accent) 0%, #2f6fed 100%);
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 60%, #000));
 }
 .rec-info {
   min-width: 0;

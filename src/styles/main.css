@@ -8,7 +8,11 @@
   --panel-border: rgba(0, 0, 0, 0.08);
   --accent: #4f7cff;
   --accent-weak: rgba(79, 124, 255, 0.12);
-  --shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.05), 0 8px 28px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.07), 0 16px 44px rgba(0, 0, 0, 0.12);
+  --radius: 10px;
+  --radius-lg: 16px;
   --topbar: rgba(247, 245, 240, 0.92);
   --danger: #e05c5c;
   /* 拟真书页的纸张纹理（灰度噪声，叠在面板色上） */
@@ -22,7 +26,11 @@
   --panel-border: rgba(255, 255, 255, 0.08);
   --accent: #6d95ff;
   --accent-weak: rgba(109, 149, 255, 0.16);
-  --shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 0 10px 30px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.5), 0 18px 48px rgba(0, 0, 0, 0.6);
+  --radius: 10px;
+  --radius-lg: 16px;
   --topbar: rgba(23, 24, 28, 0.92);
   --danger: #e06c6c;
 }
@@ -94,7 +102,11 @@
   --panel-border: rgba(255, 255, 255, 0.08);
   --accent: #7aa0ff;
   --accent-weak: rgba(122, 160, 255, 0.16);
-  --shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 0 10px 30px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.5), 0 18px 48px rgba(0, 0, 0, 0.6);
+  --radius: 10px;
+  --radius-lg: 16px;
   --topbar: rgba(27, 35, 52, 0.92);
   --danger: #e06c6c;
 }
@@ -106,7 +118,11 @@
   --panel-border: rgba(255, 255, 255, 0.08);
   --accent: #7fbfa2;
   --accent-weak: rgba(127, 191, 162, 0.16);
-  --shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 0 10px 30px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.5), 0 18px 48px rgba(0, 0, 0, 0.6);
+  --radius: 10px;
+  --radius-lg: 16px;
   --topbar: rgba(30, 42, 35, 0.92);
   --danger: #e06c6c;
 }
@@ -118,7 +134,11 @@
   --panel-border: rgba(255, 255, 255, 0.08);
   --accent: #9aa5b1;
   --accent-weak: rgba(154, 165, 177, 0.16);
-  --shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.4), 0 10px 30px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.5), 0 18px 48px rgba(0, 0, 0, 0.6);
+  --radius: 10px;
+  --radius-lg: 16px;
   --topbar: rgba(38, 40, 44, 0.92);
   --danger: #e06c6c;
 }
@@ -151,7 +171,10 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--fg);
-  font-family: system-ui, -apple-system, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei UI',
+    'Microsoft YaHei', 'Segoe UI', Roboto, 'Noto Sans CJK SC', 'Source Han Sans SC', sans-serif;
+  font-feature-settings: 'tnum' 1; /* 数字等宽对齐，进度/页码更好看 */
   -webkit-font-smoothing: antialiased;
   transition: background-color 0.25s, color 0.25s;
 }
@@ -159,21 +182,33 @@ button {
   font-family: inherit;
   touch-action: manipulation;
 }
+code,
+.time,
+.pos-main,
+.pos-chapter,
+.stat-chip,
+.rec-reason {
+  font-variant-numeric: tabular-nums;
+}
 
 /* ===================== 通用组件 ===================== */
 .btn {
   padding: 8px 16px;
-  border-radius: 8px;
+  border-radius: var(--radius);
   border: 1px solid var(--panel-border);
   background: var(--panel);
   color: var(--fg);
   font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
-  transition: border-color 0.15s, color 0.15s, opacity 0.15s;
+  transition: border-color 0.15s, color 0.15s, opacity 0.15s, transform 0.1s, box-shadow 0.15s;
 }
-.btn:hover {
+.btn:hover:not(:disabled) {
   border-color: var(--accent);
   color: var(--accent);
+}
+.btn:active:not(:disabled) {
+  transform: translateY(0.5px);
 }
 .btn:disabled {
   opacity: 0.5;
@@ -183,25 +218,27 @@ button {
   background: var(--accent);
   border-color: var(--accent);
   color: #fff;
+  box-shadow: 0 2px 8px var(--accent-weak);
 }
-.btn-primary:hover {
-  opacity: 0.9;
+.btn-primary:hover:not(:disabled) {
+  opacity: 0.92;
   color: #fff;
+  box-shadow: 0 4px 14px var(--accent-weak);
 }
 .btn-danger {
   background: var(--danger);
   border-color: var(--danger);
   color: #fff;
 }
-.btn-danger:hover {
-  opacity: 0.9;
+.btn-danger:hover:not(:disabled) {
+  opacity: 0.92;
   color: #fff;
 }
 .icon-btn {
   width: 36px;
   height: 36px;
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   background: transparent;
   color: var(--fg);
   font-size: 17px;
@@ -209,9 +246,13 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  transition: background-color 0.15s, transform 0.1s;
 }
 .icon-btn:hover {
   background: var(--accent-weak);
+}
+.icon-btn:active {
+  transform: scale(0.94);
 }
 .btn-ghost {
   border: none;
@@ -250,9 +291,10 @@ button {
   overflow-y: auto;
   background: var(--panel);
   color: var(--fg);
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   padding: 24px;
-  box-shadow: var(--shadow);
+  border: 1px solid var(--panel-border);
+  box-shadow: var(--shadow-lg);
   animation: pop-in 0.18s ease;
 }
 .drawer {
@@ -260,7 +302,7 @@ button {
   height: 100%;
   background: var(--panel);
   color: var(--fg);
-  box-shadow: var(--shadow);
+  box-shadow: var(--shadow-lg);
   display: flex;
   flex-direction: column;
   animation: slide-in 0.18s ease;

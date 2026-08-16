@@ -942,6 +942,24 @@ Android（Capacitor 8）：文件管理器「用轻阅打开」、系统分享�
   显示「玄幻」画像与同题材推荐）
 - 回归全绿：type-check/lint/test(225)/e2e(58)/build
 
+**迭代 51 —— 维护文档清理（无功能，ec1943d）**
+- AGENTS「当前状态」迭代号 48→50；PROJECT 顶部「当前架构」全面更新（消除时间错位）：
+  AI 已实现（7 预设/11 任务/防剧透）、IndexedDB v3 六 store（books/chapters/entities/
+  chapterIndex/relations/bookFonts）、十套主题、Android v1.3.0 正式版状态、Capacitor、
+  book-source、router/懒加载、recommend/utils 完整目录
+
+**迭代 52 —— UI 质感打磨（纯样式，无功能/无回归）**
+- **全局**（main.css）：字体栈增强 + `font-variant-numeric: tabular-nums`（进度/页码等数字等宽
+  对齐，消除 1/54→12/54 抖动）；阴影分层 `--shadow-sm/--shadow/--shadow-lg` + `--radius/--radius-lg`
+  变量；按钮/图标按钮补按压回弹（active translate/scale）与转移过渡；`.btn` 加 font-weight:500 +
+  primary 阴影；modal/drawer 用 --shadow-lg + 边框
+- **书架**：BookCard 封面加 ::before 顶部光泽 + ::after 底部渐变（伪元素纯装饰）+ 悬停抬升阴影、
+  圆角 10→12；brand-logo / WelcomeGuide logo / RecommendView 封面写死蓝渐变 → 用 `var(--accent)`
+  + color-mix 加深（跟随主题，消除深色主题蓝色穿帮）；「需代理」警示写死黄 → 主题 accent-weak；
+  proxy-guide 写死黄 → accent-weak/panel-border；group-tab active 实心块 → 克制 outline；空态副标题
+  文字提亮（--fg + opacity）
+- 纯 CSS 改动（不改 DOM/布局/可见性），e2e 58 保持全绿；type-check/lint/build 全绿
+
 ## 未完成任务
 
 - [x] ~~Android App（Capacitor 打包）~~（**v1.3.0 正式版已发布**：https://github.com/skyyapa/qingyue/releases/tag/v1.3.0 —— 双真机验收通过：vivo X200s / V2458A（均 Android 16）+ 10/50MB 压测 + 进度 bug 修复）

@@ -3,7 +3,7 @@
 > 本文档给被压缩/新开的会话快速续接用。完整迭代史、踩坑与测试方法见 `PROJECT.md`、`README.md`。
 > **注意：每次迭代完成后需同步更新本文件「当前状态」与 PROJECT.md/README。**
 
-## 当前状态（迭代 50，v1.3.0 正式版已发布 🎉）
+## 当前状态（迭代 52，v1.3.0 正式版已发布 🎉）
 
 - **版本**：`1.3.0`（正式版，package.json + Android versionCode 4 / versionName "1.3.0"；**已发布 GitHub release**：https://github.com/skyyapa/qingyue/releases/tag/v1.3.0 —— Latest，签名 APK/AAB + 离线版 zip + SHA-256；旧 beta.1 保持 Pre-release）
 - **测试基线**：单测 **225**（27 套件）/ e2e **58**（54 原 + 2 大文件压力 + 1 短章进度回归 + 1 推荐界面）/ type-check / lint / build 全绿；Android `assembleRelease` + `bundleRelease` 签名构建全绿
@@ -31,6 +31,8 @@
   - 48（真机验收进度 bug 修复）：**翻页/滚动模式「读完占比非 100%」**——`readRatio` 对内容不足一屏/一列（`max<=0`）的章一度返回 0，且短章无处滚动、章节切换不触发 scroll 事件 → 该章字数按 0% 计入，含大量短章的书「看完了仍显示低占比（本轮用户报 57%）」。修复：① `readRatio` 对 `max<=0` 返回 1（整章一屏可见即视为已读到末尾）；② 章节切换 watch 检测短章（max<=0）主动 `scheduleSave()` 补存进度。新增 `e2e/progress-paged.spec.ts` + `e2e/fixtures/短章书.txt` 回归（短章书读完=100%，修复前=0%）；e2e 56→ **57**
   - 49：**v1.3.0 正式版发布**（e9318b3/…）：版本 1.3.0（Android versionCode 4）+ 签名 APK/AAB（同 keystore）+ `gh release v1.3.0`（Latest，离线 zip+校验和）+ 双真机验收通过；e2e 57/单测 216 全绿
   - 50：**公共代理 + 同类型推荐** —— ① `requester.ts` PUBLIC_PROXIES 新增 `api.codetabs.com/v1/proxy`（allorigins 失败时的第二公共通道；测试适配超时/通道数）；② 新增 `utils/recommend.ts`（题材分类器 + 书库内同类型推荐）+ `views/RecommendView.vue`（路由 `/recommend`：题材画像/选择参考书/同题材同作者推荐，书架「✨ 推荐」入口）；单测 +9（225）、e2e +1（58）
+  - 51：**维护文档清理**（无功能）：AGENTS 当前迭代号 48→50；PROJECT 顶部「当前架构」全面更新（AI 已实现、IndexedDB v3 六 store、十套主题、Android 正式版、新增 recommend/推荐界面/book-source/router）
+  - 52：**UI 质感打磨**（纯样式，无功能/无回归）：全局 `tabular-nums`（数字等宽对齐）+ 字体栈增强 + 阴影分层（--shadow-sm/lg、--radius）+ 按钮/图标按压回弹；BookCard 封面加光泽+内阴影+悬停抬升；品牌 logo / 封面 / 「需代理」警示等写死蓝/黄色改主题变量（消除深色主题穿帮）；分组 tab active 改克制 outline；空态文字提亮；e2e 58 保持全绿
 
 ## 核心架构速查
 

@@ -482,10 +482,10 @@ async function runSearchTest(index: number): Promise<void> {
   flex-shrink: 0;
   padding: 2px 7px;
   border-radius: 10px;
-  background: #fff3cd;
-  color: #8a6d1a;
+  background: var(--accent-weak);
+  color: var(--accent);
   font-size: 10px;
-  border: 1px solid #f0df9f;
+  border: 1px solid var(--panel-border);
 }
 .btn-small {
   padding: 4px 10px;

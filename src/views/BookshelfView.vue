@@ -477,13 +477,14 @@ const emptyText = computed(() => {
   width: 34px;
   height: 34px;
   border-radius: 9px;
-  background: linear-gradient(135deg, #4f7cff, #7b5cff);
+  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 60%, #000));
   color: #fff;
   font-size: 17px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   user-select: none;
+  box-shadow: 0 2px 6px var(--accent-weak);
 }
 .brand-name {
   font-size: 19px;
@@ -619,8 +620,8 @@ const emptyText = computed(() => {
   margin: 6px 4px 2px;
   padding: 10px 12px;
   border-radius: 10px;
-  background: #fff8e1;
-  border: 1px solid #f0df9f;
+  background: var(--accent-weak);
+  border: 1px solid var(--panel-border);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -628,7 +629,7 @@ const emptyText = computed(() => {
 .proxy-guide-text {
   margin: 0;
   font-size: 12px;
-  color: #8a6d1a;
+  color: var(--fg);
   line-height: 1.6;
 }
 .proxy-guide-btn {
@@ -678,8 +679,9 @@ const emptyText = computed(() => {
   background: var(--panel);
 }
 .group-tab.active {
-  background: var(--accent);
-  color: #fff;
+  background: var(--accent-weak);
+  border-color: var(--accent);
+  color: var(--accent);
   font-weight: 600;
 }
 .group-tab-new {
@@ -750,6 +752,8 @@ const emptyText = computed(() => {
 .shelf-empty-sub {
   font-size: 14px;
   margin: 0;
+  color: var(--fg);
+  opacity: 0.72;
 }
 .shelf-grid {
   display: grid;
