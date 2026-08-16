@@ -3,6 +3,7 @@ import { ref, watch } from 'vue'
 import * as db from '@/db'
 import { importBook } from '@/parsers'
 import { importBookBuffer } from '@/utils/export'
+import { importBackupBuffer } from '@/utils/backup'
 import { readFileWithProgress } from '@/utils/file'
 import { fetchChapters } from '@/book-source/engine'
 import type { BookSource } from '@/book-source/types'
@@ -64,36 +65,38 @@ export const useBooksStore = defineStore('books', () => {
     loaded.value = true
   }
 
-  /** 导入一个或多个文件；成功返回最后一本导入的书 */
+  /** 导入一个或多个文件；成功返回最后一本导入的书（单个失败不中断整批，只记录首个错误） */
   async function importFiles(files: FileList | File[], encoding?: TextEncoding): Promise<BookMeta | null> {
     importing.value = true
     importError.value = ''
     let last: BookMeta | null = null
-    try {
-      for (const file of Array.from(files)) {
-        importFileName.value = file.name
-        importProgress.value = 0
+    let firstError = ''
+    for (const file of Array.from(files)) {
+      importFileName.value = file.name
+      importProgress.value = 0
+      try {
         const ext = (file.name.toLowerCase().split('.').pop() ?? '').toLowerCase()
-        // 单书导出文件（.qingyue / .json）：直接恢复，不走 TXT/EPUB 解析
-        if (ext === 'qingyue' || ext === 'json') {
+        // 单书导出（.qingyue-book）或全量备份（.qingyue）都是 JSON：先嗅探 app 字段分派，
+        // 不要再误把全量备份当单书造成「不是有效的单书文件」且中断整批
+        if (ext === 'qingyue' || ext === 'json' || (ext !== 'txt' && ext !== 'epub')) {
+          const head = await file.slice(0, 4096).arrayBuffer()
+          const headText = new TextDecoder('utf-8').decode(head)
           const buffer = await readFileWithProgress(file, (r) => {
             importProgress.value = r
           })
-          const result = await importBookBuffer(buffer)
-          if (result.imported === 1 && result.meta) last = result.meta
-          continue
-        }
-        // 未知扩展名：嗅探文件头是否为单书 JSON（下载改名/传输丢扩展名兜底）
-        if (ext !== 'txt' && ext !== 'epub') {
-          const head = await file.slice(0, 4096).arrayBuffer()
-          const headText = new TextDecoder('utf-8').decode(head)
           if (headText.includes('"app":"qingyue-book"')) {
-            const buffer = await readFileWithProgress(file, (r) => {
-              importProgress.value = r
-            })
             const result = await importBookBuffer(buffer)
             if (result.imported === 1 && result.meta) last = result.meta
             continue
+          }
+          if (headText.includes('"app":"qingyue"')) {
+            // 全量备份：走备份恢复（含分组/统计/书源），不作为单书跳转目标
+            await importBackupBuffer(buffer)
+            continue
+          }
+          if (ext === 'json' || ext === 'qingyue') {
+            // 是 JSON 但非轻阅导出格式：给出友好错误而不是当二进制解析
+            throw new Error('文件不是轻阅导出的单书/备份格式')
           }
         }
         const parsed = await importBook(file, encoding, (r) => {
@@ -129,22 +132,23 @@ export const useBooksStore = defineStore('books', () => {
         )
         await db.saveBookFonts(id, parsed.bookFonts ?? [])
         last = meta
+      } catch (error) {
+        if (!firstError) {
+          firstError =
+            error instanceof Error
+              ? error.name === 'QuotaExceededError'
+                ? '浏览器存储空间不足，无法保存该书，请清理书架后重试'
+                : `${file.name}：${error.message}`
+              : String(error)
+        }
       }
-      await refresh()
-      return last
-    } catch (error) {
-      importError.value =
-        error instanceof Error
-          ? error.name === 'QuotaExceededError'
-            ? '浏览器存储空间不足，无法保存该书，请清理书架后重试'
-            : error.message
-          : String(error)
-      return null
-    } finally {
-      importing.value = false
-      importFileName.value = ''
-      importProgress.value = 0
     }
+    await refresh()
+    if (firstError) importError.value = firstError
+    importing.value = false
+    importFileName.value = ''
+    importProgress.value = 0
+    return last
   }
 
   /** 重置阅读进度（回到第一章开头） */

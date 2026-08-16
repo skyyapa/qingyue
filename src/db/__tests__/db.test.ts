@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { reactive } from 'vue'
 import * as db from '@/db'
-import type { BookMeta, Chapter } from '@/types'
+import type { BookMeta, Chapter, Entity } from '@/types'
 
 function makeMeta(id: string): BookMeta {
   return {
@@ -83,6 +84,34 @@ describe('IndexedDB 封装（fake-indexeddb）', () => {
     expect(await db.listEntities('e')).toHaveLength(0)
     expect(await db.listChapterIndexes('e')).toHaveLength(0)
     expect(await db.listRelations('e')).toHaveLength(0)
+  })
+
+  it('putEntity 剥离 Vue reactive Proxy（避免 DataCloneError）', async () => {
+    await db.addBook(makeMeta('p'))
+    // 模拟从 AssistantPanel 的 ref 深层 reactive 数组拿到的实体：嵌套数组也是 Proxy
+    const proxyEntity = reactive<Entity>({
+      id: 'p1',
+      bookId: 'p',
+      name: '苏晚',
+      type: 'person',
+      aliases: ['苏姑娘'],
+      chapters: [0, 2],
+      count: 7,
+      samples: ['苏晚笑着说'],
+      sampleChapters: [0],
+      note: '',
+      custom: true,
+      locked: true,
+    })
+    // 存入后读回：不应抛 DataCloneError，且数组字段完整
+    await expect(db.putEntity(proxyEntity)).resolves.toBeUndefined()
+    const back = await db.listEntities('p')
+    expect(back).toHaveLength(1)
+    expect(back[0].aliases).toEqual(['苏姑娘'])
+    expect(back[0].chapters).toEqual([0, 2])
+    expect(back[0].samples).toEqual(['苏晚笑着说'])
+    // 读回的应是普通对象（非 Proxy）
+    expect(Object.prototype.toString.call(back[0]).includes('Object')).toBe(true)
   })
 
   it('EPUB 内嵌字体存取与删除书连带清理', async () => {

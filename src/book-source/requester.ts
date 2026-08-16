@@ -11,9 +11,9 @@ const REQUEST_TIMEOUT = 15000
  * - allorigins 的 /raw 端点常 520/断连，稳定的是 /get（JSON 包 contents 字段）→ 需解析
  * - corsproxy.io 自 2023 起要求 API key，匿名 403 → 不再内置
  */
-const PUBLIC_PROXIES: ((url: string) => Promise<string>)[] = [
-  async (u) => {
-    const resp = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(u)}`)
+const PUBLIC_PROXIES: ((url: string, signal: AbortSignal) => Promise<string>)[] = [
+  async (u, signal) => {
+    const resp = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(u)}`, { signal })
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
     const json = (await resp.json()) as { contents?: string }
     return json.contents ?? ''
@@ -56,12 +56,13 @@ async function fetchText(url: string): Promise<string> {
   }
 }
 
-/** 统一按目标地址执行单个抓取通道（带超时），公共代理解析 JSON 也走这里 */
-async function runChannel(channel: (url: string) => Promise<string>, url: string): Promise<string> {
+/** 统一按目标地址执行单个抓取通道（带超时）；把超时 controller 的 signal 传给通道，
+ *  否则（如公共代理由通道内部直接 fetch）挂起请求不会被中断 */
+async function runChannel(channel: (url: string, signal: AbortSignal) => Promise<string>, url: string): Promise<string> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT)
   try {
-    return await channel(url)
+    return await channel(url, controller.signal)
   } finally {
     clearTimeout(timer)
   }
@@ -73,7 +74,7 @@ export async function fetchHtml(url: string, proxy?: ProxyConfig): Promise<strin
   if (isSameOrigin(url)) {
     return fetchText(url)
   }
-  const attempts: ((u: string) => Promise<string>)[] = []
+  const attempts: ((u: string, signal: AbortSignal) => Promise<string>)[] = []
   if (cfg.mode === 'direct') attempts.push(async (u) => fetchText(u))
   if (cfg.mode === 'custom' && cfg.customUrl) {
     attempts.push(async (u) => fetchText(`${cfg.customUrl.replace(/\/+$/, '')}/?url=${encodeURIComponent(u)}`))

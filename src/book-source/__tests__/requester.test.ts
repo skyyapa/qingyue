@@ -3,6 +3,7 @@ import { fetchHtml, testProxy } from '../requester'
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  vi.useRealTimers()
 })
 
 /** 按 URL 分发响应的 fetch mock：allorigins /get 返回 JSON contents，其余返回 HTML */
@@ -47,6 +48,29 @@ describe('公共代理通道（allorigins /get）', () => {
     })
     const html = await fetchHtml('https://target.site/index.html', { mode: 'direct', customUrl: '' })
     expect(html).toContain('direct ok')
+  })
+
+  it('公共代理超时会真正中止挂起的 fetch（signal 接到请求）', async () => {
+    vi.useFakeTimers()
+    let abortSeen = false
+    vi.stubGlobal(
+      'fetch',
+      vi.fn((_input: string, init?: RequestInit) => {
+        const signal = init?.signal
+        if (signal) signal.addEventListener('abort', () => (abortSeen = true))
+        // 永不 resolve：只有超时 abort 才能结束挂起请求
+        return new Promise((_resolve, reject) => {
+          signal?.addEventListener('abort', () => reject(new DOMException('Aborted', 'AbortError')))
+        })
+      })
+    )
+    const p = fetchHtml('https://target.site/index.html', { mode: 'public', customUrl: '' })
+    // 先挂上断言语柄，避免 p 在 advance 期间 reject 时成为未处理拒绝
+    const assertion = expect(p).rejects.toThrow(/请求失败/)
+    await vi.advanceTimersByTimeAsync(16_000) // 超过 15s 超时
+    await assertion
+    expect(abortSeen).toBe(true)
+    vi.useRealTimers()
   })
 })
 

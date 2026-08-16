@@ -852,6 +852,26 @@ src/
 - e2e welcome 4→5：新增「非书架路由开始引导跳回书架」用例；回归全绿
   type-check/lint/test(205)/e2e(54)/build
 
+**迭代 46 —— 代码审查修复（4 个确凿 bug）**
+- 代码审查（多子代理 + 人工复核）确认并修复：
+  1. **公共代理超时失效（HIGH）**：requester `runChannel` 新建 AbortController 并把
+     signal 传给通道，但公共 allorigins 通道内部 fetch 没接 signal → 15s 超时形同虚设，
+     挂起请求永不中断。修复：PUBLIC_PROXIES fetch 收 signal + runChannel 传入
+  2. **AI 实体写库 DataCloneError（critical）**：AssistantPanel 的 `ref<Entity[]>` 深层
+     reactive，`mergeEntities/updateEntity` 直接 put 含嵌套 Proxy 的实体 → IndexedDB
+     结构化克隆抛 DataCloneError。修复：db.putEntity 增加 reconstructEntity（展开全部
+     数组字段剥 Proxy）——正是踩坑 #13 的同类问题
+  3. **全量备份 .json 误路由 + 批量中断（moderate）**：books.importFiles 把任意 .json
+     当单书（importBookBuffer 对 `app:'qingyue'` 备份抛「不是有效的单书文件」），且
+     一个文件失败直接中断整批。修复：按 app 字段嗅探分派（单书/备份/非导出报错），
+     且逐文件 try/catch 记录首个错误、不中断后续
+  4. **db req()/listByBook 缺 onabort（moderate）**：仅监听 request.onsuccess/onerror，
+     事务中止（DataCloneError/quota）时 Promise 永不 settle → 挂起。修复：补齐
+     onabort/onerror reject；顺带删除 updateBookAnalysis 重复的 tx.onabort
+- 单测 +5（210）：requester 超时「signal 真正接到 fetch」（fake timers）、
+  putEntity 剥离 reactive Proxy 往返、备份 .json 走恢复 / 非法 .json 报错 / 坏文件不中断
+- 回归全绿：type-check/lint/test(210)/e2e(54)/build
+
 ## 未完成任务
 
 - [x] ~~Android App（Capacitor 打包）~~（v1.3.0-beta.1 prerelease 已发布，vivo X200s / Android 16 真机验收通过；v1.3.0 正式版需第二台不同厂商设备 + 分享/大文件人工确认）

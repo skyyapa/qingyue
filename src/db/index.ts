@@ -55,7 +55,7 @@ function openDB(): Promise<IDBDatabase> {
   return dbPromise
 }
 
-/** 单 store 请求封装 */
+/** 单 store 请求封装（补 onabort：事务中止（DataCloneError/quota）时 reject，避免 Promise 永不 settle） */
 function req<T>(storeName: string, mode: IDBTransactionMode, build: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
   return openDB().then(
     (db) =>
@@ -64,11 +64,13 @@ function req<T>(storeName: string, mode: IDBTransactionMode, build: (store: IDBO
         const request = build(tx.objectStore(storeName))
         request.onsuccess = () => resolve(request.result)
         request.onerror = () => reject(request.error)
+        tx.onabort = () => reject(tx.error ?? new Error('事务被中止'))
+        tx.onerror = () => reject(tx.error ?? new Error('事务错误'))
       })
   )
 }
 
-/** 按 bookId 读取某 store 的全部记录 */
+/** 按 bookId 读取某 store 的全部记录（补 onabort/onerror） */
 function listByBook<T>(storeName: string, bookId: string): Promise<T[]> {
   return openDB().then(
     (db) =>
@@ -78,6 +80,8 @@ function listByBook<T>(storeName: string, bookId: string): Promise<T[]> {
         const request = index.getAll(IDBKeyRange.only(bookId))
         request.onsuccess = () => resolve(request.result as T[])
         request.onerror = () => reject(request.error)
+        tx.onabort = () => reject(tx.error ?? new Error('事务被中止'))
+        tx.onerror = () => reject(tx.error ?? new Error('事务错误'))
       })
   )
 }
@@ -161,7 +165,6 @@ export function updateBookAnalysis(id: string, analysis: BookMeta['analysis']): 
         tx.oncomplete = () => resolve()
         tx.onerror = () => reject(tx.error)
         tx.onabort = () => reject(tx.error ?? new Error('事务被中止'))
-        tx.onabort = () => reject(tx.error ?? new Error('事务被中止'))
       })
   )
 }
@@ -227,8 +230,20 @@ export function listAllChapters(): Promise<Chapter[]> {
 
 // ---------- 知识库实体 ----------
 
+/** 重建普通实体对象：展开所有数组字段，剥离 Vue reactive Proxy ——
+ *  IndexedDB 结构化克隆不接受 Proxy，直接 put 会抛 DataCloneError（见踩坑 #13） */
+function reconstructEntity(e: Entity): Entity {
+  return {
+    ...e,
+    aliases: [...(e.aliases ?? [])],
+    chapters: [...(e.chapters ?? [])],
+    samples: [...(e.samples ?? [])],
+    sampleChapters: [...(e.sampleChapters ?? [])],
+  }
+}
+
 export function putEntity(entity: Entity): Promise<void> {
-  return req(ENTITIES_STORE, 'readwrite', (s) => s.put(entity)).then(() => undefined)
+  return req(ENTITIES_STORE, 'readwrite', (s) => s.put(reconstructEntity(entity))).then(() => undefined)
 }
 
 export function putEntities(entities: Entity[]): Promise<void> {
