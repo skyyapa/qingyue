@@ -25,3 +25,6 @@ android/app/*.keystore
 
 # ZCode 内部文件
 .zcode
+
+# 本地发布产物（scripts/prepare-release.ps1 生成）
+release-artifacts/
