@@ -40,6 +40,18 @@ const progressText = computed(
 // 移动到分组的小菜单
 const menuOpen = ref(false)
 
+/** 拖拽视觉反馈：dragstart 置高亮、dragend 复位（原有 .dragging 样式从未绑定） */
+const dragging = ref(false)
+
+function onDragStart(): void {
+  dragging.value = true
+  emit('dragstart', props.book)
+}
+function onDragEnd(): void {
+  dragging.value = false
+  emit('dragend')
+}
+
 function onMove(group: string): void {
   menuOpen.value = false
   emit('move', group)
@@ -49,11 +61,12 @@ function onMove(group: string): void {
 <template>
   <article
     class="book-card"
+    :class="{ dragging }"
     draggable="true"
     @click="emit('open', book.id)"
-    @dragstart="emit('dragstart', book)"
+    @dragstart="onDragStart"
     @dragover.prevent="emit('dragover', book)"
-    @dragend="emit('dragend')"
+    @dragend="onDragEnd"
   >
     <div class="cover" :style="coverStyle">
       <span class="cover-char">{{ firstChar }}</span>

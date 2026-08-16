@@ -26,6 +26,8 @@ const editNote = ref(props.entity.note)
 const editError = ref('')
 const showDeleteConfirm = ref(false)
 const showMergePicker = ref(false)
+/** 正在执行写库操作（保存/删除/合并）：锁住重复点击，避免双击触发两次 */
+const busy = ref(false)
 
 /** 例句对应的章节号（旧数据可能缺失，缺失时例句不可定位） */
 const sampleChapters = computed(() => props.entity.sampleChapters ?? [])
@@ -74,16 +76,24 @@ function startEdit(): void {
 }
 
 async function saveEdit(): Promise<void> {
+  if (busy.value) return
   const name = editName.value.trim()
   if (!name) {
     editError.value = '名称不能为空'
     return
   }
   editError.value = ''
-  const renamedFrom = name !== props.entity.name ? props.entity.name : undefined
-  const updated: Entity = { ...props.entity, name, type: editType.value, note: editNote.value.trim(), locked: true }
-  await analysis.updateEntity(updated, { renamedFrom })
-  editing.value = false
+  busy.value = true
+  try {
+    const renamedFrom = name !== props.entity.name ? props.entity.name : undefined
+    const updated: Entity = { ...props.entity, name, type: editType.value, note: editNote.value.trim(), locked: true }
+    await analysis.updateEntity(updated, { renamedFrom })
+    editing.value = false
+  } catch (err) {
+    editError.value = `保存失败：${err instanceof Error ? err.message : String(err)}`
+  } finally {
+    busy.value = false
+  }
 }
 
 /** 例句 → 跳到其出处章节并定位正文 */
@@ -93,14 +103,28 @@ function jumpToSample(i: number): void {
 }
 
 async function onDelete(): Promise<void> {
-  await analysis.deleteEntity(props.entity)
-  emit('back')
+  if (busy.value) return
+  busy.value = true
+  try {
+    await analysis.deleteEntity(props.entity)
+    emit('back')
+  } catch (err) {
+    editError.value = `删除失败：${err instanceof Error ? err.message : String(err)}`
+    busy.value = false
+  }
 }
 
 async function mergeInto(target: Entity): Promise<void> {
+  if (busy.value) return
   showMergePicker.value = false
-  await analysis.mergeEntities(target, props.entity)
-  emit('select', target.id)
+  busy.value = true
+  try {
+    await analysis.mergeEntities(target, props.entity)
+    emit('select', target.id)
+  } catch (err) {
+    editError.value = `合并失败：${err instanceof Error ? err.message : String(err)}`
+    busy.value = false
+  }
 }
 </script>
 
@@ -114,7 +138,7 @@ async function mergeInto(target: Entity): Promise<void> {
         <span v-if="entity.custom" class="type-badge custom">手动</span>
         <span v-if="entity.locked" class="type-badge locked">锁定</span>
       </div>
-      <button class="btn-ghost" @click="editing ? saveEdit() : startEdit()">
+      <button class="btn-ghost" :disabled="busy" @click="editing ? saveEdit() : startEdit()">
         {{ editing ? '保存' : '编辑' }}
       </button>
     </div>
@@ -136,14 +160,14 @@ async function mergeInto(target: Entity): Promise<void> {
         <input v-model="editNote" type="text" placeholder="人物简介 / 身份说明…" />
       </label>
       <div class="edit-actions">
-        <button class="btn btn-danger" @click="showDeleteConfirm = true">删除</button>
-        <button class="btn" @click="showMergePicker = !showMergePicker">合并到…</button>
+        <button class="btn btn-danger" :disabled="busy" @click="showDeleteConfirm = true">删除</button>
+        <button class="btn" :disabled="busy" @click="showMergePicker = !showMergePicker">合并到…</button>
         <div v-if="showMergePicker" class="merge-mask" @click="showMergePicker = false"></div>
         <div v-if="showMergePicker" class="merge-list">
-          <button v-for="t in mergeTargets" :key="t.id" class="merge-item" @click="mergeInto(t)">{{ t.name }}</button>
+          <button v-for="t in mergeTargets" :key="t.id" class="merge-item" :disabled="busy" @click="mergeInto(t)">{{ t.name }}</button>
           <p v-if="mergeTargets.length === 0" class="merge-empty">没有可合并的同类型实体</p>
         </div>
-        <button class="btn" @click="editing = false">取消</button>
+        <button class="btn" :disabled="busy" @click="editing = false">取消</button>
       </div>
       <p v-if="editError" class="edit-error">{{ editError }}</p>
     </div>
@@ -483,5 +507,11 @@ async function mergeInto(target: Entity): Promise<void> {
 .tl-ai {
   align-self: flex-start;
   font-size: 12px;
+}
+/* 写库操作中的禁用态 */
+.btn:disabled,
+.merge-item:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 </style>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useStatsStore } from '@/stores/stats'
 import { useBooksStore } from '@/stores/books'
 import { useAIStore } from '@/stores/ai'
@@ -14,15 +14,40 @@ const stats = useStatsStore()
 const books = useBooksStore()
 const ai = useAIStore()
 
-const now = new Date()
-const viewYear = ref(now.getFullYear())
-const viewMonth = ref(now.getMonth() + 1)
+// 「今日」随时间变化：面板长开跨零点时需刷新 now 与今日章节，
+// 否则「是否当前月/今日阅读/连续天数」会显示过期值。
+const now = ref(new Date())
+const viewYear = ref(now.value.getFullYear())
+const viewMonth = ref(now.value.getMonth() + 1)
 
 const isCurrentMonth = computed(
-  () => viewYear.value === now.getFullYear() && viewMonth.value === now.getMonth() + 1
+  () => viewYear.value === now.value.getFullYear() && viewMonth.value === now.value.getMonth() + 1
 )
 const monthLabel = computed(() => `${viewYear.value} 年 ${viewMonth.value} 月`)
-const days = computed(() => buildMonthGrid(viewYear.value, viewMonth.value, stats.stats.byDate, now))
+const days = computed(() => buildMonthGrid(viewYear.value, viewMonth.value, stats.stats.byDate, now.value))
+
+/** 跨日刷新：页面重新可见或定时（每分钟）时更新 now 与今日章节 */
+function refreshClock(): void {
+  const next = new Date()
+  const changedDay = next.toDateString() !== now.value.toDateString()
+  now.value = next
+  if (changedDay) todayChapters.value = getTodayChapters() // 今日章节按新日期重读
+}
+let clockTimer: number | undefined
+const CLOCK_INTERVAL = 60_000
+function onClockVisibility(): void {
+  if (document.visibilityState === 'visible') refreshClock()
+}
+onMounted(() => {
+  document.addEventListener('visibilitychange', onClockVisibility)
+  refreshClock()
+  clockTimer = window.setInterval(refreshClock, CLOCK_INTERVAL)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('visibilitychange', onClockVisibility)
+  if (clockTimer !== undefined) window.clearInterval(clockTimer)
+  clockTimer = undefined
+})
 const monthTotal = computed(() => {
   const prefix = toDateKey(new Date(viewYear.value, viewMonth.value - 1, 1)).slice(0, 7)
   let sec = 0

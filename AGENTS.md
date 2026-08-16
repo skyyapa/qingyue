@@ -26,6 +26,7 @@
   - 46：代码审查修复 4 bug —— 公共代理超时失效（runChannel signal 未接 fetch，15s 超时形同虚设）、AI 实体写库 DataCloneError（AssistantPanel 深层 reactive 数组 → putEntity 剥 Proxy）、全量备份 .json 误路由 + 批量导入不中断、db req()/listByBook 缺 onabort 挂起；单测 +5（210）、e2e 54
   - 47：健壮性加固 —— capacitor 原生插件 promise 链补 .catch（防未处理拒绝）、assistant 档位模型失败自动回退主模型重试一次（callWithModelFallback）、例句防剧透加固（sampleChapters 短于 samples 时无出处例句用 ?? Infinity 丢弃）；单测 +3（213）、e2e 54
   - 48：全面优化（性能/健壮性/UX/架构）—— **路由懒加载**（views 动态 import，主 chunk 368KB→50KB+Bookshelf36KB，首屏 JS −58%，ReaderView/analysis 独立懒加载）；**全书搜索分批异步**（searchBookChaptersBatched + token 竞态保护，大书不再阻塞主线程；正则提层）；**analyze 实体章节倒排索引**（O(名字×章节)→O(n)）+ filterWindows 首尾预筛等价优化；**onResize rAF 节流** + 卸载清理 bookSearchTimer/tapTimer；**异步竞态加固**（TextSelectionBar token、AssistantPanel alive 守卫、loadFloatPersons try/catch）；**ImportDialog 并发导入守卫**；**UX**（BookCard 触屏封面按钮常驻 @media(hover:none)、AppDialog Esc+初始焦点、BookshelfView Esc 关面板、AI Enter busy 拦截）；单测 +3（216）、e2e 54
+  - 48（补充审查修复）：**EntityCard 写库 try/catch + busy 重复点击锁**（保存/删除/合并防未处理拒绝与双击半删）；**StatsPanel 跨零点刷新**（now 改 ref + visibilitychange/定时更新今日数据）；**AIProviderDialog 本地表单缓存**（编辑只写 form，点启用才一次提交 store，杜绝"输入即写穿 localStorage"）；**stores/ai.updateConfig 补 easyModel/summaryModel**（原遗漏致多模型配置丢失）；**BookCard 拖拽 .dragging class 真正绑定**（视觉反馈）。**踩坑：给已有可见符号文本的按钮（✕/←/⚙/助等）加 aria-label 会覆盖其可访问名，破坏 Playwright name 匹配（getByRole strict mode），此类按钮不加 aria-label**
 
 ## 核心架构速查
 

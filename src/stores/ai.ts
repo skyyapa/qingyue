@@ -80,6 +80,8 @@ export const useAIStore = defineStore('ai', () => {
       target.baseUrl = cfg.baseUrl
       target.apiKey = cfg.apiKey
       target.model = cfg.model
+      target.easyModel = cfg.easyModel ?? ''
+      target.summaryModel = cfg.summaryModel ?? ''
       target.label = cfg.label
       target.enabled = cfg.enabled
     }

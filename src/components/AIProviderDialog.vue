@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { ref } from 'vue'
 import { useAIStore } from '@/stores/ai'
-import { AI_PRESETS, AI_PRESET_IDS, isProviderReady, type AIProviderPreset } from '@/ai/presets'
+import { AI_PRESETS, AI_PRESET_IDS, isProviderReady, type AIProviderConfig, type AIProviderPreset } from '@/ai/presets'
 import { testProvider } from '@/ai/client'
 
 /** AI Provider 设置：Base URL / API Key / Model / 测试连接 / 启用 */
@@ -12,10 +12,16 @@ const selectedId = ref<AIProviderPreset>('deepseek')
 const testing = ref(false)
 const testResult = ref<{ ok: boolean; text: string } | null>(null)
 
-const selected = computed(() => ai.providers.find((p) => p.id === selectedId.value)!)
+const selected = ai.providers.find((p) => p.id === selectedId.value)!
 
+// 本地表单：编辑只写 form，点「启用」才一次提交 store。
+// 避免直接绑定 store 对象导致「输入即写入 localStorage」的中间态。
+const form = ref<AIProviderConfig>({ ...selected })
+
+/** 切换到某 Provider 时重新加载其配置到本地表单（恢复已保存值） */
 function selectProvider(id: AIProviderPreset): void {
   selectedId.value = id
+  form.value = { ...ai.providers.find((p) => p.id === id)! }
   testResult.value = null
 }
 
@@ -23,7 +29,7 @@ async function runTest(): Promise<void> {
   testing.value = true
   testResult.value = null
   try {
-    const reply = await testProvider(selected.value)
+    const reply = await testProvider(form.value)
     testResult.value = { ok: true, text: reply.slice(0, 80) }
   } catch (err) {
     testResult.value = { ok: false, text: err instanceof Error ? err.message : String(err) }
@@ -33,7 +39,8 @@ async function runTest(): Promise<void> {
 }
 
 function enableAndClose(): void {
-  ai.enable(selectedId.value)
+  ai.updateConfig(form.value) // 一次提交当前表单
+  ai.enable(selectedId.value) // 启用该 Provider（其余关闭）
   emit('close')
 }
 </script>
@@ -66,30 +73,30 @@ function enableAndClose(): void {
       <div class="provider-form">
         <label class="ai-row">
           <span>Base URL</span>
-          <input v-model="selected.baseUrl" type="text" placeholder="https://api.example.com/v1" spellcheck="false" />
+          <input v-model="form.baseUrl" type="text" placeholder="https://api.example.com/v1" spellcheck="false" />
         </label>
         <label class="ai-row">
           <span>API Key</span>
           <input
-            v-model="selected.apiKey"
+            v-model="form.apiKey"
             type="password"
             autocomplete="off"
-            :placeholder="AI_PRESETS[selected.id].apiKeyRequired ? 'sk-…' : '本地服务可留空'"
+            :placeholder="AI_PRESETS[selectedId].apiKeyRequired ? 'sk-…' : '本地服务可留空'"
           />
         </label>
         <label class="ai-row">
           <span>Model</span>
-          <input v-model="selected.model" type="text" spellcheck="false" />
+          <input v-model="form.model" type="text" spellcheck="false" />
         </label>
         <label class="ai-row">
           <span>简单任务</span>
-          <input v-model="selected.easyModel" type="text" placeholder="留空用主模型（who/回顾/伏笔等）" spellcheck="false" />
+          <input v-model="form.easyModel" type="text" placeholder="留空用主模型（who/回顾/伏笔等）" spellcheck="false" />
         </label>
         <label class="ai-row">
           <span>摘要任务</span>
-          <input v-model="selected.summaryModel" type="text" placeholder="留空用主模型（章节摘要/今日回顾）" spellcheck="false" />
+          <input v-model="form.summaryModel" type="text" placeholder="留空用主模型（章节摘要/今日回顾）" spellcheck="false" />
         </label>
-        <p class="ai-hint">{{ AI_PRESETS[selected.id].hint }}</p>
+        <p class="ai-hint">{{ AI_PRESETS[selectedId].hint }}</p>
         <p class="ai-hint">💡 多模型策略：简单问答与摘要可用更便宜的模型（如 DeepSeek），复杂剧情分析用主模型（如 GPT），降低成本。</p>
 
         <div class="ai-actions">
