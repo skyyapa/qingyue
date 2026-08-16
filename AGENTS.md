@@ -3,13 +3,14 @@
 > 本文档给被压缩/新开的会话快速续接用。完整迭代史、踩坑与测试方法见 `PROJECT.md`、`README.md`。
 > **注意：每次迭代完成后需同步更新本文件「当前状态」与 PROJECT.md/README。**
 
-## 当前状态（截至迭代 48，v1.3.0-beta.1 已发布 GitHub prerelease，真机验收通过，实时引导已上线）
+## 当前状态（迭代 48，v1.3.0-beta.2 已构建签名 APK/AAB，真机验收进行中）
 
-- **版本**：`1.3.0-beta.1`（package.json 与 Android versionCode 2 / versionName 1.3.0-beta.1；**已发布 GitHub prerelease**：https://github.com/skyyapa/qingyue/releases/tag/v1.3.0-beta.1 —— 签名 APK/AAB + 离线版 zip + SHA-256）
-- **测试基线**：单测 **216**（26 套件）/ e2e **54**（chromium 47 + webkit-ios 7）/ type-check / lint / build 全绿；Android `assembleRelease` + `bundleRelease` 签名构建全绿；`assembleDebug`（含 local-notifications + share 插件）全绿
-- **真机验收**：vivo X200s（Android 16）8 项全过——TXT/EPUB 文件管理器打开（冷启动）、ACTION_SEND、翻章+进度持久化、返回键优先级、每日提醒（权限+调度）、夜间主题+状态栏、分享导出面板
-- **签名**：本机 release keystore（`%LOCALAPPDATA%\QingYue\keystore\qingyue-release.jks`，仓库外）；`android/key.properties` 不入库；证书 SHA-256 `5f9b67e549639ea9fb3e51242c20136511eccb91746e16c1ba8a21d45943b1a7`
-- **工作区**：main 与 origin/main 同步
+- **版本**：代码已同步 `1.3.0-beta.2`（package.json + Android versionCode 3 / versionName "1.3.0-beta.2"）；**beta.2 签名 APK（3.32MB）+ AAB（3.18MB）已构建**（证书 SHA-256 同 beta.1：`5f9b67e5...43b1a7`），**尚未发 GitHub prerelease**；v1.3.0 正式版待真机验收通过后发（versionCode 再+1）
+- **测试基线**：单测 **216**（26 套件）/ e2e **56**（54 原 + 2 大文件压力）/ type-check / lint / build 全绿；Android `assembleRelease` + `bundleRelease` 签名构建全绿
+- **大文件压力**：e2e `stress.spec.ts` 10MB/50MB TXT 导入至阅读器、正文渲染全过（Playwright 传 buffer 上限 50MB，50MB 需写临时文件传路径）
+- **真机验收（进行中）**：vivo X200s（Android 16）8 项已过（迭代 43）；**beta.2 已装到 second 台 vivo V2166BA（Android 13 / SDK 33）并冷启动成功**；剩余 GUI 交互项（文件管理器打开/ACTION_SEND/翻章持久化/返回键/每日提醒/夜间主题/分享导出）待设备上人工操作确认
+- **签名**：本机 release keystore（`%LOCALAPPDATA%\QingYue\keystore\qingyue-release.jks`，仓库外）；证书 SHA-256 `5f9b67e549639ea9fb3e51242c20136511eccb91746e16c1ba8a21d45943b1a7`
+- **工作区**：main 与 origin/main 同步；构建 Android 需 **JDK 21**（已装 Amazon Corretto 21，`C:\Program Files\Amazon Corretto\jdk21.0.12_8`，gradle 需 `$env:JAVA_HOME` 指向它；系统默认 JDK 17 / AS JBR 25 均不满足 AGP toolchain 21）
 - **最近迭代**：
   - 34：v1.3 Android M2 准备（processedUris 失败可重试 + 成功短窗去重、MIME 无扩展名文件名标准化 +2 单测、safe-area 映射 Capacitor 注入变量、版本同步 1.3.0-beta.1、签名 keystore + signingConfig、签名 APK/AAB 构建）
   - 35：Android 每日阅读提醒 —— 新增 @capacitor/local-notifications 插件、settings 加 readingReminder（enabled/hour/minute，sanitize 校验）、utils/reminder.ts 纯函数（文案+每日重复调度）、capacitor.ts syncReadingReminder（权限申请/调度/取消）、App.vue watch 重调度、设置面板时间选择器 + 提示（Web 忽略）；单测 +6（185）；**真机未连接，验收仍为阻塞项**
