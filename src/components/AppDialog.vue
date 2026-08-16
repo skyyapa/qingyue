@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 
-/** 应用内对话框：支持确认文案 / 危险操作 / 输入框三种形态，替代原生 confirm / prompt */
+/** 应用内对话框：支持确认文案 / 危险操作 / 输入框三种形态，替代原生 confirm / prompt
+ *  键盘支持：Esc 取消（等同 cancel）、输入框内 Enter 确认 */
 defineProps<{
   title: string
   message?: string
@@ -14,15 +15,35 @@ const emit = defineEmits<{ confirm: [value: string]; cancel: [] }>()
 
 /** 输入框内容（不能用 `input` 命名，否则与 prop 同名遮蔽导致模板取错） */
 const inputValue = ref('')
+const inputEl = ref<HTMLInputElement>()
+const confirmEl = ref<HTMLButtonElement>()
+
+function onKeydown(e: KeyboardEvent): void {
+  if (e.key === 'Escape') {
+    e.preventDefault()
+    emit('cancel')
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('keydown', onKeydown)
+  // 初始焦点放入对话框：输入框优先聚焦，否则聚焦确认按钮（无障碍/键盘）
+  if (inputEl.value) inputEl.value.focus()
+  else confirmEl.value?.focus()
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onKeydown)
+})
 </script>
 
 <template>
   <div class="mask" @click.self="emit('cancel')">
-    <div class="modal app-dialog">
+    <div class="modal app-dialog" role="dialog" aria-modal="true" :aria-label="title">
       <h2 class="dialog-title">{{ title }}</h2>
       <p v-if="message" class="dialog-msg">{{ message }}</p>
       <input
         v-if="input"
+        ref="inputEl"
         v-model="inputValue"
         class="dialog-input"
         type="text"
@@ -32,6 +53,7 @@ const inputValue = ref('')
       <div class="modal-actions">
         <button class="btn" @click="emit('cancel')">取消</button>
         <button
+          ref="confirmEl"
           class="btn"
           :class="danger ? 'btn-danger' : 'btn-primary'"
           @click="emit('confirm', inputValue)"

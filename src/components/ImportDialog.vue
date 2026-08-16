@@ -25,6 +25,7 @@ function pickFiles(): void {
 
 async function handleFiles(files: FileList | File[] | null): Promise<void> {
   if (!files || files.length === 0) return
+  if (books.importing) return // 已有导入进行中：拒绝并发，避免进度交错/写库竞态
   const meta = await books.importFiles(files, encoding.value)
   emit('imported', meta?.id ?? null)
 }

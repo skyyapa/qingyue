@@ -188,11 +188,16 @@ export function filterWindows(windows: Map<string, WindowStat>, options: Discove
   // 4 字词要求部分词频 ≥0.8×（「老师傅看」含「老师傅」）
   const FUNC_EXTRA = '对跟向被让和与同给随陪说道看着在到去来往从进出离走返站住坐躲藏躺的了着过是'
   const shortWords = [...result.entries()].filter(([w]) => w.length <= 3)
-  for (const [word, c] of [...result]) {
+  // 外层直接迭代 Map 避免 `[...result]` 整份拷贝；内层仅当长词首尾字符命中候选词首尾时才比较
+  for (const [word, c] of result) {
     if (word.length === 2) continue
     const ratio = word.length === 3 ? 1.5 : 0.8
+    const first = word[0]
+    const last = word[word.length - 1]
     for (const [w, sc] of shortWords) {
       if (sc.count < c.count * ratio) continue
+      // 命中才可能作为真前缀/真后缀；首尾不匹配的短词与这个词无关，可跳过
+      if (!(w[0] === first || w[w.length - 1] === last)) continue
       // 多余字符 = 长词去掉词根后剩下的那个字符
       let extra = ''
       if (word.startsWith(w)) extra = word[w.length]

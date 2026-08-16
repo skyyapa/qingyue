@@ -327,14 +327,23 @@ export async function analyzeBook(bookId: string, cb: AnalyzeCallbacks): Promise
     const savedIds = new Set<string>()
 
     const sortedNames = [...globalCounts.entries()].sort((a, b) => b[1] - a[1])
+
+    // 倒排索引：实体名 → 出现章节号。一遍遍历 chapterWalks 建成，
+    // 供下方 O(1) 取每个实体的章节数组，避免 O(名字 × 章节) 的重复全量扫描。
+    const nameToChapters = new Map<string, number[]>()
+    for (const { chapterIndex, walk } of chapterWalks) {
+      for (const name of walk.counts.keys()) {
+        const list = nameToChapters.get(name)
+        if (list) list.push(chapterIndex)
+        else nameToChapters.set(name, [chapterIndex])
+      }
+    }
+
     for (const [name] of sortedNames) {
       if (ignored.has(name)) continue
       const votes = globalVotes.get(name) ?? {}
       const type = decideType(votes)
-      const chapters: number[] = []
-      for (const { chapterIndex, walk } of chapterWalks) {
-        if (walk.counts.has(name)) chapters.push(chapterIndex)
-      }
+      const chapters = nameToChapters.get(name) ?? []
       const newSamples = samples.get(name) ?? []
 
       // 别名命中：计数/章节/例句并入现有实体（不新建实体）

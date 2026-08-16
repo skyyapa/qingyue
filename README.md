@@ -72,7 +72,7 @@ npm run android:open  # 用 Android Studio 打开 Android 工程
 ```bash
 npm run lint       # ESLint 代码检查
 npm run type-check # TypeScript 类型检查
-npm run test       # 单元测试（Vitest 213 用例）
+npm run test       # 单元测试（Vitest 216 用例）
 npm run e2e        # 端到端测试（Playwright 54 用例）
 ```
 
@@ -85,6 +85,7 @@ GitHub Actions 自动运行 CI（lint + type-check + 单测 + 构建 + E2E）。
 - **Vue 3** + **TypeScript** + **Vite** + **vue-router** + **Pinia**
 - **IndexedDB**（原生封装）存储书籍与进度；**jszip** 解析 EPUB
 - 手写 CSS 变量主题系统，无 UI 组件库
+- **路由级懒加载**：阅读器/知识库分析等大模块按需加载，首屏启动更快
 
 ## 📁 项目结构
 

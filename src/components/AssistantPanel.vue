@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import * as db from '@/db'
 import { useBooksStore } from '@/stores/books'
 import { useAnalysisStore } from '@/stores/analysis'
@@ -126,6 +126,13 @@ const timelineEvents = computed<TimelineEvent[]>(() => {
     .sort((a, b) => a.chapters[0] - b.chapters[0])
 })
 
+// 组件存活标记：抽屉可能被 v-if 销毁（书架返回/切书），异步结果返回时若已卸载
+// 则丢弃写入，避免「卸载后仍写状态」的竞态与 Vue 警告。
+let alive = true
+onBeforeUnmount(() => {
+  alive = false
+})
+
 async function load(): Promise<void> {
   loading.value = true
   loadError.value = ''
@@ -135,13 +142,15 @@ async function load(): Promise<void> {
       db.listRelations(props.bookId),
       db.listChapterIndexes(props.bookId),
     ])
+    if (!alive) return // 抽屉已关闭，丢弃本次加载
     entities.value = ents.sort((a, b) => b.count - a.count)
     relations.value = rels
     chapterIndexes.value = idxs.sort((a, b) => a.index - b.index)
   } catch (err) {
+    if (!alive) return
     loadError.value = err instanceof Error ? err.message : String(err)
   } finally {
-    loading.value = false
+    if (alive) loading.value = false
   }
 }
 
@@ -194,6 +203,7 @@ async function runTask(task: AITask): Promise<void> {
   aiError.value = ''
   aiAnswer.value = ''
   lastTask = task
+  let stopped = false
   try {
     const params: AITaskParams = { chapterIndex: props.currentChapter, text: q }
     if (task === 'who' || task === 'relation' || task === 'world') {
@@ -201,15 +211,18 @@ async function runTask(task: AITask): Promise<void> {
       const match = list.find((e) => e.name === q || e.aliases.includes(q))
       if (match) params.entityId = match.id
     }
+    if (!alive) { stopped = true; return }
     aiAnswer.value = await runAITask(active, props.bookId, task, params)
   } catch (err) {
+    if (!alive) { stopped = true; return }
     aiError.value = err instanceof Error ? err.message : String(err)
   } finally {
-    aiBusy.value = false
+    if (alive && !stopped) aiBusy.value = false
   }
 }
 
 function askFree(): void {
+  if (aiBusy.value) return // busy 时按钮已禁用，Enter 也拦截，避免叠加请求
   runTask('ask')
 }
 
@@ -227,15 +240,18 @@ async function runEntityTimeline(entityId: string): Promise<void> {
   aiError.value = ''
   aiAnswer.value = ''
   lastTask = 'personTimeline'
+  let stopped = false
   try {
+    if (!alive) { stopped = true; return }
     aiAnswer.value = await runAITask(active, props.bookId, 'personTimeline', {
       chapterIndex: props.currentChapter,
       entityId,
     })
   } catch (err) {
+    if (!alive) { stopped = true; return }
     aiError.value = err instanceof Error ? err.message : String(err)
   } finally {
-    aiBusy.value = false
+    if (alive && !stopped) aiBusy.value = false
   }
 }
 

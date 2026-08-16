@@ -170,6 +170,19 @@ function onMove(group: string): void {
 .book-card:hover .cover-btn {
   display: inline-flex;
 }
+/* 触屏设备（Android/移动端主力）无 hover，封面操作按钮需常驻显示，
+   否则「分析/分组/删除」永远无法触达 */
+@media (hover: none) {
+  .cover-btn {
+    display: inline-flex;
+  }
+}
+/* 桌面触屏笔/混合设备：允许用 tap 常驻，hover 透明增益但不强制 */
+@media (pointer: coarse) {
+  .cover-btn {
+    display: inline-flex;
+  }
+}
 .move-menu {
   position: absolute;
   top: 30px;

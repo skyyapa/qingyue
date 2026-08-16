@@ -40,10 +40,25 @@ const pendingImportFiles = ref<File[]>([])
 
 onMounted(() => {
   window.addEventListener('qingyue:open-files', onNativeOpenFiles)
+  document.addEventListener('keydown', onEscClose)
 })
 onBeforeUnmount(() => {
   window.removeEventListener('qingyue:open-files', onNativeOpenFiles)
+  document.removeEventListener('keydown', onEscClose)
 })
+
+/** Esc 关闭当前打开的面板（book-source/备份/统计/AI/导入）：
+ *  AppDialog 自身已处理 Esc，这里只在无 AppDialog 时接管，避免重复关闭 */
+function onEscClose(e: KeyboardEvent): void {
+  if (e.key !== 'Escape') return
+  if (dialog.value) return // AppDialog 自处理
+  // 按「最常开启/最近可能开启」优先逐个关闭第一个打开的面板
+  if (showSources.value) showSources.value = false
+  else if (showBackup.value) showBackup.value = false
+  else if (showStats.value) showStats.value = false
+  else if (showAI.value) showAI.value = false
+  else if (showImport.value) { showImport.value = false; pendingImportFiles.value = [] }
+}
 
 function onNativeOpenFiles(e: Event): void {
   const files = (e as CustomEvent<{ files: File[] }>).detail?.files

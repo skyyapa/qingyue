@@ -45,6 +45,10 @@ async function lookup(text: string): Promise<Entity | null> {
   return best
 }
 
+// 递增请求序号：并发/连续的 lookup 只有最新一次结果能写状态，
+// 避免上次慢查询返回后覆盖当前选中文字的匹配
+let lookupToken = 0
+
 function onMouseUp(e: MouseEvent): void {
   // 忽略面板/工具条内部的选择
   const target = e.target as HTMLElement
@@ -58,6 +62,7 @@ function onMouseUp(e: MouseEvent): void {
   const range = selection?.getRangeAt(0)
   const rect = range?.getBoundingClientRect()
   if (!rect) return
+  const token = ++lookupToken
   selectedText.value = text
   pos.value = {
     x: Math.min(window.innerWidth - 200, Math.max(8, rect.left + rect.width / 2 - 100)),
@@ -66,10 +71,17 @@ function onMouseUp(e: MouseEvent): void {
   visible.value = true
   match.value = null
   loading.value = true
-  lookup(text).then((m) => {
-    match.value = m
-    loading.value = false
-  })
+  lookup(text)
+    .then((m) => {
+      if (token !== lookupToken) return // 陈旧的查询结果，丢弃
+      match.value = m
+      loading.value = false
+    })
+    .catch(() => {
+      if (token !== lookupToken) return
+      match.value = null
+      loading.value = false
+    })
 }
 
 function onMouseDown(e: MouseEvent): void {

@@ -8,7 +8,7 @@ import { useStatsStore } from '@/stores/stats'
 import { useAIStore } from '@/stores/ai'
 import { runAITask } from '@/ai/assistant'
 import { bookReadPercent, formatPercent } from '@/utils/progress'
-import { searchBookChapters, type BookSearchResult } from '@/utils/book-search'
+import { searchBookChaptersBatched, type BookSearchResult } from '@/utils/book-search'
 import { recordTodayChapter } from '@/utils/reading-days'
 import { classifyTapZone } from '@/utils/tap-zones'
 import type { AITask, AITaskParams } from '@/ai/assistant'
@@ -154,9 +154,15 @@ function setSearchMode(mode: 'chapter' | 'book'): void {
   runSearch(searchTerm.value)
 }
 
-/** 扫描全书（在线书仅扫描已缓存章节）；防抖让输入保持流畅 */
+// 全书搜索分片 token：递增使旧批次结果作废，避免竞态（输入变化/切章后旧结果覆盖新结果）
+let bookSearchToken = 0
+let cancelBookSearch: (() => void) | undefined
+
+/** 扫描全书（在线书仅扫描已缓存章节）；防抖让输入保持流畅；
+ *  分批异步扫描（见 searchBookChaptersBatched），大书不阻塞主线程 */
 function runBookSearch(term: string): void {
   window.clearTimeout(bookSearchTimer)
+  cancelBookSearch?.()
   const q = term.trim()
   if (!q) {
     bookResults.value = []
@@ -165,10 +171,15 @@ function runBookSearch(term: string): void {
   }
   bookSearchTimer = window.setTimeout(async () => {
     const chapters = await db.listChapters(bookId.value)
-    // 输入已变化或切换回章节模式时，丢弃旧结果
+    // 异步加载期间输入已变化或离开本书搜索，丢弃
     if (searchMode.value !== 'book' || searchTerm.value.trim() !== q) return
+    const token = ++bookSearchToken
     searchedChapterCount.value = chapters.length
-    bookResults.value = searchBookChapters(chapters, q)
+    cancelBookSearch = searchBookChaptersBatched(chapters, q, (results, done) => {
+      if (bookSearchToken !== token) return
+      bookResults.value = results
+      if (done) cancelBookSearch = undefined
+    })
   }, 180)
 }
 
@@ -306,17 +317,22 @@ async function runFloatTask(task: AITask, params: AITaskParams = {}): Promise<vo
 /** 加载当前章人物（浮层「询问人物」） */
 async function loadFloatPersons(): Promise<void> {
   aiFabPersonMode.value = true
-  const [indexes, entities] = await Promise.all([
-    db.listChapterIndexes(bookId.value),
-    db.listEntities(bookId.value),
-  ])
-  const idx = indexes.find((x) => x.index === reader.chapterIndex)
-  const counts = idx?.entityCounts ?? {}
-  aiFabPersons.value = entities
-    .filter((e) => e.type === 'person' && e.id in counts)
-    .sort((a, b) => (counts[b.id] ?? 0) - (counts[a.id] ?? 0))
-    .slice(0, 8)
-    .map((e) => ({ id: e.id, name: e.name }))
+  aiFabPersons.value = []
+  try {
+    const [indexes, entities] = await Promise.all([
+      db.listChapterIndexes(bookId.value),
+      db.listEntities(bookId.value),
+    ])
+    const idx = indexes.find((x) => x.index === reader.chapterIndex)
+    const counts = idx?.entityCounts ?? {}
+    aiFabPersons.value = entities
+      .filter((e) => e.type === 'person' && e.id in counts)
+      .sort((a, b) => (counts[b.id] ?? 0) - (counts[a.id] ?? 0))
+      .slice(0, 8)
+      .map((e) => ({ id: e.id, name: e.name }))
+  } catch {
+    // 读取失败静默：浮层为空，不打扰阅读
+  }
 }
 
 // 位置显示（滚动模式百分比 / 翻页模式页数）
@@ -650,9 +666,24 @@ function onVisibilityChange(): void {
   if (document.hidden) flushSave()
 }
 
+// resize 用 rAF 节流：拖拽窗口/旋转/分屏会高频触发，逐帧同步布局与 scrollLeft 校准
+// 成本高；合并到下一帧只执行最后一次，避免抖动与重复的强制同步布局。
+let resizeTimer: number | undefined
+
 function onResize(): void {
-  viewportWidth.value = window.innerWidth // 翻页列宽响应式更新（旋转/分屏等）
-  restoreRatio(readRatio())
+  if (resizeTimer !== undefined) return
+  resizeTimer = window.requestAnimationFrame(() => {
+    resizeTimer = undefined
+    viewportWidth.value = window.innerWidth // 翻页列宽响应式更新（旋转/分屏等）
+    restoreRatio(readRatio())
+  })
+}
+
+function clearResizeTimer(): void {
+  if (resizeTimer !== undefined) {
+    window.cancelAnimationFrame(resizeTimer)
+    resizeTimer = undefined
+  }
 }
 
 /** 页面被强杀/跳转前兜底保存（visibilitychange 可能来不及触发） */
@@ -735,8 +766,11 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   flushSave()
+  window.clearTimeout(bookSearchTimer)
+  window.clearTimeout(tapTimer)
   stats.stopTracking()
   removeBookFonts()
+  clearResizeTimer()
   window.removeEventListener('resize', onResize)
   window.removeEventListener('keydown', onKeydown)
   window.removeEventListener('pagehide', onPageHide)
