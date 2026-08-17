@@ -241,6 +241,10 @@ async function runSearchTest(index: number): Promise<void> {
         <button v-if="proxy.mode === 'public'" class="btn" :disabled="proxyTesting" @click="onTestProxy">
           {{ proxyTesting ? '测试中…' : '测试公共代理' }}
         </button>
+        <p v-if="proxy.mode === 'public'" class="proxy-public-hint">
+          公共免费代理多为境外服务，部分网络（尤其大陆）可能连不上或不稳定。若失败，建议改用<b>自备代理</b>（
+          Cloudflare Worker，大陆通常可直连、免费 10 万次/天，见「自备代理」模式的部署教程）。
+        </p>
         <p v-if="proxyTestResult" class="proxy-result" :class="{ error: proxyTestResult.startsWith('失败') }">
           {{ proxyTestResult }}
         </p>
@@ -443,6 +447,19 @@ async function runSearchTest(index: number): Promise<void> {
 }
 .proxy-result.error {
   color: var(--danger);
+}
+.proxy-public-hint {
+  margin: 8px 0 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--accent-weak);
+  border: 1px solid var(--panel-border);
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--fg);
+}
+.proxy-public-hint b {
+  color: var(--accent);
 }
 .source-list {
   display: flex;
