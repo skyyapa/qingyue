@@ -973,6 +973,11 @@ Android（Capacitor 8）：文件管理器「用轻阅打开」、系统分享�
 - `splitChapters` 新增 `extractChapterTitle`：先宽松识别“短前缀 + 第X章”并剥离前缀，再走原严格标题规则；宽松识别仅在整行较短且无句末标点时启用，避免正文里提到“第一章”被误切
 - 单测 +2（228）：前缀章节标题可分章并剥离前缀；正文句子提到第X章不误切；type-check/lint/test(228)/e2e(59)/build 全绿
 
+**迭代 55 —— TXT 章节标题前缀容错补强（HTML/font 标签 + 较长字体前缀）**
+- 用户反馈“还是一样”后复核：迭代 54 的前缀容错仍太保守，`正文 第一章` 会先被旧 `正文...` 严格规则吃掉，且 `<font>第一章</font>` / `字体：宋体 正文 第一章` 这类真实脏标题仍可能漏识别
+- 调整 `extractChapterTitle`：先清理 HTML/font 标签与 NBSP，再在短行无句末标点时查找行内 `第X章` 核心标记；只接受短前缀、装饰前缀或已知字体/正文/VIP/站点类前缀，最后再回退原严格规则
+- 单测 +1（229）：HTML/font 标签包住章节标题时仍分章；原有“正文句子提到第X章不误切”继续约束误切边界；type-check/lint/test(229)/e2e(59)/build 全绿
+
 ## 未完成任务
 
 - [x] ~~Android App（Capacitor 打包）~~（**v1.3.0 正式版已发布**：https://github.com/skyyapa/qingyue/releases/tag/v1.3.0 —— 双真机验收通过：vivo X200s / V2458A（均 Android 16）+ 10/50MB 压测 + 进度 bug 修复）
