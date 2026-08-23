@@ -103,6 +103,21 @@ describe('splitChapters 章节切分', () => {
     const titles = splitChapters(text).map((c) => c.title)
     expect(titles).toEqual(['序章', '第三章 风起', '番外 后记'])
   })
+
+  it('章节标题前有短前缀/装饰文字时仍能分章，并剥离前缀', () => {
+    const text = '《书名》\n作者：某人\n\n正文 第一章 开始\n正文一。\n\n【VIP】第2章 继续\n正文二。\n'
+    const chapters = splitChapters(text)
+    expect(chapters).toHaveLength(2)
+    expect(chapters.map((c) => c.title)).toEqual(['第一章 开始', '第2章 继续'])
+    expect(chapters[0].text).toContain('正文一')
+  })
+
+  it('正文中提到第X章但不是独立标题时不误切分', () => {
+    const text = '第一章 开始\n这里提到第一章的线索但这是一句正文。\n第二段继续。\n\n第二章 继续\n正文二。\n'
+    const chapters = splitChapters(text)
+    expect(chapters).toHaveLength(2)
+    expect(chapters[0].text).toContain('这里提到第一章的线索')
+  })
 })
 
 describe('parseTxt 元信息提取', () => {

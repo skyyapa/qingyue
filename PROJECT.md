@@ -968,6 +968,11 @@ Android（Capacitor 8）：文件管理器「用轻阅打开」、系统分享�
 - stores/books：新增 `ImportFilesOptions.mergeTxtChapters` 与合并导入路径；合并书名可编辑，兜底取文件夹名/公共前缀/默认名；章节标题来自文件名，正文按选择编码解码
 - 回归：store 单测 +1（226：乱序 TXT 自然排序合并为一本书）；e2e +1（59：UI 多 TXT 合并 → 阅读器章节顺序正确）；推荐页多本 TXT 导入回归通过
 
+**迭代 54 —— TXT 章节标题前缀容错（正文/装饰文字 + 第X章 仍可分章）**
+- 修复用户反馈：章节标题前混入短前缀/装饰/字体文本（如 `正文 第一章 开始`、`【VIP】第2章 继续`）时，旧逻辑要求 `第X章` 位于行首，导致整本无法自动分章
+- `splitChapters` 新增 `extractChapterTitle`：先宽松识别“短前缀 + 第X章”并剥离前缀，再走原严格标题规则；宽松识别仅在整行较短且无句末标点时启用，避免正文里提到“第一章”被误切
+- 单测 +2（228）：前缀章节标题可分章并剥离前缀；正文句子提到第X章不误切；type-check/lint/test(228)/e2e(59)/build 全绿
+
 ## 未完成任务
 
 - [x] ~~Android App（Capacitor 打包）~~（**v1.3.0 正式版已发布**：https://github.com/skyyapa/qingyue/releases/tag/v1.3.0 —— 双真机验收通过：vivo X200s / V2458A（均 Android 16）+ 10/50MB 压测 + 进度 bug 修复）

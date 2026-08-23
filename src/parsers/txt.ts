@@ -15,6 +15,20 @@ export interface ParsedBook {
 const CHAPTER_HEADING_RE =
   /^(第[0-9零一二三四五六七八九十百千万两〇]{1,8}[章节回卷集部篇][^。！？]{0,40}|(?:序章|序言|楔子|引子|前言|绪论|尾声|后记|番外|外传|终章|正文)[^。！？]{0,20})$/
 
+/** 有些 TXT 会在章节标题前混入站点/装饰/字体文本（如「正文 第一章」/「【VIP】第1章」）。
+ *  只在整行短且无句末标点时启用宽松识别，降低正文误切风险。 */
+const PREFXIED_CHAPTER_HEADING_RE =
+  /^(?<prefix>[^。！？\n]{1,12}?)[\s:：|｜·・—_-]*?(?<title>第[0-9零一二三四五六七八九十百千万两〇]{1,8}[章节回卷集部篇][^。！？]{0,40})$/
+
+function extractChapterTitle(line: string): string | null {
+  if (line.length <= 56) {
+    const match = line.match(PREFXIED_CHAPTER_HEADING_RE)
+    if (match?.groups?.title) return match.groups.title.trim()
+  }
+  if (CHAPTER_HEADING_RE.test(line)) return line
+  return null
+}
+
 /** 作者信息常见写法 */
 const AUTHOR_RE = /作者[：:]\s*([^\s，,。]{1,20})/
 
@@ -117,7 +131,8 @@ export function splitChapters(text: string): { title: string; text: string }[] {
 
   for (const line of lines) {
     const trimmed = line.trim()
-    if (trimmed && CHAPTER_HEADING_RE.test(trimmed)) {
+    const chapterTitle = trimmed ? extractChapterTitle(trimmed) : null
+    if (chapterTitle) {
       // 首次遇到标题：决定标题前导语的去留
       if (chapters.length === 0 && !current) {
         const leadText = lead.join('\n').trim()
@@ -125,7 +140,7 @@ export function splitChapters(text: string): { title: string; text: string }[] {
         lead = []
       }
       flush()
-      current = { title: trimmed, text: [] }
+      current = { title: chapterTitle, text: [] }
       continue
     }
     if (!current) lead.push(line)
