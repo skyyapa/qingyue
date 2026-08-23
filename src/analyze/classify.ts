@@ -7,6 +7,9 @@ import type { EntityType } from '@/types'
 export const SPEECH_VERBS = new Set('说道问问答喊笑叫骂叹怒吼斥责答解释求恳谢看望盯瞪瞧瞅')
 /** 介词：对X说 / 跟X / 被X ……；也覆盖「X对Y说」的主语位 */
 const PERSON_PREP = new Set('对跟向被让和与同给随陪')
+/** 与格介词：X对Y / X向Y / X跟Y —— 后接名词多为说话/动作接受方，是较强的人脸信号；
+ *  比「和/与/同/给」更可靠（后者常连接非人物，如「和大人」「给自己」） */
+const DATIVE_PREP = new Set('对向跟')
 /** 处所介词：在X / 来到X / 回到X …… */
 const PLACE_PREP = new Set('在到去回来往从进出离走返赶奔飞落站住坐躲藏躺')
 /** 技能动词（2 字）：使出X / 施展X …… */
@@ -40,8 +43,10 @@ export type Votes = Partial<Record<EntityType, number>>
 export function voteContext(prev2: string, prev: string, next: string, next2: string, votes: Votes, word?: string): void {
   // 人名：X说 / X道 / X看着 / 对X说 / 跟X / X对Y说
   if (next && SPEECH_VERBS.has(next)) votes.person = (votes.person ?? 0) + 2
-  if (next && PERSON_PREP.has(next)) votes.person = (votes.person ?? 0) + 2
-  if (prev && PERSON_PREP.has(prev) && next && next !== '是') votes.person = (votes.person ?? 0) + 2
+  // X 后接与格介词（X对Y / X向Y / X跟Y）→ X 是施动者，多为人物
+  if (next && DATIVE_PREP.has(next)) votes.person = (votes.person ?? 0) + 2
+  // 对X说 / 跟X说：个体词后紧跟说话动词才投人物票，避免「和X一起」「给X自己」等常见短语误判
+  if (prev && PERSON_PREP.has(prev) && next && SPEECH_VERBS.has(next)) votes.person = (votes.person ?? 0) + 2
   // 地点：在X / 来到X / X城 / X山
   // 注意「拿出/使出/掏出」等动宾结构里的「出」不应触发地点投票
   if (prev && PLACE_PREP.has(prev) && !(prev2 && (SKILL_PREV.has(prev2) || ITEM_PREV.has(prev2)))) {
@@ -62,17 +67,23 @@ export function voteContext(prev2: string, prev: string, next: string, next2: st
   if (word && REALM_WORDS.has(word)) votes.realm = (votes.realm ?? 0) + 2
 }
 
-/** 依据投票决定实体类型（票数不足视为 unknown，可在 UI 手动修正） */
+/** 依据投票决定实体类型（票数不足视为 unknown，可在 UI 手动修正）
+ *  人物票要**严格高于**其余类型才判为人物：避免具体类型（地点/技能/物品/势力/境界）
+ *  与人名在同一桥状上下文中平票时被误判成人物（如「和大人/给自己」）
+ */
 export function decideType(votes: Votes): EntityType {
-  let best: EntityType = 'unknown'
-  let bestVotes = 0
+  const personVotes = votes.person ?? 0
+  let bestNonPerson: EntityType = 'unknown'
+  let bestNonVotes = 0
   for (const [type, v] of Object.entries(votes) as [EntityType, number][]) {
-    if (v > bestVotes) {
-      best = type
-      bestVotes = v
+    if (type === 'person') continue
+    if (v > bestNonVotes) {
+      bestNonVotes = v
+      bestNonPerson = type
     }
   }
-  return bestVotes >= 2 ? best : 'unknown'
+  if (personVotes >= 2 && personVotes > bestNonVotes) return 'person'
+  return bestNonVotes >= 2 ? bestNonPerson : 'unknown'
 }
 
 /** 类型中文名 */

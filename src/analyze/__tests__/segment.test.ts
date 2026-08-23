@@ -117,6 +117,24 @@ describe('voteContext 上下文投票', () => {
     expect(votes.item).toBeGreaterThanOrEqual(2)
     expect(decideType(votes)).toBe('item')
   })
+
+  it('「和X一起/给X自己」等连接短语不误判为人名', () => {
+    // 旧逻辑：个体词前是连接介词且后面不是「是」就 +2 人名票，导致「和大人/给自己」这类常被当成人物
+    const v1: Record<string, number> = {}
+    voteContext('', '和', '一', '起', v1, '一起')
+    expect(v1.person ?? 0).toBe(0)
+    expect(decideType(v1)).not.toBe('person')
+
+    const v2: Record<string, number> = {}
+    voteContext('', '给', '自', '己', v2, '自己')
+    expect(v2.person ?? 0).toBe(0)
+  })
+
+  it('「对X说」仍投人物（个体词后接说话动词）', () => {
+    const votes: Record<string, number> = {}
+    voteContext('', '对', '说', '', votes, '林夜')
+    expect(votes.person).toBeGreaterThanOrEqual(4)
+  })
 })
 
 describe('decideType 类型决策', () => {
@@ -127,5 +145,10 @@ describe('decideType 类型决策', () => {
   it('票数达标取最高', () => {
     expect(decideType({ person: 2, place: 1 })).toBe('person')
     expect(decideType({ skill: 3, item: 2 })).toBe('skill')
+  })
+  it('人名与具体类型平票时判具体类型而非人物（防「词被当成人物」）', () => {
+    expect(decideType({ place: 2, person: 2 })).toBe('place')
+    expect(decideType({ item: 2, person: 2 })).toBe('item')
+    expect(decideType({ realm: 3, person: 3 })).toBe('realm')
   })
 })
