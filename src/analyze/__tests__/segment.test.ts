@@ -146,9 +146,27 @@ describe('decideType 类型决策', () => {
     expect(decideType({ person: 2, place: 1 })).toBe('person')
     expect(decideType({ skill: 3, item: 2 })).toBe('skill')
   })
-  it('人名与具体类型平票时判具体类型而非人物（防「词被当成人物」）', () => {
-    expect(decideType({ place: 2, person: 2 })).toBe('place')
-    expect(decideType({ item: 2, person: 2 })).toBe('item')
-    expect(decideType({ realm: 3, person: 3 })).toBe('realm')
+
+  it('「对X拱手/向X点头」等强目标介词+非说话动词仍判人名（防止漏检，回归上一轮误伤）', () => {
+    const v1: Record<string, number> = {}
+    voteContext('', '对', '拱', '手', v1, '林夜')
+    expect(v1.person).toBeGreaterThanOrEqual(2)
+    expect(decideType(v1)).toBe('person')
+
+    const v2: Record<string, number> = {}
+    voteContext('', '向', '点', '头', v2, '萧炎')
+    expect(v2.person).toBeGreaterThanOrEqual(2)
+    expect(decideType(v2)).toBe('person')
+  })
+
+  it('弱介词不紧跟说话动词不投人物（和X一起/给X自己），紧跟则投（和X说）', () => {
+    const noSpeech: Record<string, number> = {}
+    voteContext('', '和', '一', '起', noSpeech)
+    expect(noSpeech.person ?? 0).toBe(0)
+    expect(decideType(noSpeech)).not.toBe('person')
+
+    const withSpeech: Record<string, number> = {}
+    voteContext('', '和', '说', '', withSpeech, '林夜')
+    expect(withSpeech.person).toBeGreaterThanOrEqual(2)
   })
 })

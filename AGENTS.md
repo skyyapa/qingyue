@@ -6,7 +6,7 @@
 ## 当前状态（迭代 57，v1.3.0 正式版已发布 🎉）
 
 - **版本**：`1.3.0`（正式版，package.json + Android versionCode 4 / versionName "1.3.0"；**已发布 GitHub release**：https://github.com/skyyapa/qingyue/releases/tag/v1.3.0 —— Latest，签名 APK/AAB + 离线版 zip + SHA-256；旧 beta.1 保持 Pre-release）
-- **测试基线**：单测 **234**（27 套件）/ e2e **59**（58 原 + 1 多 TXT 章节合并导入）/ type-check / lint / build 全绿；Android `assembleRelease` + `bundleRelease` 签名构建全绿
+- **测试基线**：单测 **236**（27 套件）/ e2e **59**（58 原 + 1 多 TXT 章节合并导入）/ type-check / lint / build 全绿；Android `assembleRelease` + `bundleRelease` 签名构建全绿
 - **大文件压力**：e2e `stress.spec.ts` 10MB/50MB TXT 导入至阅读器、正文渲染全过（Playwright 传 buffer 上限 50MB，50MB 需写临时文件传路径）
 - **真机验收**：✅ **v1.3.0 正式版全部验收通过**——vivo X200s（Android 16）8 项（迭代 43）+ **vivo V2458A（Android 16）复验通过**（含真机发现并修复的"短章读完占比到不了100%"进度 bug）；10MB/50MB 大文件压测通过；用户确认无严重问题后发布 v1.3.0 正式版
 - **签名**：本机 release keystore（`%LOCALAPPDATA%\QingYue\keystore\qingyue-release.jks`，仓库外）；证书 SHA-256 `5f9b67e549639ea9fb3e51242c20136511eccb91746e16c1ba8a21d45943b1a7`
@@ -37,7 +37,7 @@
   - 54：**TXT 章节标题前缀容错** —— 修复章节标题前混入短前缀/装饰/字体文本（如 `正文 第一章 开始`、`【VIP】第2章 继续`）时旧逻辑不分章；新增 extractChapterTitle，短行无句末标点才宽松提取 `第X章` 并剥离前缀，避免正文误切；单测 +2（228）、e2e 59
   - 55：**TXT 章节标题前缀容错补强** —— 针对用户反馈“还是一样”，进一步支持 `<font>第一章</font>` / `<span>第2章</span>` / `字体：宋体 正文 第三章` 等 HTML/font 标签或较长字体前缀；先清理标签/NBSP，再在短行无句末标点时提取行内 `第X章` 核心标题并剥离前缀；单测 +1（229）、e2e 59
   - 56：**阅读助手防剧透边界修复** —— 修复“检测/防剧透”把当前打开章节当完整已读的问题：ReaderView 新增 `aiReadUpTo`（章内未读完则边界停上一章），AssistantPanel/TextSelectionBar 人物/设定/关系/章节/回顾/时间线/划词检测统一按完整已读过滤，AI `runAITask` 新增显式 `readUpTo` 且自由问答不再加载当前章全文；单测 +2（231）、spoiler e2e 强化长章未读完场景
-  - 57：**检测把普通词误判成人物（实体类型分类修正）** —— 修复知识库分析后“人物”混进普通词/连接短语：`voteContext` 的「介词+个体词」人名票收窄为个体词后紧跟说话动词才投（`对X说`），个体词后接介词的人名票收窄为与格介词 `对/向/跟`（排除 `和/与/同/给`）；`decideType` 人物票需严格高于其余类型，与具体类型平票时判具体类型；单测 +3（234）
+  - 57：**检测误判修正（名字不漏检 + 普通词不误判）** —— 分两版收敛：第一版过度收紧（人物票需严格高于其余类型、介词人名票全部收窄）导致真实名字漏检、普通词误报不减反增；定稿版**还原 `decideType` 先到先得仲裁**、保留「名字后接介词」与「强目标介词 `对/向/跟`」的宽泛人名票（保住 `对X拱手/向X点头` 等真名字场景），仅对**弱连接介词 `和/与/同/给/让/被/随/陪`** 要求个体词后紧跟说话动词才投（杜绝 `和大人/给自己`）；单测 +5（236，含名字多样语境全判人物 + 常用名词不误判的集成回归）
 
 ## 核心架构速查
 

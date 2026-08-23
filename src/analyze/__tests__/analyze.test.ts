@@ -215,4 +215,33 @@ describe('analyzeBook 分析管线', () => {
       expect(r.chapterWeights?.[4]).toBeGreaterThan(0)
     }
   })
+
+  it('名字在多样上下文都能判为人物，常用名词不误判（防漏检/防误报）', async () => {
+    // 构造贴近真实小说的段落：名字出现在「X说/对X拱手/和X并肩/看着X」等多种语境，
+    // 同时高频穿插常用名词陷阱（大人/自己/一起/门前/时候），验证类型判定平衡
+    const paras = [
+      '萧炎对云韵拱手：「多谢指点。」云韵点了点头。',
+      '林动和萧炎并肩而立，望着山下那片城池。',
+      '云韵看着萧炎，缓缓说道：「时候不早了，自己路上小心。」',
+      '萧炎走向城门，门前站着几个大人，他一一拱手致意。',
+      '林动拍了拍云韵，说道：「云韵，我们一起进城吧。」',
+      '云韵笑了笑，对林动说：「好，你我同去。」',
+    ]
+    const chapters = Array.from({ length: 10 }, (_, i) => `第${i + 1}章\n\n${paras.join('\n\n')}`)
+    const meta = makeBook('bt')
+    await db.addBook(meta)
+    await db.saveChapters(chapters.map((text, i) => ({ id: `bt:${i}`, bookId: 'bt', index: i, title: `第${i + 1}章`, text })))
+    await analyzeBook('bt', { onProgress: () => {} })
+
+    const entities = await db.listEntities('bt')
+    const byName = new Map(entities.map((e) => [e.name, e.type]))
+    // 真实人名必须在各种语境下都被识别为人物（防漏检，回归上一轮误伤）
+    for (const name of ['萧炎', '云韵', '林动']) {
+      expect(byName.get(name), `${name} 应被识别`).toBe('person')
+    }
+    // 常用名词不应被判为人物（防误报）
+    for (const word of ['大人', '自己', '一起', '门前']) {
+      expect(byName.get(word), `${word} 不应被判为人物`).not.toBe('person')
+    }
+  })
 })
