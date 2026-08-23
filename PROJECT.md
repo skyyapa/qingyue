@@ -978,6 +978,13 @@ Android（Capacitor 8）：文件管理器「用轻阅打开」、系统分享�
 - 调整 `extractChapterTitle`：先清理 HTML/font 标签与 NBSP，再在短行无句末标点时查找行内 `第X章` 核心标记；只接受短前缀、装饰前缀或已知字体/正文/VIP/站点类前缀，最后再回退原严格规则
 - 单测 +1（229）：HTML/font 标签包住章节标题时仍分章；原有“正文句子提到第X章不误切”继续约束误切边界；type-check/lint/test(229)/e2e(59)/build 全绿
 
+**迭代 56 —— 阅读助手防剧透边界修复（检测/UI/AI 请求统一使用完整已读章节）**
+- 修复用户反馈：阅读助手的“检测”和防剧透会把当前打开章节当作已读完整章，跳目录或刚进长章时可能提前暴露当前章后半段/未来章节的人物、摘要、事件或 AI 上下文
+- ReaderView 新增 `aiReadUpTo`：章内进度未到末尾时边界停在上一章，只有短章/读到章末才把当前章计入；自动章节摘要不再刚进入新章就生成，避免直接总结未读内容
+- AssistantPanel / TextSelectionBar：人物、设定、关系图、章节索引、前情回顾、时间线、划词实体检测全部按 `readUpTo` 过滤；实体 count/samples 也按已读章节重建，旧关系继续隐藏
+- AI assistant：`runAITask` 新增显式 `readUpTo`，默认不把当前打开章视为完整已读；自由提问不再主动加载当前章全文；解释/摘要只有在该章已纳入已读边界时才加载正文
+- 回归：单测 +2（231：AI 请求默认上一章边界、助手 UI 隐藏未来人物/摘要）；spoiler e2e 强化“长章刚打开不等于读完”场景；type-check/lint/test(231)/e2e(59)/build 全绿
+
 ## 未完成任务
 
 - [x] ~~Android App（Capacitor 打包）~~（**v1.3.0 正式版已发布**：https://github.com/skyyapa/qingyue/releases/tag/v1.3.0 —— 双真机验收通过：vivo X200s / V2458A（均 Android 16）+ 10/50MB 压测 + 进度 bug 修复）

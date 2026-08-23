@@ -3,10 +3,10 @@
 > 本文档给被压缩/新开的会话快速续接用。完整迭代史、踩坑与测试方法见 `PROJECT.md`、`README.md`。
 > **注意：每次迭代完成后需同步更新本文件「当前状态」与 PROJECT.md/README。**
 
-## 当前状态（迭代 55，v1.3.0 正式版已发布 🎉）
+## 当前状态（迭代 56，v1.3.0 正式版已发布 🎉）
 
 - **版本**：`1.3.0`（正式版，package.json + Android versionCode 4 / versionName "1.3.0"；**已发布 GitHub release**：https://github.com/skyyapa/qingyue/releases/tag/v1.3.0 —— Latest，签名 APK/AAB + 离线版 zip + SHA-256；旧 beta.1 保持 Pre-release）
-- **测试基线**：单测 **229**（27 套件）/ e2e **59**（58 原 + 1 多 TXT 章节合并导入）/ type-check / lint / build 全绿；Android `assembleRelease` + `bundleRelease` 签名构建全绿
+- **测试基线**：单测 **231**（27 套件）/ e2e **59**（58 原 + 1 多 TXT 章节合并导入）/ type-check / lint / build 全绿；Android `assembleRelease` + `bundleRelease` 签名构建全绿
 - **大文件压力**：e2e `stress.spec.ts` 10MB/50MB TXT 导入至阅读器、正文渲染全过（Playwright 传 buffer 上限 50MB，50MB 需写临时文件传路径）
 - **真机验收**：✅ **v1.3.0 正式版全部验收通过**——vivo X200s（Android 16）8 项（迭代 43）+ **vivo V2458A（Android 16）复验通过**（含真机发现并修复的"短章读完占比到不了100%"进度 bug）；10MB/50MB 大文件压测通过；用户确认无严重问题后发布 v1.3.0 正式版
 - **签名**：本机 release keystore（`%LOCALAPPDATA%\QingYue\keystore\qingyue-release.jks`，仓库外）；证书 SHA-256 `5f9b67e549639ea9fb3e51242c20136511eccb91746e16c1ba8a21d45943b1a7`
@@ -36,6 +36,7 @@
   - 53：**多 TXT 章节文件合并导入** —— 多选 TXT 时若文件名像章节（第1章/001/Chapter 1）或来自同一文件夹，弹出“合并为一本书 / 分别导入”；合并时按文件名自然排序，每个 TXT 作为一章，书名可编辑；普通多本 TXT（如 斗破/斗罗）仍直接批量导入，避免破坏推荐页/多书导入；单测 +1（226）、e2e +1（59）
   - 54：**TXT 章节标题前缀容错** —— 修复章节标题前混入短前缀/装饰/字体文本（如 `正文 第一章 开始`、`【VIP】第2章 继续`）时旧逻辑不分章；新增 extractChapterTitle，短行无句末标点才宽松提取 `第X章` 并剥离前缀，避免正文误切；单测 +2（228）、e2e 59
   - 55：**TXT 章节标题前缀容错补强** —— 针对用户反馈“还是一样”，进一步支持 `<font>第一章</font>` / `<span>第2章</span>` / `字体：宋体 正文 第三章` 等 HTML/font 标签或较长字体前缀；先清理标签/NBSP，再在短行无句末标点时提取行内 `第X章` 核心标题并剥离前缀；单测 +1（229）、e2e 59
+  - 56：**阅读助手防剧透边界修复** —— 修复“检测/防剧透”把当前打开章节当完整已读的问题：ReaderView 新增 `aiReadUpTo`（章内未读完则边界停上一章），AssistantPanel/TextSelectionBar 人物/设定/关系/章节/回顾/时间线/划词检测统一按完整已读过滤，AI `runAITask` 新增显式 `readUpTo` 且自由问答不再加载当前章全文；单测 +2（231）、spoiler e2e 强化长章未读完场景
 
 ## 核心架构速查
 

@@ -318,6 +318,7 @@ describe('loadKnowledge 防剧透截断', () => {
 
 describe('runAITask 端到端', () => {
   beforeEach(async () => {
+    await db.deleteBook('b')
     await db.addBook(makeMeta('b'))
     await db.saveChapters([
       { id: 'b:0', bookId: 'b', index: 0, title: '第1章', text: '林夜对苏晚说。' },
@@ -334,12 +335,35 @@ describe('runAITask 端到端', () => {
     }))
     const cfg = defaultProviderConfig('deepseek')
     cfg.apiKey = 'sk-test'
-    const reply = await runAITask(cfg, 'b', 'who', { entityId: 'e1' })
+    const reply = await runAITask(cfg, 'b', 'who', { entityId: 'e1', chapterIndex: 0, readUpTo: 0 })
     expect(reply).toBe('林夜是主角。')
     // 请求体包含书名（system）与实体信息（user）
     const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))
     expect(body.messages[0].content).toContain('测试书')
     expect(body.messages[1].content).toContain('林夜')
+    vi.unstubAllGlobals()
+  })
+
+  it('防剧透：未显式读完当前章时，runAITask 默认只使用上一章及以前', async () => {
+    await db.saveChapters([
+      { id: 'b:2', bookId: 'b', index: 2, title: '第3章', text: '林夜的终极身份是星主。' },
+    ])
+    await db.saveChapterIndexes([
+      makeIndex(1, '苏晚同行', ['苏晚同行']),
+      makeIndex(2, '终极身份揭晓', ['林夜的终极身份是星主']),
+    ].map((x) => ({ ...x, bookId: 'b', id: `b:${x.index}` })))
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: 'ok' } }] }),
+    }))
+    const cfg = defaultProviderConfig('deepseek')
+    cfg.apiKey = 'sk-test'
+    await runAITask(cfg, 'b', 'ask', { chapterIndex: 2, text: '林夜是什么身份？' })
+    const body = JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))
+    const serialized = JSON.stringify(body)
+    expect(serialized).toContain('第 1 至第 2 章')
+    expect(serialized).not.toContain('终极身份')
+    expect(serialized).not.toContain('星主')
     vi.unstubAllGlobals()
   })
 })

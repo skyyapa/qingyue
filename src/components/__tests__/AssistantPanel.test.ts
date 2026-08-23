@@ -52,9 +52,9 @@ function makeEntity(id: string, bookId: string, name: string, type: Entity['type
 async function seedDoneBook(id: string): Promise<void> {
   await db.addBook(makeMeta(id, doneAnalysis))
   await db.putEntities([
-    makeEntity('e1', id, '林风', 'person', { chapters: [0, 1], count: 5 }),
-    makeEntity('e2', id, '苏瑶', 'person', { chapters: [0], count: 2 }),
-    makeEntity('e3', id, '青山城', 'place', { chapters: [0], count: 1 }),
+    makeEntity('e1', id, '林风', 'person', { chapters: [0, 1], count: 5, sampleChapters: [0] }),
+    makeEntity('e2', id, '苏瑶', 'person', { chapters: [0], count: 2, sampleChapters: [0] }),
+    makeEntity('e3', id, '青山城', 'place', { chapters: [0], count: 1, sampleChapters: [0] }),
   ])
   await db.saveChapterIndexes([
     {
@@ -80,8 +80,8 @@ async function seedDoneBook(id: string): Promise<void> {
   await db.saveRelations([{ id: `r1-${id}`, bookId: id, a: 'e1', b: 'e2', weight: 4 }])
 }
 
-function mountPanel(bookId: string, currentChapter = 0) {
-  return mount(AssistantPanel, { props: { bookId, currentChapter } })
+function mountPanel(bookId: string, currentChapter = 0, readUpTo = currentChapter) {
+  return mount(AssistantPanel, { props: { bookId, currentChapter, readUpTo } })
 }
 
 /** fake-indexeddb 用 setImmediate（宏任务）调度，需多等一拍让 load() 完成 */
@@ -165,5 +165,23 @@ describe('AssistantPanel 组件', () => {
     expect(wrapper.text()).toContain('林风') // 主要人物 chips
     await items[1].trigger('click')
     expect(wrapper.emitted('jump')?.[0]).toEqual([1])
+  })
+
+  it('防剧透：当前章未读完时不显示未来章节人物/摘要', async () => {
+    setActivePinia(createPinia())
+    await seedDoneBook('b5')
+    await db.putEntity(makeEntity('e9', 'b5', '未来人', 'person', { chapters: [1], count: 9, samples: ['未来例句'], sampleChapters: [1] }))
+    useBooksStore().books = [makeMeta('b5', doneAnalysis)]
+    const wrapper = mountPanel('b5', 1, 0)
+    await settle()
+
+    expect(wrapper.text()).toContain('林风')
+    expect(wrapper.text()).toContain('苏瑶')
+    expect(wrapper.text()).not.toContain('未来人')
+
+    await wrapper.findAll('.assistant-tab')[3].trigger('click') // 章节
+    await settle()
+    expect(wrapper.text()).toContain('登场：林风、苏瑶')
+    expect(wrapper.findAll('.chapter-item')).toHaveLength(1) // 第 2 章摘要隐藏
   })
 })

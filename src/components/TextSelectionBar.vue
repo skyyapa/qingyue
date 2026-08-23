@@ -7,6 +7,8 @@ import type { Entity } from '@/types'
 /** 选中正文文字后的悬浮工具条：查实体 / 加入知识库 */
 const props = defineProps<{
   bookId: string
+  /** 已完整读过的最大章节号（含）；用于过滤未来实体，避免划词检测剧透 */
+  readUpTo?: number
 }>()
 const emit = defineEmits<{ open: [entity: Entity]; ai: [text: string] }>()
 
@@ -35,7 +37,8 @@ const loading = ref(false)
 
 /** 在知识库中查找选中文字命中的实体（最长名匹配） */
 async function lookup(text: string): Promise<Entity | null> {
-  const entities = await getCachedEntities()
+  const readUpTo = props.readUpTo ?? Infinity
+  const entities = (await getCachedEntities()).filter((e) => e.chapters.some((c) => c <= readUpTo) || e.custom || e.locked)
   let best: Entity | null = null
   for (const e of entities) {
     if (e.name && text.includes(e.name)) {

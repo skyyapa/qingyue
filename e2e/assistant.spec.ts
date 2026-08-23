@@ -3,6 +3,7 @@ import { expect, test, type Page } from '@playwright/test'
 /** 阅读助手：知识库分析 → 人物识别 → 实体卡片 → 搜索过滤 → 正文定位 */
 test.describe('阅读助手', () => {
   async function importAndAnalyze(page: Page): Promise<void> {
+    await page.addInitScript(() => localStorage.setItem('qingyue:welcome-dismissed', '1'))
     await page.goto('/')
     await page.getByRole('button', { name: '＋ 导入书籍' }).click()
     await page.locator('input[type="file"]').setInputFiles('e2e/fixtures/江湖夜雨.txt')
@@ -10,6 +11,11 @@ test.describe('阅读助手', () => {
     await page.getByRole('button', { name: '助' }).click()
     await page.getByRole('button', { name: '开始分析' }).click()
     await expect(page.getByRole('button', { name: /林风/ })).toBeVisible()
+    await page.locator('.assistant-head button').click()
+    await page.locator('.reader-bottom .btn-nav').last().click()
+    await expect(page.locator('h1.chapter-heading')).toHaveText('第一章 初入江湖')
+    await page.getByRole('button', { name: '助' }).click()
+    await expect(page.getByRole('button', { name: /苏瑶/ })).toBeVisible()
   }
 
   test('分析知识库并识别人物', async ({ page }) => {

@@ -65,11 +65,12 @@ test.describe('防剧透最终测试', () => {
 
   test('读到第 101 章：进度边界推进正确，读到第 100 章后摘要可引用揭晓（对照验证）', async ({ page }) => {
     const { lastBody } = await setup(page)
-    // 读到第 101 章问身份：进度边界正确（ask 只引用当前章正文，不引用历史章正文属设计）
+    // 跳到第 101 章但尚未读完这一章：边界应停在第 100 章之前，不能因为打开了未来章节就泄漏当前/后续章
     await jumpToChapter(page, 101)
     await askIdentity(page)
-    expect(lastBody()).toContain('第 1 至第 101 章')
-    expect(lastBody()).not.toContain('远古神子') // ask 不带历史章正文
+    expect(lastBody()).toContain('第 1 至第 100 章')
+    expect(lastBody()).toContain('禁止推断或补充当前章未读部分')
+    expect(lastBody()).not.toContain('远古神子') // ask 不带未完整读完章节上下文
     // 跳到第 100 章（揭晓章）→ 章节摘要任务带该章全文 → 揭晓内容可引用
     await jumpToChapter(page, 100)
     await page.getByRole('button', { name: '助' }).click()

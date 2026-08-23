@@ -26,8 +26,10 @@ export interface AITaskParams {
   text?: string
   /** 目标实体 id（who/relation/world/personTimeline） */
   entityId?: string
-  /** 当前章节号（防剧透边界与任务上下文） */
+  /** 当前章节号（UI 位置；不等于已读完整边界） */
   chapterIndex?: number
+  /** 已读完整章节边界（含）。未传时按防剧透默认值：当前章之前 */
+  readUpTo?: number
   /** 今日读过的章节号（daily 任务） */
   todayChapters?: number[]
 }
@@ -97,7 +99,8 @@ export async function loadKnowledge(
     db.listRelations(bookId),
   ])
   const chapterCount = meta?.chapterCount ?? 0
-  const readUpTo = upTo === undefined ? Math.max(0, chapterCount - 1) : Math.min(upTo, chapterCount - 1)
+  const maxReadUpTo = Math.max(-1, chapterCount - 1)
+  const readUpTo = upTo === undefined ? maxReadUpTo : Math.max(-1, Math.min(upTo, maxReadUpTo))
 
   const readIndexes = [...indexes].filter((idx) => idx.index <= readUpTo).sort((a, b) => a.index - b.index)
 
@@ -170,9 +173,12 @@ export function planChapterLoads(k: KnowledgeSnapshot, task: AITask, params: AIT
     case 'personTimeline':
       return [] // 用章节索引摘要/事件即可，无需正文
     case 'explain':
+    case 'summarize': {
+      const idx = params.chapterIndex ?? 0
+      return idx <= k.readUpTo ? [idx] : []
+    }
     case 'ask':
-    case 'summarize':
-      return [params.chapterIndex ?? 0]
+      return [] // 自由提问不主动加载当前章全文，避免章内未读尾部泄漏
     default:
       return []
   }
@@ -262,10 +268,12 @@ function systemPrompt(k: KnowledgeSnapshot): string {
   const stale = k.staleData
     ? '\n注意：部分关系/例句来自旧版分析（缺少按章数据），已被严格排除；建议用户重新分析知识库以获得更准确回答。'
     : ''
+  const readScope = k.readUpTo >= 0 ? `第 1 至第 ${k.readUpTo + 1} 章` : '暂无完整已读章节'
+  const progressText = k.readUpTo >= 0 ? `已完整读到第 ${k.readUpTo + 1} 章` : '尚未完整读完第 1 章'
   return (
-    `你是小说《${k.bookTitle}》的私人小说管家，正在陪用户读到第 ${k.readUpTo + 1} 章。规则：\n` +
-    `1. 不剧透：只基于已读章节（第 1 至第 ${k.readUpTo + 1} 章）回答；涉及未读内容时直接说明「该信息涉及未读章节」，绝不透露任何未读情节。\n` +
-    `2. 根据我的阅读进度回答（已读章节优先）。\n` +
+    `你是小说《${k.bookTitle}》的私人小说管家，用户${progressText}。规则：\n` +
+    `1. 不剧透：只基于已完整读过的章节（${readScope}）回答；涉及当前章未读完部分或后续未读内容时直接说明「该信息涉及未读章节」，绝不透露任何未读情节。\n` +
+    `2. 根据我的阅读进度回答（已完整读过的章节优先）。\n` +
     `3. 优先引用已发生的剧情细节，让回答有依据。\n` +
     `4. 不确定时直接告诉我不知道，不要编造。\n` +
     `回答用简体中文，简洁准确（不超过 200 字）。${stale}`
@@ -317,12 +325,14 @@ export function buildTaskMessages(
       const text = params.text ?? ''
       const chapter = chapterTexts.get(idx) ?? ''
       const ev = (current?.events ?? []).join('；')
-      // 定位到选中文字附近（匹配不到不硬塞章节开头）；无选中文字时解释整章
-      const snippet = text ? findSnippet(chapter, text) : ''
+      // 只在该章已纳入已读边界时定位正文片段；当前章未完整读完时，仅使用用户选中文字本身
+      const snippet = text && current ? findSnippet(chapter, text) : ''
       const ask =
         text.length > 0
-          ? `${progress}请解释这段剧情/这句话的含义与背景。\n选中文字：「${text}」`
-          : `${progress}请解释本章剧情：发生了什么、有何要点与进展。`
+          ? `${progress}请解释这段剧情/这句话的含义与背景。只可基于选中文字和已完整读过的章节，不要补充未读内容。\n选中文字：「${text}」`
+          : current
+            ? `${progress}请解释本章剧情：发生了什么、有何要点与进展。`
+            : `${progress}当前章尚未完整读完，不能解释当前章未读部分；请只根据已完整读过的章节做无剧透背景说明。`
       return [
         { role: 'system', content: system },
         {
@@ -387,12 +397,16 @@ export function buildTaskMessages(
     case 'summarize': {
       const idx = params.chapterIndex ?? 0
       const chapter = chapterTexts.get(idx) ?? ''
-      const ev = (k.indexes.find((x) => x.index === idx)?.events ?? []).join('；')
+      const current = k.indexes.find((x) => x.index === idx)
+      const ev = (current?.events ?? []).join('；')
+      const body = current
+        ? `${progress}请用 120 字以内概括本章情节（不含剧透总结未读章节）。\n第 ${idx + 1} 章${k.chapterTitles[idx] ? `（${k.chapterTitles[idx]}）` : ''}正文：\n${chapter.slice(0, 1500)}${ev ? `\n本章事件：${ev}` : ''}`
+        : `${progress}当前章尚未完整读完，不能总结当前章未读内容。请提示用户读完本章后再生成章节摘要，或只做已完整读过章节的无剧透回顾。`
       return [
         { role: 'system', content: system },
         {
           role: 'user',
-          content: `${progress}请用 120 字以内概括本章情节（不含剧透总结未读章节）。\n第 ${idx + 1} 章${k.chapterTitles[idx] ? `（${k.chapterTitles[idx]}）` : ''}正文：\n${chapter.slice(0, 1500)}${ev ? `\n本章事件：${ev}` : ''}`,
+          content: body,
         },
       ]
     }
@@ -446,16 +460,14 @@ export function buildTaskMessages(
     case 'ask': {
       const idx = params.chapterIndex ?? 0
       const current = k.indexes.find((x) => x.index === idx)
-      const chapter = chapterTexts.get(idx) ?? ''
       const q = params.text ?? ''
-      // 自由提问：从问题中匹配最长实体名作为锚点；匹配不到不硬塞章节开头
       const anchor = pickAnchor(q, k.entities)
-      const snippet = anchor ? findSnippet(chapter, anchor) : ''
+      const unreadNote = current ? '' : '\n注意：当前章尚未完整读完，禁止推断或补充当前章未读部分。'
       return [
         { role: 'system', content: system },
         {
           role: 'user',
-          content: `${progress}${q}\n\n当前章节摘要：${current?.summary ?? '无'}${(current?.events ?? []).length ? `｜${(current?.events ?? []).join('；')}` : ''}${snippet ? `\n相关片段：${snippet}` : ''}`,
+          content: `${progress}${q}\n\n已读章节中可用的当前章节摘要：${current?.summary ?? '无'}${(current?.events ?? []).length ? `｜${(current?.events ?? []).join('；')}` : ''}${anchor ? `\n问题命中已读实体：${anchor}` : ''}${unreadNote}`,
         },
       ]
     }
@@ -479,6 +491,13 @@ export async function callWithModelFallback(
   }
 }
 
+function defaultReadUpTo(task: AITask, params: AITaskParams): number {
+  if (params.readUpTo !== undefined) return params.readUpTo
+  // daily 的 chapterIndex 是统计层传入的最后已读章节；阅读器内任务默认不把当前打开章当作完整已读
+  if (task === 'daily') return params.chapterIndex ?? 0
+  return (params.chapterIndex ?? 0) - 1
+}
+
 /** 执行 AI 任务：进度感知知识库上下文（防剧透）→ 按需加载相关章节正文 →
  *  按任务档位选择模型（多模型策略）→ chat 请求 */
 export async function runAITask(
@@ -487,7 +506,7 @@ export async function runAITask(
   task: AITask,
   params: AITaskParams
 ): Promise<string> {
-  const knowledge = await loadKnowledge(bookId, { upTo: params.chapterIndex ?? 0 })
+  const knowledge = await loadKnowledge(bookId, { upTo: defaultReadUpTo(task, params) })
   // 真正按需：只加载任务需要的那几章（不整本书拉进内存）
   const loads = planChapterLoads(knowledge, task, params)
   const chapterTexts = new Map<number, string>()

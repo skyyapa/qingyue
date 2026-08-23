@@ -240,6 +240,7 @@ function reapplySearch(): void {
 
 /** 选中文字命中实体 → 打开助手并定位详情 */
 async function onOpenEntity(entity: Entity): Promise<void> {
+  await refreshReadBoundary()
   showAssistant.value = true
   // 等抽屉挂载完成再定位（nextTick 替代 setTimeout，避免时序竞态）
   await nextTick()
@@ -248,13 +249,20 @@ async function onOpenEntity(entity: Entity): Promise<void> {
 
 /** 选中文字 → 打开助手 AI tab 并预填（问 AI） */
 async function onAskAI(text: string): Promise<void> {
+  await refreshReadBoundary()
   showAssistant.value = true
   await nextTick()
   assistantRef.value?.openAI(text)
 }
 
+async function openAssistantPanel(): Promise<void> {
+  await refreshReadBoundary()
+  showAssistant.value = true
+}
+
 /** 顶栏 AI 按钮：直接打开助手 AI tab */
 async function openAssistantAI(): Promise<void> {
+  await refreshReadBoundary()
   showAssistant.value = true
   await nextTick()
   assistantRef.value?.openAI('')
@@ -274,7 +282,7 @@ async function generateChapterSummary(index: number): Promise<void> {
   chapterSummary.value = ''
   try {
     const cached = summaryCache.get(index)
-    chapterSummary.value = cached ?? (await runAITask(provider, bookId.value, 'summarize', { chapterIndex: index }))
+    chapterSummary.value = cached ?? (await runAITask(provider, bookId.value, 'summarize', { chapterIndex: index, readUpTo: index }))
     if (!cached) summaryCache.set(index, chapterSummary.value)
     chapterSummaryShown.value = true
   } catch {
@@ -305,6 +313,7 @@ async function runFloatTask(task: AITask, params: AITaskParams = {}): Promise<vo
   try {
     aiFabAnswer.value = await runAITask(provider, bookId.value, task, {
       chapterIndex: reader.chapterIndex,
+      readUpTo: aiReadUpTo.value,
       ...params,
     })
   } catch (err) {
@@ -323,7 +332,9 @@ async function loadFloatPersons(): Promise<void> {
       db.listChapterIndexes(bookId.value),
       db.listEntities(bookId.value),
     ])
-    const idx = indexes.find((x) => x.index === reader.chapterIndex)
+    const safeIndex = aiReadUpTo.value
+    if (safeIndex < 0) return
+    const idx = indexes.find((x) => x.index === safeIndex)
     const counts = idx?.entityCounts ?? {}
     aiFabPersons.value = entities
       .filter((e) => e.type === 'person' && e.id in counts)
@@ -337,6 +348,8 @@ async function loadFloatPersons(): Promise<void> {
 
 // 位置显示（滚动模式百分比 / 翻页模式页数）
 const posPercent = ref('0%')
+const currentReadRatio = ref(0)
+const aiReadUpTo = computed(() => (currentReadRatio.value >= 0.98 ? reader.chapterIndex : reader.chapterIndex - 1))
 const pagePos = ref({ current: 1, total: 1 })
 
 // 翻页模式列参数（视口宽度需为响应式：resize/旋转后列宽与分页位置同步更新）
@@ -437,6 +450,11 @@ function readRatio(): number {
   return max > 0 ? Math.min(1, Math.max(0, el.scrollLeft / max)) : 1
 }
 
+async function refreshReadBoundary(): Promise<void> {
+  await nextTick()
+  currentReadRatio.value = readRatio()
+}
+
 /** 恢复到指定位置（章节切换、设置变更、窗口缩放后调用） */
 async function restoreRatio(ratio: number): Promise<void> {
   await nextTick()
@@ -454,7 +472,9 @@ async function restoreRatio(ratio: number): Promise<void> {
 let saveTimer: number | undefined
 
 function scheduleSave(): void {
-  posPercent.value = `${Math.round(readRatio() * 100)}%`
+  const ratio = readRatio()
+  currentReadRatio.value = ratio
+  posPercent.value = `${Math.round(ratio * 100)}%`
   if (pageMode.value === 'paged') updatePagePos()
   window.clearTimeout(saveTimer)
   saveTimer = window.setTimeout(() => reader.saveProgress(readRatio()), 500)
@@ -462,7 +482,9 @@ function scheduleSave(): void {
 
 function flushSave(): void {
   window.clearTimeout(saveTimer)
-  reader.saveProgress(readRatio())
+  const ratio = readRatio()
+  currentReadRatio.value = ratio
+  reader.saveProgress(ratio)
 }
 
 // ---------- 章节切换 ----------
@@ -734,6 +756,7 @@ watch(
     chapterSummaryShown.value = false
     recordTodayChapter(bookId.value, reader.chapterIndex) // 每日阅读回顾数据
     await nextTick()
+    currentReadRatio.value = readRatio()
     if (pageMode.value === 'paged') updatePagePos()
     // 短章自动视为读完：一章内容不足可滚动（整章一屏/一列内全部可见）时，
     // 用户一打开即已看完整章，主动保存该章进度（readRatio 对 max<=0 返回 1），
@@ -747,7 +770,7 @@ watch(
       }
     }
     reapplySearch()
-    if (settings.settings.aiChapterSummary && ai.activeProvider) {
+    if (settings.settings.aiChapterSummary && ai.activeProvider && aiReadUpTo.value >= reader.chapterIndex) {
       generateChapterSummary(reader.chapterIndex)
     }
   }
@@ -774,6 +797,7 @@ onMounted(async () => {
   await applyBookFonts(bookId.value) // EPUB 内嵌字体（书级 @font-face）
   await reader.openBook(bookId.value)
   await restoreRatio(reader.book?.progress.scrollRatio ?? 0)
+  currentReadRatio.value = readRatio()
   stats.startTracking() // 阅读计时
 })
 
@@ -802,7 +826,7 @@ onBeforeUnmount(() => {
       <button class="icon-btn" title="搜索（Ctrl+F）" @click="openSearch">🔍</button>
       <button class="icon-btn" title="AI 助手" @click="openAssistantAI">✨</button>
       <button class="icon-btn" title="目录" @click="showToc = true">☰</button>
-      <button class="icon-btn" title="阅读助手" @click="showAssistant = true">助</button>
+      <button class="icon-btn" title="阅读助手" @click="openAssistantPanel">助</button>
       <button class="icon-btn" title="阅读设置" @click="showSettings = true">⚙</button>
     </header>
 
@@ -957,10 +981,11 @@ onBeforeUnmount(() => {
       ref="assistantRef"
       :book-id="bookId"
       :current-chapter="reader.chapterIndex"
+      :read-up-to="aiReadUpTo"
       @close="showAssistant = false"
       @jump="(i, anchor) => goChapter(i, anchor)"
     />
-    <TextSelectionBar :book-id="bookId" @open="onOpenEntity" @ai="onAskAI" />
+    <TextSelectionBar :book-id="bookId" :read-up-to="aiReadUpTo" @open="onOpenEntity" @ai="onAskAI" />
 
     <!-- AI 阅读浮层（快速操作；面板打开时隐藏避免遮挡） -->
     <div v-if="ai.activeProvider && !showAssistant && !showToc && !showSettings" class="ai-fab">

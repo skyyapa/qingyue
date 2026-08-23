@@ -2,6 +2,8 @@ import { expect, test, type Page } from '@playwright/test'
 
 /** 实时引导：欢迎卡 → 书架页逐个高亮关键入口，完成/跳过记忆 */
 test.describe('欢迎引导', () => {
+  test.use({ storageState: { cookies: [], origins: [] } })
+
   /** 仅首次导航清除 dismiss：标记存 sessionStorage（reload 仍保留） */
   async function clearOnce(page: Page): Promise<void> {
     await page.addInitScript(() => {
@@ -58,7 +60,7 @@ test.describe('欢迎引导', () => {
   })
 
   test('已选择不再显示时直接跳过引导', async ({ page }) => {
-    // storageState 已预置 qingyue:welcome-dismissed=1
+    await page.addInitScript(() => localStorage.setItem('qingyue:welcome-dismissed', '1'))
     await page.goto('/')
     await expect(page.getByText('欢迎使用轻阅')).toBeHidden()
   })

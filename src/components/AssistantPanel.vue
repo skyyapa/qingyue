@@ -12,8 +12,10 @@ import type { ChapterIndex, Entity, EntityType, Relation } from '@/types'
 
 const props = defineProps<{
   bookId: string
-  /** 当前章节号（前情回顾用） */
+  /** 当前章节号（UI 所在章节，不等于完整已读边界） */
   currentChapter: number
+  /** 已完整读过的最大章节号（含）；当前章未读完时通常为 currentChapter - 1 */
+  readUpTo?: number
 }>()
 const emit = defineEmits<{ close: []; jump: [index: number, anchor?: string] }>()
 
@@ -43,6 +45,34 @@ const chapterIndexes = ref<ChapterIndex[]>([])
 const loading = ref(false)
 const loadError = ref('')
 
+const safeReadUpTo = computed(() => Math.max(-1, Math.min(props.currentChapter, props.readUpTo ?? props.currentChapter - 1)))
+const readScopeLabel = computed(() => (safeReadUpTo.value >= 0 ? `已完整读至第 ${safeReadUpTo.value + 1} 章` : '尚未完整读完第 1 章'))
+const visibleChapterIndexes = computed(() => chapterIndexes.value.filter((c) => c.index <= safeReadUpTo.value))
+const visibleEntityCounts = computed(() => {
+  const counts = new Map<string, number>()
+  for (const idx of visibleChapterIndexes.value) {
+    for (const [id, n] of Object.entries(idx.entityCounts)) {
+      counts.set(id, (counts.get(id) ?? 0) + n)
+    }
+  }
+  return counts
+})
+const visibleEntities = computed(() =>
+  entities.value
+    .map((e) => {
+      const chapters = e.chapters.filter((c) => c <= safeReadUpTo.value)
+      const samples = e.sampleChapters
+        ? e.samples.filter((_, i) => (e.sampleChapters?.[i] ?? Infinity) <= safeReadUpTo.value)
+        : []
+      return { ...e, chapters, samples, count: visibleEntityCounts.value.get(e.id) ?? (e.custom || e.locked ? e.count : 0) }
+    })
+    .filter((e) => e.chapters.length > 0 || e.custom || e.locked)
+)
+const visibleRelations = computed(() => {
+  const ids = new Set(visibleEntities.value.map((e) => e.id))
+  return relations.value.filter((r) => ids.has(r.a) && ids.has(r.b) && Boolean(r.chapterWeights?.slice(0, safeReadUpTo.value + 1).some((w) => w > 0)))
+})
+
 // 列表搜索（名称/别名/摘要/高频词）
 const searchText = ref('')
 watch(activeTab, () => (searchText.value = ''))
@@ -50,7 +80,7 @@ watch(activeTab, () => (searchText.value = ''))
 // 实体详情视图
 const detailId = ref<string | null>(null)
 
-const detailEntity = computed(() => entities.value.find((e) => e.id === detailId.value) ?? null)
+const detailEntity = computed(() => visibleEntities.value.find((e) => e.id === detailId.value) ?? null)
 
 /** 设定 tab 的类型子筛选 */
 const worldTypes: EntityType[] = ['place', 'skill', 'item', 'org', 'realm', 'unknown']
@@ -63,15 +93,15 @@ function filterByName(list: Entity[]): Entity[] {
 }
 
 const persons = computed(() =>
-  filterByName(entities.value.filter((e) => e.type === 'person').sort((a, b) => b.count - a.count))
+  filterByName(visibleEntities.value.filter((e) => e.type === 'person').sort((a, b) => b.count - a.count))
 )
 const worldEntities = computed(() =>
-  filterByName(entities.value.filter((e) => e.type === worldType.value).sort((a, b) => b.count - a.count))
+  filterByName(visibleEntities.value.filter((e) => e.type === worldType.value).sort((a, b) => b.count - a.count))
 )
 const filteredChapters = computed(() => {
   const q = searchText.value.trim()
-  if (!q) return chapterIndexes.value
-  return chapterIndexes.value.filter(
+  if (!q) return visibleChapterIndexes.value
+  return visibleChapterIndexes.value.filter(
     (ci) =>
       ci.summary.includes(q) ||
       ci.topWords.some((w) => w.includes(q)) ||
@@ -80,10 +110,8 @@ const filteredChapters = computed(() => {
 })
 
 /** 前情回顾：已读章节的摘要与实体时间线 */
-const recapChapters = computed(() =>
-  chapterIndexes.value.filter((c) => c.index <= props.currentChapter)
-)
-const entityById = computed(() => new Map(entities.value.map((e) => [e.id, e])))
+const recapChapters = computed(() => visibleChapterIndexes.value)
+const entityById = computed(() => new Map(visibleEntities.value.map((e) => [e.id, e])))
 const recapEntities = computed(() => {
   const counts = new Map<string, number>()
   const idByName = new Map<string, string>()
@@ -110,7 +138,7 @@ interface TimelineEvent {
 }
 const timelineEvents = computed<TimelineEvent[]>(() => {
   const map = new Map<string, { text: string; chapters: number[]; count: number }>()
-  for (const ci of chapterIndexes.value) {
+  for (const ci of visibleChapterIndexes.value) {
     for (const ev of ci.events ?? []) {
       const item = map.get(ev)
       if (item) {
@@ -205,7 +233,7 @@ async function runTask(task: AITask): Promise<void> {
   lastTask = task
   let stopped = false
   try {
-    const params: AITaskParams = { chapterIndex: props.currentChapter, text: q }
+    const params: AITaskParams = { chapterIndex: props.currentChapter, readUpTo: safeReadUpTo.value, text: q }
     if (task === 'who' || task === 'relation' || task === 'world') {
       const list = await db.listEntities(props.bookId)
       const match = list.find((e) => e.name === q || e.aliases.includes(q))
@@ -245,6 +273,7 @@ async function runEntityTimeline(entityId: string): Promise<void> {
     if (!alive) { stopped = true; return }
     aiAnswer.value = await runAITask(active, props.bookId, 'personTimeline', {
       chapterIndex: props.currentChapter,
+      readUpTo: safeReadUpTo.value,
       entityId,
     })
   } catch (err) {
@@ -330,10 +359,10 @@ defineExpose({ openEntity, openAI })
         <EntityCard
           v-else-if="detailEntity"
           :entity="detailEntity"
-          :all-entities="entities"
-          :relations="relations"
+          :all-entities="visibleEntities"
+          :relations="visibleRelations"
           :chapter-titles="book?.chapterTitles ?? []"
-          :chapter-indexes="chapterIndexes"
+          :chapter-indexes="visibleChapterIndexes"
           @back="detailId = null"
           @jump="(i, anchor) => emit('jump', i, anchor)"
           @select="openEntity"
@@ -396,11 +425,11 @@ defineExpose({ openEntity, openAI })
 
             <!-- 关系图 -->
             <div v-else-if="activeTab === 'graph'" class="graph-view">
-              <p v-if="relations.length === 0" class="list-empty">
-                暂无共现关系（同段出现的人物少于 2 个）。分析基于段落级共现，可选中文字手动添加实体后重新分析。
+              <p v-if="visibleRelations.length === 0" class="list-empty">
+                暂无已读章节内的共现关系。分析基于段落级共现，可选中文字手动添加实体后重新分析。
               </p>
               <template v-else>
-                <RelationGraph :entities="entities" :relations="relations" @select="openEntity" />
+                <RelationGraph :entities="visibleEntities" :relations="visibleRelations" @select="openEntity" />
                 <p class="graph-tip">连线粗细 = 同段共现次数；点击节点查看详情</p>
               </template>
             </div>
@@ -423,7 +452,7 @@ defineExpose({ openEntity, openAI })
             <!-- 前情回顾 -->
             <div v-else-if="activeTab === 'recap'" class="recap-view">
               <div class="recap-top">
-                <p class="recap-title">已读至第 {{ props.currentChapter + 1 }} 章 · 主要人物</p>
+                <p class="recap-title">{{ readScopeLabel }} · 主要人物</p>
                 <div class="recap-chips">
                   <button
                     v-for="r in recapEntities"
