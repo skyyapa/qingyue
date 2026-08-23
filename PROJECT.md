@@ -960,6 +960,14 @@ Android（Capacitor 8）：文件管理器「用轻阅打开」、系统分享�
   文字提亮（--fg + opacity）
 - 纯 CSS 改动（不改 DOM/布局/可见性），e2e 58 保持全绿；type-check/lint/build 全绿
 
+**迭代 53 —— 多 TXT 章节文件合并导入**
+- 解决用户场景：如果用户导入的不是「一本一本的 TXT」，而是「一章一章的 TXT」，现在可在导入时选择
+  **合并为一本书**；每个 TXT 文件按文件名自然排序后作为一个章节保存（例：第1章、第2章、第10章）
+- ImportDialog：多选 TXT 时增加智能判断——只有文件名像章节（第1章/001/Chapter 1 等）或来自同一文件夹时弹出
+  “合并为一本书 / 分别导入”选择；普通多本书（如 斗破苍穹.txt + 斗罗大陆.txt）仍直接按多本书导入，避免破坏既有批量导入
+- stores/books：新增 `ImportFilesOptions.mergeTxtChapters` 与合并导入路径；合并书名可编辑，兜底取文件夹名/公共前缀/默认名；章节标题来自文件名，正文按选择编码解码
+- 回归：store 单测 +1（226：乱序 TXT 自然排序合并为一本书）；e2e +1（59：UI 多 TXT 合并 → 阅读器章节顺序正确）；推荐页多本 TXT 导入回归通过
+
 ## 未完成任务
 
 - [x] ~~Android App（Capacitor 打包）~~（**v1.3.0 正式版已发布**：https://github.com/skyyapa/qingyue/releases/tag/v1.3.0 —— 双真机验收通过：vivo X200s / V2458A（均 Android 16）+ 10/50MB 压测 + 进度 bug 修复）

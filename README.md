@@ -25,7 +25,7 @@
 
 ### 📚 阅读体验
 
-- 导入 TXT / EPUB，可批量；中文编码自动识别（UTF-8 / GB18030 / Big5 / UTF-16）
+- 导入 TXT / EPUB，可批量；多 TXT 章节文件可一键合并为一本书；中文编码自动识别（UTF-8 / GB18030 / Big5 / UTF-16）
 - EPUB 排版还原：内嵌 CSS 样式 + @font-face 字体 + 正文图片 + 目录解析
 - 字号 / 行距 / 字体 / 十套主题 / 拟真书页效果 / 滚动·翻页双模式
 - 触屏点按翻页（手机 App 式交互）、阅读位置记忆、正文搜索（本章 / 本书）
@@ -73,8 +73,8 @@ npm run android:open  # 用 Android Studio 打开 Android 工程
 ```bash
 npm run lint       # ESLint 代码检查
 npm run type-check # TypeScript 类型检查
-npm run test       # 单元测试（Vitest 225 用例）
-npm run e2e        # 端到端测试（Playwright 58 用例，含 10/50MB 大文件压测）
+npm run test       # 单元测试（Vitest 226 用例）
+npm run e2e        # 端到端测试（Playwright 59 用例，含 10/50MB 大文件压测）
 ```
 
 GitHub Actions 自动运行 CI（lint + type-check + 单测 + 构建 + E2E）。

@@ -26,6 +26,10 @@ function jsonFile(name: string, data: unknown): File {
   return new File([JSON.stringify(data)], name, { type: 'application/json' })
 }
 
+function txtFile(name: string, text: string): File {
+  return new File([text], name, { type: 'text/plain' })
+}
+
 describe('books store 导入路由（.json 单书 vs 全量备份）', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -64,7 +68,21 @@ describe('books store 导入路由（.json 单书 vs 全量备份）', () => {
     const last = await books.importFiles(fileList)
     expect(last).toBeNull()
     expect(books.importError).toContain('坏文件.json')
-    // 坏文件后没有其余文件被吞：此处仅验证 importError 已记录（不中断）
     expect(books.importError).toContain('不是轻阅导出的单书/备份格式')
+  })
+
+  it('批量 TXT 可按文件名自然排序合并为一本书（每个文件作为一章）', async () => {
+    const books = useBooksStore()
+    const last = await books.importFiles(
+      [txtFile('第10章 终局.txt', '十章正文'), txtFile('第2章 相遇.txt', '二章正文'), txtFile('第1章 开始.txt', '一章正文')],
+      'utf-8',
+      { mergeTxtChapters: true, mergedTitle: '章节合订本' }
+    )
+    expect(last?.title).toBe('章节合订本')
+    expect(last?.chapterCount).toBe(3)
+    expect(last?.chapterTitles).toEqual(['第1章 开始', '第2章 相遇', '第10章 终局'])
+    const chapters = await db.listChapters(last!.id)
+    expect(chapters.map((c) => c.text)).toEqual(['一章正文', '二章正文', '十章正文'])
+    expect(books.importError).toBe('')
   })
 })

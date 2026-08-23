@@ -1,7 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref, watch } from 'vue'
 import * as db from '@/db'
-import { importBook } from '@/parsers'
+import { filenameToTitle, importBook } from '@/parsers'
+import { decodeText } from '@/parsers/txt'
 import { importBookBuffer } from '@/utils/export'
 import { importBackupBuffer } from '@/utils/backup'
 import { readFileWithProgress } from '@/utils/file'
@@ -15,6 +16,38 @@ export type SortMode = 'recent' | 'imported' | 'title' | 'manual'
 const GROUPS_KEY = 'qingyue:groups'
 const ORDER_KEY = 'qingyue:order'
 const SORT_KEY = 'qingyue:sort'
+const fileNameCollator = new Intl.Collator('zh-Hans-CN', { numeric: true, sensitivity: 'base' })
+
+export interface ImportFilesOptions {
+  /** 多个 TXT 文件按文件名自然排序后合并为一本书；每个文件作为一个章节 */
+  mergeTxtChapters?: boolean
+  /** 合并 TXT 时的书名；未传则用文件夹/公共前缀/默认名兜底 */
+  mergedTitle?: string
+}
+
+function isTxtFile(file: File): boolean {
+  const name = file.name.toLowerCase()
+  return name.endsWith('.txt') || file.type === 'text/plain'
+}
+
+function naturalSortFiles(files: File[]): File[] {
+  return files.slice().sort((a, b) => fileNameCollator.compare(a.name, b.name))
+}
+
+function inferMergedTitle(files: File[]): string {
+  const firstPath = (files[0] as File & { webkitRelativePath?: string }).webkitRelativePath
+  const folder = firstPath?.split('/').filter(Boolean).at(-2)
+  if (folder) return folder
+  const names = files.map((f) => filenameToTitle(f.name))
+  let prefix = names[0] ?? ''
+  for (const name of names.slice(1)) {
+    let i = 0
+    while (i < prefix.length && i < name.length && prefix[i] === name[i]) i++
+    prefix = prefix.slice(0, i)
+  }
+  prefix = prefix.replace(/[\s._-]*(第?\s*[0-9０-９零一二三四五六七八九十百千万两〇].*)$/i, '').trim()
+  return prefix.length >= 2 ? prefix : '合并 TXT 书籍'
+}
 
 function loadStringArray(key: string): string[] {
   try {
@@ -65,13 +98,68 @@ export const useBooksStore = defineStore('books', () => {
     loaded.value = true
   }
 
+  async function importTxtFilesAsOneBook(files: File[], encoding?: TextEncoding, title?: string): Promise<BookMeta> {
+    const txtFiles = naturalSortFiles(files)
+    if (txtFiles.length < 2 || !txtFiles.every(isTxtFile)) throw new Error('请选择至少两个 TXT 文件合并为一本书')
+    const chapters: { title: string; text: string }[] = []
+    for (let i = 0; i < txtFiles.length; i++) {
+      const file = txtFiles[i]
+      importFileName.value = `${i + 1}/${txtFiles.length} ${file.name}`
+      const buffer = await readFileWithProgress(file, (r) => {
+        importProgress.value = (i + r) / txtFiles.length
+      })
+      chapters.push({ title: filenameToTitle(file.name) || `第${i + 1}章`, text: decodeText(buffer, encoding).trim() })
+    }
+    importProgress.value = 1
+    const id = genId()
+    const chapterChars = chapters.map((c) => c.text.length)
+    const meta: BookMeta = {
+      id,
+      title: title?.trim() || inferMergedTitle(txtFiles),
+      author: '佚名',
+      source: 'txt',
+      chapterCount: chapters.length,
+      chapterTitles: chapters.map((c) => c.title),
+      chapterChars,
+      totalChars: chapterChars.reduce((a, b) => a + b, 0),
+      group: '',
+      createdAt: Date.now(),
+      progress: { chapterIndex: 0, scrollRatio: 0, updatedAt: Date.now() },
+    }
+    await db.addBook(meta)
+    await db.saveChapters(
+      chapters.map((c, i) => ({
+        id: `${id}:${i}`,
+        bookId: id,
+        index: i,
+        title: c.title,
+        text: c.text,
+      }))
+    )
+    return meta
+  }
+
   /** 导入一个或多个文件；成功返回最后一本导入的书（单个失败不中断整批，只记录首个错误） */
-  async function importFiles(files: FileList | File[], encoding?: TextEncoding): Promise<BookMeta | null> {
+  async function importFiles(files: FileList | File[], encoding?: TextEncoding, options: ImportFilesOptions = {}): Promise<BookMeta | null> {
     importing.value = true
     importError.value = ''
     let last: BookMeta | null = null
     let firstError = ''
-    for (const file of Array.from(files)) {
+    const inputFiles = Array.from(files)
+    if (options.mergeTxtChapters) {
+      try {
+        last = await importTxtFilesAsOneBook(inputFiles, encoding, options.mergedTitle)
+      } catch (error) {
+        firstError = error instanceof Error ? error.message : String(error)
+      }
+      await refresh()
+      if (firstError) importError.value = firstError
+      importing.value = false
+      importFileName.value = ''
+      importProgress.value = 0
+      return last
+    }
+    for (const file of inputFiles) {
       importFileName.value = file.name
       importProgress.value = 0
       try {

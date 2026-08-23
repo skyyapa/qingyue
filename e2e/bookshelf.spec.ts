@@ -32,6 +32,26 @@ test.describe('书架与阅读', () => {
     await expect(page.locator('.progress-text')).toContainText('第 2/5 章')
   })
 
+  test('多 TXT 章节文件 → 选择合并为一本书', async ({ page }) => {
+    await page.goto('/')
+    await page.getByRole('button', { name: '＋ 导入书籍' }).click()
+    await page.locator('input[type="file"]').setInputFiles([
+      { name: '第10章 终局.txt', mimeType: 'text/plain', buffer: Buffer.from('十章正文。') },
+      { name: '第2章 发展.txt', mimeType: 'text/plain', buffer: Buffer.from('二章正文。') },
+      { name: '第1章 开始.txt', mimeType: 'text/plain', buffer: Buffer.from('一章正文。') },
+    ])
+    await expect(page.getByText('检测到 3 个 TXT 文件')).toBeVisible()
+    await page.getByLabel('合并后的书名').fill('我的章节书')
+    await page.getByRole('button', { name: '合并为一本书' }).click()
+    await page.waitForURL(/#\/reader\//)
+    await expect(page.locator('.title-book')).toHaveText('我的章节书')
+    await expect(page.locator('.title-chapter')).toHaveText('第1章 开始')
+    await expect(page.locator('.para').first()).toContainText('一章正文')
+    await page.getByRole('button', { name: '下一章', exact: true }).click()
+    await expect(page.locator('.title-chapter')).toHaveText('第2章 发展')
+    await expect(page.locator('.pos-chapter')).toHaveText('2 / 3 章')
+  })
+
   test('阅读界面：切换主题皮肤与拟真书页', async ({ page }) => {
     await page.goto('/')
     await page.getByRole('button', { name: '＋ 导入书籍' }).click()
